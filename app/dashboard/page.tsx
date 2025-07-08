@@ -249,7 +249,8 @@ export default function Dashboard() {
               </div>
               <div className="hidden sm:block text-sm text-gray-600">
                 <div className="bg-gray-100 px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm">
-                  时间: {currentTime.toISOString().slice(0, 19).replace("T", " ")}
+                  时间: {currentTime.toISOString().slice(0, 11).replace("T", " ")} {currentTime.toTimeString().slice(0, 9)}
+                  {/*时间: {currentTime.toISOString().slice(0, 19).replace("T", " ")}*/}
                 </div>
               </div>
             </div>
