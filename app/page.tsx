@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -19,6 +19,9 @@ import {
   ArrowLeft,
   CheckCircle,
   Loader2,
+  AlertCircle,
+  Video,
+  VideoOff,
 } from "lucide-react"
 
 type LoginMode = "password" | "code" | "face"
@@ -32,6 +35,11 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [faceRecognitionActive, setFaceRecognitionActive] = useState(false)
   const [countdown, setCountdown] = useState(0)
+  const [cameraError, setCameraError] = useState<string | null>(null)
+  const [stream, setStream] = useState<MediaStream | null>(null)
+
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
 
   // 表单数据
   const [loginData, setLoginData] = useState({
@@ -48,112 +56,192 @@ export default function LoginPage() {
     phone: "",
   })
 
-  // 调用登录接口 POST /api/login
-  const handleLogin = async () => {
-  setIsLoading(true)
-  try {
-    const params = new URLSearchParams();
-    params.append("uname", loginData.account);
-    params.append("password", loginData.password);
-
-    const response = await fetch("http://localhost:8080/user/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: params.toString(),
-    });
-
-    const result = await response.json()
-
-    if (result.msg == "登录成功！") {
-      setTimeout(() => {
-        setIsLoading(false)
-        window.location.href = "/dashboard"
-      }, 2000)
-    }
-    else {
-      alert(result.msg);
-      setIsLoading(false)
-    }
-  } catch (error) {
-    console.error("Login failed:", error)
-    setIsLoading(false)
-  }
-}
-
-const handleRegister = async () => {
-  if (registerStep === "info") {
-    setIsLoading(true)
+  // 启动摄像头
+  const startCamera = async () => {
     try {
-      // 使用URLSearchParams构建表单数据
-      const params = new URLSearchParams();
-      params.append("uname", registerData.username);
-      params.append("password", registerData.password);
-      params.append("email", registerData.email);
-      params.append("phone", registerData.phone);
-      // 其他User类需要的字段可以继续追加
-
-      const response = await fetch("http://localhost:8080/user/register", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",  // 设置正确的Content-Type
+      setCameraError(null)
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: "user",
         },
-        body: params.toString(),  // 使用toString()方法
       })
 
-      const result = await response.json()
-
-      if (result.msg="注册成功！") {
-        setTimeout(() => {
-          setIsLoading(false)
-          setRegisterStep("face")
-        }, 1000)
-      } else {
-        alert(result.msg || "注册失败");  // 显示后端返回的错误信息
-        setIsLoading(false)
+      setStream(mediaStream)
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream
+        videoRef.current.play()
       }
+      return true
     } catch (error) {
-      console.error("Registration failed:", error)
-      alert("注册请求发送失败，请检查网络连接");
-      setIsLoading(false)
+      console.error("Camera access failed:", error)
+      setCameraError("无法访问摄像头，请检查权限设置")
+      return false
     }
-  } else if (registerStep === "face") {
-    setIsLoading(true)
-    setTimeout(() => {
-      setIsLoading(false)
-      setRegisterStep("success")
-    }, 3000)
   }
-}
 
-  // 调用人脸识别接口 POST /api/face/verify 或 POST /api/face/register
-  const startFaceRecognition = async () => {
-    setFaceRecognitionActive(true)
+  // 停止摄像头
+  const stopCamera = () => {
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop())
+      setStream(null)
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
+  }
+
+  // 捕获人脸图像
+  const captureFrame = () => {
+    if (videoRef.current && canvasRef.current) {
+      const canvas = canvasRef.current
+      const video = videoRef.current
+      const ctx = canvas.getContext("2d")
+
+      if (ctx) {
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+        ctx.drawImage(video, 0, 0)
+
+        return canvas.toDataURL("image/jpeg", 0.8)
+      }
+    }
+    return null
+  }
+
+  // 调用人脸识别API
+  const performFaceRecognition = async (imageData: string) => {
     try {
-      const endpoint = isLogin ? "/api/face/verify" : "/api/face/register"
-      const response = await fetch(endpoint, {
+      const response = await fetch("/api/face/recognize", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          userId: loginData.account || registerData.username,
-          action: isLogin ? "verify" : "register",
+          image: imageData,
         }),
       })
 
-      setTimeout(() => {
-        if (isLogin) {
-          handleLogin()
-        } else {
-          handleRegister()
-        }
-      }, 3000)
+      const result = await response.json()
+      return result
     } catch (error) {
       console.error("Face recognition failed:", error)
-      setFaceRecognitionActive(false)
+      throw error
     }
+  }
+
+  // 调用登录接口 POST /api/login
+  const handleLogin = async () => {
+    setIsLoading(true)
+    try {
+      const response = await fetch("http://localhost:8080/user/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: JSON.stringify({
+          username: loginData.account,
+          password: loginData.password,
+          loginType: loginMode,
+        }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        localStorage.setItem("authToken", data.token)
+        localStorage.setItem("user", JSON.stringify(data.user))
+
+        setTimeout(() => {
+          setIsLoading(false)
+          window.location.href = "/dashboard"
+        }, 2000)
+      } else {
+        throw new Error("Login failed")
+      }
+    } catch (error) {
+      console.error("Login failed:", error)
+      setIsLoading(false)
+    }
+  }
+
+  // 调用注册接口 POST /api/register
+  const handleRegister = async () => {
+    if (registerStep === "info") {
+      setIsLoading(true)
+      try {
+         // 使用URLSearchParams构建表单数据
+        const params = new URLSearchParams();
+        params.append("uname", registerData.username);
+        params.append("password", registerData.password);
+        params.append("email", registerData.email);
+        params.append("phone", registerData.phone);
+        // 其他User类需要的字段可以继续追加
+
+        const response = await fetch("http://localhost:8080/user/register", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: params.toString(),
+        })
+
+        const result = await response.json()
+
+        if (response.ok) {
+          setTimeout(() => {
+            setIsLoading(false)
+            setRegisterStep("face")
+          }, 1000)
+        }
+      } catch (error) {
+        console.error("Registration failed:", error)
+        setIsLoading(false)
+      }
+    } else if (registerStep === "face") {
+      setIsLoading(true)
+      setTimeout(() => {
+        setIsLoading(false)
+        setRegisterStep("success")
+      }, 3000)
+    }
+  }
+
+  // 人脸识别流程
+  const startFaceRecognition = async () => {
+    const cameraStarted = await startCamera()
+    if (!cameraStarted) return
+
+    setFaceRecognitionActive(true)
+
+    // 等待3秒让用户准备
+    setTimeout(async () => {
+      try {
+        const imageData = captureFrame()
+        if (imageData) {
+          const result = await performFaceRecognition(imageData)
+
+          if (result.success) {
+            if (isLogin) {
+              // 人脸识别登录成功
+              localStorage.setItem("authToken", result.token)
+              localStorage.setItem("user", JSON.stringify(result.user))
+              window.location.href = "/dashboard"
+            } else {
+              // 人脸注册成功
+              handleRegister()
+            }
+          } else {
+            setCameraError(result.message || "人脸识别失败")
+          }
+        }
+      } catch (error) {
+        setCameraError("人脸识别过程中出现错误")
+      } finally {
+        setFaceRecognitionActive(false)
+        stopCamera()
+      }
+    }, 3000)
   }
 
   // 调用发送验证码接口 POST /api/auth/send-code
@@ -191,11 +279,20 @@ const handleRegister = async () => {
     setIsLogin(true)
     setRegisterStep("info")
     setFaceRecognitionActive(false)
+    stopCamera()
+    setCameraError(null)
   }
+
+  // 清理摄像头资源
+  useEffect(() => {
+    return () => {
+      stopCamera()
+    }
+  }, [])
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-2 sm:p-4 relative overflow-hidden">
-      {/* 背景装饰 - 移动端优化 */}
+      {/* 背景装饰 */}
       <div className="absolute inset-0 opacity-20">
         <div
           className="w-full h-full"
@@ -205,7 +302,6 @@ const handleRegister = async () => {
         ></div>
       </div>
 
-      {/* 装饰元素 - 移动端隐藏 */}
       <div className="absolute top-4 sm:top-10 left-4 sm:left-10 text-white/20 hidden sm:block">
         <div className="w-16 sm:w-32 h-16 sm:h-32 rounded-full border border-white/10 flex items-center justify-center">
           <Shield className="w-8 sm:w-16 h-8 sm:h-16" />
@@ -390,21 +486,42 @@ const handleRegister = async () => {
 
               <TabsContent value="face" className="space-y-4 sm:space-y-6">
                 <div className="text-center space-y-4 sm:space-y-6">
-                  <div className="mx-auto w-32 sm:w-40 h-32 sm:h-40 border-2 border-dashed border-gray-300 rounded-xl sm:rounded-2xl flex items-center justify-center bg-gradient-to-br from-blue-50 to-purple-50 relative overflow-hidden">
-                    {faceRecognitionActive ? (
-                      <div className="text-center">
-                        <div className="relative">
-                          <div className="animate-pulse">
-                            <Camera className="w-8 sm:w-12 h-8 sm:h-12 mx-auto mb-2 sm:mb-3 text-blue-600" />
+                  <div className="mx-auto w-64 h-48 border-2 border-dashed border-gray-300 rounded-xl bg-gradient-to-br from-blue-50 to-purple-50 relative overflow-hidden">
+                    {stream ? (
+                      <div className="relative w-full h-full">
+                        <video
+                          ref={videoRef}
+                          className="w-full h-full object-cover rounded-lg"
+                          autoPlay
+                          muted
+                          playsInline
+                        />
+                        {faceRecognitionActive && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                            <div className="text-center text-white">
+                              <Loader2 className="w-8 h-8 mx-auto mb-2 animate-spin" />
+                              <p className="text-sm font-medium">正在识别...</p>
+                            </div>
                           </div>
-                          <div className="absolute inset-0 border-2 border-blue-500 rounded-full animate-ping"></div>
+                        )}
+                        <div className="absolute top-2 right-2 flex space-x-1">
+                          <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                          <span className="text-xs text-white bg-black/50 px-1 rounded">LIVE</span>
                         </div>
-                        <p className="text-xs sm:text-sm text-blue-600 font-medium">正在识别中...</p>
                       </div>
                     ) : (
-                      <div className="text-center">
-                        <Camera className="w-8 sm:w-12 h-8 sm:h-12 mx-auto mb-2 sm:mb-3 text-gray-400" />
-                        <p className="text-xs sm:text-sm text-gray-600">点击开始人脸识别</p>
+                      <div className="flex items-center justify-center h-full">
+                        {cameraError ? (
+                          <div className="text-center text-red-600">
+                            <AlertCircle className="w-8 h-8 mx-auto mb-2" />
+                            <p className="text-sm">{cameraError}</p>
+                          </div>
+                        ) : (
+                          <div className="text-center">
+                            <Camera className="w-8 sm:w-12 h-8 sm:h-12 mx-auto mb-2 sm:mb-3 text-gray-400" />
+                            <p className="text-xs sm:text-sm text-gray-600">点击开始人脸识别</p>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -419,20 +536,38 @@ const handleRegister = async () => {
                           <Loader2 className="animate-spin h-4 w-4 mr-2" />
                           人脸识别中...
                         </div>
-                      ) : (
+                      ) : stream ? (
                         <>
                           <Scan className="w-4 h-4 mr-2" />
-                          开始人脸识别
+                          开始识别
+                        </>
+                      ) : (
+                        <>
+                          <Video className="w-4 h-4 mr-2" />
+                          启动摄像头
                         </>
                       )}
                     </Button>
-                    <div className="absolute -bottom-5 right-0 text-xs text-gray-400">调用 /api/face/verify</div>
+                    <div className="absolute -bottom-5 right-0 text-xs text-gray-400">调用 /api/face/recognize</div>
                   </div>
+                  {stream && (
+                    <Button
+                      variant="outline"
+                      className="w-full bg-transparent"
+                      onClick={() => {
+                        stopCamera()
+                        setCameraError(null)
+                      }}
+                    >
+                      <VideoOff className="w-4 h-4 mr-2" />
+                      关闭摄像头
+                    </Button>
+                  )}
                 </div>
               </TabsContent>
             </Tabs>
           ) : (
-            // 注册界面 - 移动端优化
+            // 注册界面保持原有逻辑
             <div className="space-y-4 sm:space-y-6">
               {registerStep === "info" && (
                 <>
@@ -558,21 +693,38 @@ const handleRegister = async () => {
                     <p className="text-sm text-gray-600">请正对摄像头，保持面部清晰可见</p>
                   </div>
                   <div className="text-center space-y-4 sm:space-y-6">
-                    <div className="mx-auto w-40 sm:w-48 h-40 sm:h-48 border-2 border-dashed border-gray-300 rounded-xl sm:rounded-2xl flex items-center justify-center bg-gradient-to-br from-green-50 to-blue-50 relative overflow-hidden">
-                      {faceRecognitionActive ? (
-                        <div className="text-center">
-                          <div className="relative">
-                            <div className="animate-pulse">
-                              <Camera className="w-12 sm:w-16 h-12 sm:h-16 mx-auto mb-3 sm:mb-4 text-green-600" />
+                    <div className="mx-auto w-64 h-48 border-2 border-dashed border-gray-300 rounded-xl bg-gradient-to-br from-green-50 to-blue-50 relative overflow-hidden">
+                      {stream ? (
+                        <div className="relative w-full h-full">
+                          <video
+                            ref={videoRef}
+                            className="w-full h-full object-cover rounded-lg"
+                            autoPlay
+                            muted
+                            playsInline
+                          />
+                          {faceRecognitionActive && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                              <div className="text-center text-white">
+                                <Loader2 className="w-8 h-8 mx-auto mb-2 animate-spin" />
+                                <p className="text-sm font-medium">正在录入...</p>
+                              </div>
                             </div>
-                            <div className="absolute inset-0 border-2 border-green-500 rounded-full animate-ping"></div>
-                          </div>
-                          <p className="text-sm text-green-600 font-medium">正在录入人脸...</p>
+                          )}
                         </div>
                       ) : (
-                        <div className="text-center">
-                          <Camera className="w-12 sm:w-16 h-12 sm:h-16 mx-auto mb-3 sm:mb-4 text-gray-400" />
-                          <p className="text-sm text-gray-600">点击开始录入人脸</p>
+                        <div className="flex items-center justify-center h-full">
+                          {cameraError ? (
+                            <div className="text-center text-red-600">
+                              <AlertCircle className="w-8 h-8 mx-auto mb-2" />
+                              <p className="text-sm">{cameraError}</p>
+                            </div>
+                          ) : (
+                            <div className="text-center">
+                              <Camera className="w-12 sm:w-16 h-12 sm:h-16 mx-auto mb-3 sm:mb-4 text-gray-400" />
+                              <p className="text-sm text-gray-600">点击开始录入人脸</p>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -587,15 +739,33 @@ const handleRegister = async () => {
                             <Loader2 className="animate-spin h-4 w-4 mr-2" />
                             录入中...
                           </div>
-                        ) : (
+                        ) : stream ? (
                           <>
                             <Scan className="w-4 h-4 mr-2" />
                             开始录入人脸
+                          </>
+                        ) : (
+                          <>
+                            <Video className="w-4 h-4 mr-2" />
+                            启动摄像头
                           </>
                         )}
                       </Button>
                       <div className="absolute -bottom-5 right-0 text-xs text-gray-400">调用 /api/face/register</div>
                     </div>
+                    {stream && (
+                      <Button
+                        variant="outline"
+                        className="w-full bg-transparent"
+                        onClick={() => {
+                          stopCamera()
+                          setCameraError(null)
+                        }}
+                      >
+                        <VideoOff className="w-4 h-4 mr-2" />
+                        关闭摄像头
+                      </Button>
+                    )}
                   </div>
                   <Button
                     variant="outline"
@@ -636,7 +806,7 @@ const handleRegister = async () => {
             </div>
           )}
 
-          {/* 切换登录/注册 - 移动端优化 */}
+          {/* 切换登录/注册 */}
           {registerStep === "info" && (
             <div className="mt-4 sm:mt-6 text-center">
               <p className="text-sm text-gray-600">
@@ -653,6 +823,9 @@ const handleRegister = async () => {
           )}
         </CardContent>
       </Card>
+
+      {/* 隐藏的canvas用于捕获图像 */}
+      <canvas ref={canvasRef} className="hidden" />
     </div>
   )
 }

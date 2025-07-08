@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { MapPin, Camera, Car, AlertTriangle, ZoomIn, ZoomOut, Maximize2, Navigation, X, Loader2 } from "lucide-react"
+import { ZoomIn, ZoomOut, Maximize2, Navigation, X, Loader2 } from "lucide-react"
 
 interface MapPoint {
   id: string
@@ -27,9 +27,17 @@ interface MapComponentProps {
   mapType?: "normal" | "satellite"
 }
 
+// 声明高德地图全局变量
+declare global {
+  interface Window {
+    AMap: any
+    AMapLoader: any
+  }
+}
+
 export default function MapComponent({
   points,
-  center = { lat: 39.9042, lng: 116.4074 },
+  center = { lat: 36.6758, lng: 117.0009 }, // 济南市中心
   zoom = 12,
   height = "400px",
   onPointClick,
@@ -40,12 +48,143 @@ export default function MapComponent({
   const [mapCenter, setMapCenter] = useState(center)
   const [selectedPoint, setSelectedPoint] = useState<MapPoint | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [mapInstance, setMapInstance] = useState<any>(null)
+  const mapRef = useRef<HTMLDivElement>(null)
+  const markersRef = useRef<any[]>([])
+
+  // 加载高德地图
+  useEffect(() => {
+    const loadAMap = async () => {
+      try {
+        // 动态加载高德地图API
+        if (!window.AMap) {
+          const script = document.createElement("script")
+          script.src = `https://webapi.amap.com/maps?v=2.0&key=4c0958011b7f86aca896a60d37f1d7c5&plugin=AMap.Scale,AMap.ToolBar,AMap.ControlBar,AMap.HeatMap`
+          script.async = true
+          document.head.appendChild(script)
+
+          await new Promise((resolve, reject) => {
+            script.onload = resolve
+            script.onerror = reject
+          })
+        }
+
+        // 初始化地图
+        if (mapRef.current && window.AMap) {
+          const map = new window.AMap.Map(mapRef.current, {
+            zoom: currentZoom,
+            center: [mapCenter.lng, mapCenter.lat],
+            mapStyle: mapType === "satellite" ? "amap://styles/satellite" : "amap://styles/normal",
+            features: ["bg", "road", "building", "point"],
+            viewMode: "2D",
+          })
+
+          // 添加控件
+          map.addControl(new window.AMap.Scale())
+          map.addControl(
+            new window.AMap.ToolBar({
+              position: {
+                top: "10px",
+                right: "10px",
+              },
+            }),
+          )
+
+          // 监听地图事件
+          map.on("zoomchange", () => {
+            setCurrentZoom(map.getZoom())
+          })
+
+          map.on("moveend", () => {
+            const center = map.getCenter()
+            setMapCenter({ lat: center.lat, lng: center.lng })
+          })
+
+          setMapInstance(map)
+          setIsLoading(false)
+        }
+      } catch (error) {
+        console.error("Failed to load AMap:", error)
+        setIsLoading(false)
+      }
+    }
+
+    loadAMap()
+
+    // 清理函数
+    return () => {
+      if (mapInstance) {
+        mapInstance.destroy()
+      }
+    }
+  }, [])
+
+  // 更新地图点位
+  useEffect(() => {
+    if (!mapInstance || !points.length) return
+
+    // 清除现有标记
+    markersRef.current.forEach((marker) => {
+      mapInstance.remove(marker)
+    })
+    markersRef.current = []
+
+    // 添加新标记
+    points.forEach((point) => {
+      const iconUrl = getMarkerIcon(point.type, point.severity)
+
+      const marker = new window.AMap.Marker({
+        position: [point.lng, point.lat],
+        icon: new window.AMap.Icon({
+          image: iconUrl,
+          size: new window.AMap.Size(32, 32),
+          imageSize: new window.AMap.Size(32, 32),
+        }),
+        title: point.title,
+        extData: point,
+      })
+
+      // 添加点击事件
+      marker.on("click", () => {
+        setSelectedPoint(point)
+        onPointClick?.(point)
+      })
+
+      mapInstance.add(marker)
+      markersRef.current.push(marker)
+    })
+
+    // 添加热力图
+    if (showHeatmap && points.length > 0) {
+      const heatmapData = points.map((point) => ({
+        lng: point.lng,
+        lat: point.lat,
+        count: point.type === "traffic" ? 50 : point.severity === "高" ? 80 : 30,
+      }))
+
+      const heatmap = new window.AMap.HeatMap(mapInstance, {
+        radius: 25,
+        opacity: [0, 0.8],
+        gradient: {
+          0.4: "blue",
+          0.6: "cyan",
+          0.7: "lime",
+          0.8: "yellow",
+          1.0: "red",
+        },
+      })
+
+      heatmap.setDataSet({
+        data: heatmapData,
+        max: 100,
+      })
+    }
+  }, [mapInstance, points, showHeatmap])
 
   // 调用地图数据接口 GET /api/map/data
   useEffect(() => {
     const fetchMapData = async () => {
-      setIsLoading(true)
       try {
         const response = await fetch(`/api/map/data?start=${Date.now() - 86400000}&end=${Date.now()}`)
         if (response.ok) {
@@ -54,60 +193,63 @@ export default function MapComponent({
         }
       } catch (error) {
         console.error("Failed to load map data:", error)
-      } finally {
-        setIsLoading(false)
       }
     }
 
     fetchMapData()
   }, [])
 
-  const getPointIcon = (type: string) => {
-    switch (type) {
-      case "hazard":
-        return <AlertTriangle className="w-3 sm:w-4 h-3 sm:h-4 text-white" />
-      case "traffic":
-        return <Car className="w-3 sm:w-4 h-3 sm:h-4 text-white" />
-      case "camera":
-        return <Camera className="w-3 sm:w-4 h-3 sm:h-4 text-white" />
-      default:
-        return <MapPin className="w-3 sm:w-4 h-3 sm:h-4 text-white" />
-    }
-  }
+  const getMarkerIcon = (type: string, severity?: string) => {
+    // 返回自定义图标的data URL或使用默认图标
+    const canvas = document.createElement("canvas")
+    canvas.width = 32
+    canvas.height = 32
+    const ctx = canvas.getContext("2d")
 
-  const getPointColor = (point: MapPoint) => {
-    if (point.type === "hazard") {
-      switch (point.severity) {
-        case "高":
-          return "from-red-500 to-pink-500"
-        case "中":
-          return "from-orange-500 to-yellow-500"
-        case "低":
-          return "from-blue-500 to-cyan-500"
-        default:
-          return "from-gray-500 to-gray-600"
+    if (ctx) {
+      // 绘制圆形背景
+      ctx.beginPath()
+      ctx.arc(16, 16, 14, 0, 2 * Math.PI)
+
+      // 根据类型和严重程度设置颜色
+      if (type === "hazard") {
+        ctx.fillStyle = severity === "高" ? "#ef4444" : severity === "中" ? "#f97316" : "#3b82f6"
+      } else if (type === "traffic") {
+        ctx.fillStyle = "#3b82f6"
+      } else if (type === "camera") {
+        ctx.fillStyle = "#10b981"
+      } else {
+        ctx.fillStyle = "#6b7280"
       }
-    }
-    if (point.type === "traffic") {
-      return "from-blue-500 to-cyan-500"
-    }
-    if (point.type === "camera") {
-      return "from-green-500 to-emerald-500"
-    }
-    return "from-gray-500 to-gray-600"
-  }
 
-  const handlePointClick = (point: MapPoint) => {
-    setSelectedPoint(point)
-    onPointClick?.(point)
+      ctx.fill()
+      ctx.strokeStyle = "#ffffff"
+      ctx.lineWidth = 2
+      ctx.stroke()
+
+      // 绘制图标
+      ctx.fillStyle = "#ffffff"
+      ctx.font = "16px Arial"
+      ctx.textAlign = "center"
+      ctx.textBaseline = "middle"
+
+      const iconText = type === "hazard" ? "⚠" : type === "traffic" ? "🚗" : "📷"
+      ctx.fillText(iconText, 16, 16)
+    }
+
+    return canvas.toDataURL()
   }
 
   const zoomIn = () => {
-    setCurrentZoom(Math.min(currentZoom + 1, 18))
+    if (mapInstance) {
+      mapInstance.zoomIn()
+    }
   }
 
   const zoomOut = () => {
-    setCurrentZoom(Math.max(currentZoom - 1, 3))
+    if (mapInstance) {
+      mapInstance.zoomOut()
+    }
   }
 
   const toggleFullscreen = () => {
@@ -125,69 +267,14 @@ export default function MapComponent({
           <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-30">
             <div className="text-center">
               <Loader2 className="w-8 h-8 mx-auto mb-2 animate-spin text-blue-600" />
-              <p className="text-sm text-gray-600">加载地图数据中...</p>
-              <p className="text-xs text-gray-400 mt-1">调用 /api/map/data</p>
+              <p className="text-sm text-gray-600">加载高德地图中...</p>
+              <p className="text-xs text-gray-400 mt-1">API Key: 4c0958011b7f86aca896a60d37f1d7c5</p>
             </div>
           </div>
         )}
 
-        {/* 地图背景 */}
-        <div className="absolute inset-0">
-          <div className="w-full h-full bg-gradient-to-br from-slate-50 to-blue-50 relative">
-            {/* 模拟街道网格 */}
-            <svg className="absolute inset-0 w-full h-full opacity-30">
-              <defs>
-                <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
-                  <path d="M 50 0 L 0 0 0 50" fill="none" stroke="#cbd5e1" strokeWidth="1" />
-                </pattern>
-              </defs>
-              <rect width="100%" height="100%" fill="url(#grid)" />
-            </svg>
-
-            {/* 主要道路 */}
-            <div className="absolute inset-0">
-              <div className="absolute top-1/4 left-0 right-0 h-2 sm:h-3 bg-gradient-to-r from-gray-300 to-gray-400 opacity-80 rounded-full shadow-sm"></div>
-              <div className="absolute top-1/2 left-0 right-0 h-3 sm:h-4 bg-gradient-to-r from-gray-400 to-gray-500 opacity-90 rounded-full shadow-md"></div>
-              <div className="absolute top-3/4 left-0 right-0 h-2 sm:h-3 bg-gradient-to-r from-gray-300 to-gray-400 opacity-80 rounded-full shadow-sm"></div>
-              <div className="absolute left-1/4 top-0 bottom-0 w-2 sm:w-3 bg-gradient-to-b from-gray-300 to-gray-400 opacity-80 rounded-full shadow-sm"></div>
-              <div className="absolute left-1/2 top-0 bottom-0 w-3 sm:w-4 bg-gradient-to-b from-gray-400 to-gray-500 opacity-90 rounded-full shadow-md"></div>
-              <div className="absolute left-3/4 top-0 bottom-0 w-2 sm:w-3 bg-gradient-to-b from-gray-300 to-gray-400 opacity-80 rounded-full shadow-sm"></div>
-            </div>
-          </div>
-        </div>
-
-        {/* 热力图层 */}
-        {showHeatmap && (
-          <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute top-1/3 left-1/3 w-16 sm:w-24 h-16 sm:h-24 bg-red-400 opacity-40 rounded-full blur-xl animate-pulse"></div>
-            <div className="absolute top-1/2 left-1/2 w-12 sm:w-20 h-12 sm:h-20 bg-orange-400 opacity-35 rounded-full blur-xl animate-pulse delay-1000"></div>
-            <div className="absolute top-2/3 left-2/3 w-10 sm:w-16 h-10 sm:h-16 bg-yellow-400 opacity-30 rounded-full blur-xl animate-pulse delay-2000"></div>
-          </div>
-        )}
-
-        {/* 地图点位 */}
-        {points.map((point) => {
-          const x = (point.lng - mapCenter.lng) * 1000 + 50 + "%"
-          const y = (mapCenter.lat - point.lat) * 1000 + 50 + "%"
-
-          return (
-            <div
-              key={point.id}
-              className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer z-10"
-              style={{ left: x, top: y }}
-              onClick={() => handlePointClick(point)}
-            >
-              <div
-                className={`w-8 sm:w-10 h-8 sm:h-10 bg-gradient-to-r ${getPointColor(point)} rounded-full flex items-center justify-center shadow-lg hover:scale-125 transition-all duration-300 border-2 border-white`}
-              >
-                {getPointIcon(point.type)}
-              </div>
-              <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-1">
-                <div className="w-1 sm:w-2 h-1 sm:h-2 bg-white rounded-full shadow-sm"></div>
-              </div>
-            </div>
-          )
-        })}
+        {/* 高德地图容器 */}
+        <div ref={mapRef} className="w-full h-full" />
 
         {/* 选中点位详情弹窗 - 移动端优化 */}
         {selectedPoint && (
@@ -272,7 +359,7 @@ export default function MapComponent({
 
         {/* 缩放级别显示 - 移动端优化 */}
         <div className="absolute bottom-2 sm:bottom-4 right-2 sm:right-4 bg-white/90 backdrop-blur-sm px-2 sm:px-3 py-1 sm:py-2 rounded-lg text-xs text-gray-600 shadow-lg border-0">
-          缩放级别: {currentZoom}
+          缩放级别: {Math.round(currentZoom)}
         </div>
 
         {/* 图例 - 移动端优化 */}
@@ -293,6 +380,9 @@ export default function MapComponent({
             </div>
           </div>
         </div>
+
+        {/* 高德地图版权信息 */}
+        <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 text-xs text-gray-400">© 高德地图</div>
       </div>
     </div>
   )

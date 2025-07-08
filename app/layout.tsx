@@ -6,7 +6,6 @@ export const metadata: Metadata = {
   description: '学期实训第九小组作品',
   generator: '第九组',
 }
-
 export default function RootLayout({
   children,
 }: Readonly<{
