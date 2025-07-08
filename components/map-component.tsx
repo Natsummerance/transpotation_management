@@ -3,7 +3,7 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { MapPin, Camera, Car, AlertTriangle, ZoomIn, ZoomOut, Maximize2, Navigation } from "lucide-react"
+import { MapPin, Camera, Car, AlertTriangle, ZoomIn, ZoomOut, Maximize2, Navigation, X } from "lucide-react"
 
 interface MapPoint {
   id: string
@@ -44,13 +44,13 @@ export default function MapComponent({
   const getPointIcon = (type: string) => {
     switch (type) {
       case "hazard":
-        return <AlertTriangle className="w-4 h-4 text-red-600" />
+        return <AlertTriangle className="w-4 h-4 text-white" />
       case "traffic":
-        return <Car className="w-4 h-4 text-blue-600" />
+        return <Car className="w-4 h-4 text-white" />
       case "camera":
-        return <Camera className="w-4 h-4 text-green-600" />
+        return <Camera className="w-4 h-4 text-white" />
       default:
-        return <MapPin className="w-4 h-4 text-gray-600" />
+        return <MapPin className="w-4 h-4 text-white" />
     }
   }
 
@@ -58,22 +58,22 @@ export default function MapComponent({
     if (point.type === "hazard") {
       switch (point.severity) {
         case "高":
-          return "bg-red-500"
+          return "from-red-500 to-pink-500"
         case "中":
-          return "bg-orange-500"
+          return "from-orange-500 to-yellow-500"
         case "低":
-          return "bg-yellow-500"
+          return "from-blue-500 to-cyan-500"
         default:
-          return "bg-gray-500"
+          return "from-gray-500 to-gray-600"
       }
     }
     if (point.type === "traffic") {
-      return "bg-blue-500"
+      return "from-blue-500 to-cyan-500"
     }
     if (point.type === "camera") {
-      return "bg-green-500"
+      return "from-green-500 to-emerald-500"
     }
-    return "bg-gray-500"
+    return "from-gray-500 to-gray-600"
   }
 
   const handlePointClick = (point: MapPoint) => {
@@ -96,17 +96,17 @@ export default function MapComponent({
   return (
     <div className={`relative ${isFullscreen ? "fixed inset-0 z-50 bg-white" : ""}`}>
       <div
-        className="relative bg-gradient-to-br from-green-100 to-blue-100 rounded-lg overflow-hidden border"
+        className="relative bg-gradient-to-br from-slate-100 to-blue-100 rounded-xl overflow-hidden border-0 shadow-inner"
         style={{ height: isFullscreen ? "100vh" : height }}
       >
         {/* 地图背景 */}
         <div className="absolute inset-0">
-          <div className="w-full h-full bg-gradient-to-br from-green-50 to-blue-50 relative">
+          <div className="w-full h-full bg-gradient-to-br from-slate-50 to-blue-50 relative">
             {/* 模拟街道网格 */}
-            <svg className="absolute inset-0 w-full h-full opacity-20">
+            <svg className="absolute inset-0 w-full h-full opacity-30">
               <defs>
-                <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                  <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#94a3b8" strokeWidth="1" />
+                <pattern id="grid" width="50" height="50" patternUnits="userSpaceOnUse">
+                  <path d="M 50 0 L 0 0 0 50" fill="none" stroke="#cbd5e1" strokeWidth="1" />
                 </pattern>
               </defs>
               <rect width="100%" height="100%" fill="url(#grid)" />
@@ -114,12 +114,12 @@ export default function MapComponent({
 
             {/* 主要道路 */}
             <div className="absolute inset-0">
-              <div className="absolute top-1/4 left-0 right-0 h-2 bg-gray-300 opacity-60"></div>
-              <div className="absolute top-1/2 left-0 right-0 h-3 bg-gray-400 opacity-70"></div>
-              <div className="absolute top-3/4 left-0 right-0 h-2 bg-gray-300 opacity-60"></div>
-              <div className="absolute left-1/4 top-0 bottom-0 w-2 bg-gray-300 opacity-60"></div>
-              <div className="absolute left-1/2 top-0 bottom-0 w-3 bg-gray-400 opacity-70"></div>
-              <div className="absolute left-3/4 top-0 bottom-0 w-2 bg-gray-300 opacity-60"></div>
+              <div className="absolute top-1/4 left-0 right-0 h-3 bg-gradient-to-r from-gray-300 to-gray-400 opacity-80 rounded-full shadow-sm"></div>
+              <div className="absolute top-1/2 left-0 right-0 h-4 bg-gradient-to-r from-gray-400 to-gray-500 opacity-90 rounded-full shadow-md"></div>
+              <div className="absolute top-3/4 left-0 right-0 h-3 bg-gradient-to-r from-gray-300 to-gray-400 opacity-80 rounded-full shadow-sm"></div>
+              <div className="absolute left-1/4 top-0 bottom-0 w-3 bg-gradient-to-b from-gray-300 to-gray-400 opacity-80 rounded-full shadow-sm"></div>
+              <div className="absolute left-1/2 top-0 bottom-0 w-4 bg-gradient-to-b from-gray-400 to-gray-500 opacity-90 rounded-full shadow-md"></div>
+              <div className="absolute left-3/4 top-0 bottom-0 w-3 bg-gradient-to-b from-gray-300 to-gray-400 opacity-80 rounded-full shadow-sm"></div>
             </div>
           </div>
         </div>
@@ -127,9 +127,9 @@ export default function MapComponent({
         {/* 热力图层 */}
         {showHeatmap && (
           <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute top-1/3 left-1/3 w-20 h-20 bg-red-400 opacity-30 rounded-full blur-lg"></div>
-            <div className="absolute top-1/2 left-1/2 w-16 h-16 bg-orange-400 opacity-25 rounded-full blur-lg"></div>
-            <div className="absolute top-2/3 left-2/3 w-12 h-12 bg-yellow-400 opacity-20 rounded-full blur-lg"></div>
+            <div className="absolute top-1/3 left-1/3 w-24 h-24 bg-red-400 opacity-40 rounded-full blur-xl animate-pulse"></div>
+            <div className="absolute top-1/2 left-1/2 w-20 h-20 bg-orange-400 opacity-35 rounded-full blur-xl animate-pulse delay-1000"></div>
+            <div className="absolute top-2/3 left-2/3 w-16 h-16 bg-yellow-400 opacity-30 rounded-full blur-xl animate-pulse delay-2000"></div>
           </div>
         )}
 
@@ -146,77 +146,114 @@ export default function MapComponent({
               onClick={() => handlePointClick(point)}
             >
               <div
-                className={`w-8 h-8 ${getPointColor(point)} rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform`}
+                className={`w-10 h-10 bg-gradient-to-r ${getPointColor(point)} rounded-full flex items-center justify-center shadow-lg hover:scale-125 transition-all duration-300 border-2 border-white`}
               >
                 {getPointIcon(point.type)}
               </div>
-              {selectedPoint?.id === point.id && (
-                <div className="absolute top-10 left-1/2 transform -translate-x-1/2 w-64 bg-white rounded-lg shadow-xl border p-3 z-20">
-                  <div className="flex items-center justify-between mb-2">
-                    <h4 className="font-medium">{point.title}</h4>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setSelectedPoint(null)
-                      }}
-                      className="text-gray-400 hover:text-gray-600"
-                    >
-                      ×
-                    </button>
-                  </div>
-                  <p className="text-sm text-gray-600 mb-2">{point.description}</p>
-                  {point.status && (
-                    <Badge variant="outline" className="text-xs">
-                      {point.status}
-                    </Badge>
-                  )}
-                  {point.severity && (
-                    <Badge variant="destructive" className="text-xs ml-1">
-                      {point.severity}危险
-                    </Badge>
-                  )}
-                </div>
-              )}
+              <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-1">
+                <div className="w-2 h-2 bg-white rounded-full shadow-sm"></div>
+              </div>
             </div>
           )
         })}
 
+        {/* 选中点位详情弹窗 */}
+        {selectedPoint && (
+          <div
+            className="absolute inset-0 bg-black/20 flex items-center justify-center z-30"
+            onClick={() => setSelectedPoint(null)}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-2xl border-0 p-6 m-4 max-w-md w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-bold text-lg text-gray-900">{selectedPoint.title}</h4>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedPoint(null)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              <p className="text-gray-600 mb-4">{selectedPoint.description}</p>
+              <div className="flex items-center space-x-2 mb-4">
+                {selectedPoint.status && (
+                  <Badge variant="outline" className="text-xs">
+                    {selectedPoint.status}
+                  </Badge>
+                )}
+                {selectedPoint.severity && (
+                  <Badge variant="destructive" className="text-xs">
+                    {selectedPoint.severity}危险
+                  </Badge>
+                )}
+              </div>
+              <div className="flex space-x-2">
+                <Button size="sm" variant="outline" className="flex-1 bg-transparent">
+                  查看详情
+                </Button>
+                <Button size="sm" className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+                  立即处理
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* 地图控制按钮 */}
         <div className="absolute top-4 right-4 flex flex-col space-y-2">
-          <Button size="sm" variant="outline" onClick={toggleFullscreen}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={toggleFullscreen}
+            className="bg-white/90 backdrop-blur-sm border-0 shadow-lg"
+          >
             <Maximize2 className="w-4 h-4" />
           </Button>
-          <Button size="sm" variant="outline" onClick={zoomIn}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={zoomIn}
+            className="bg-white/90 backdrop-blur-sm border-0 shadow-lg"
+          >
             <ZoomIn className="w-4 h-4" />
           </Button>
-          <Button size="sm" variant="outline" onClick={zoomOut}>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={zoomOut}
+            className="bg-white/90 backdrop-blur-sm border-0 shadow-lg"
+          >
             <ZoomOut className="w-4 h-4" />
           </Button>
-          <Button size="sm" variant="outline">
+          <Button size="sm" variant="outline" className="bg-white/90 backdrop-blur-sm border-0 shadow-lg">
             <Navigation className="w-4 h-4" />
           </Button>
         </div>
 
         {/* 缩放级别显示 */}
-        <div className="absolute bottom-4 right-4 bg-white px-2 py-1 rounded text-xs text-gray-600">
-          缩放: {currentZoom}
+        <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-2 rounded-lg text-xs text-gray-600 shadow-lg border-0">
+          缩放级别: {currentZoom}
         </div>
 
         {/* 图例 */}
-        <div className="absolute bottom-4 left-4 bg-white rounded-lg p-3 shadow-lg">
-          <h5 className="text-xs font-medium mb-2">图例</h5>
-          <div className="space-y-1">
-            <div className="flex items-center space-x-2 text-xs">
-              <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-              <span>道路危害</span>
+        <div className="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm rounded-xl p-4 shadow-lg border-0">
+          <h5 className="text-sm font-semibold mb-3 text-gray-900">图例</h5>
+          <div className="space-y-2">
+            <div className="flex items-center space-x-3 text-sm">
+              <div className="w-4 h-4 bg-gradient-to-r from-red-500 to-pink-500 rounded-full shadow-sm"></div>
+              <span className="text-gray-700">道路危害</span>
             </div>
-            <div className="flex items-center space-x-2 text-xs">
-              <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-              <span>车流监控</span>
+            <div className="flex items-center space-x-3 text-sm">
+              <div className="w-4 h-4 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-full shadow-sm"></div>
+              <span className="text-gray-700">车流监控</span>
             </div>
-            <div className="flex items-center space-x-2 text-xs">
-              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-              <span>违章摄像</span>
+            <div className="flex items-center space-x-3 text-sm">
+              <div className="w-4 h-4 bg-gradient-to-r from-green-500 to-emerald-500 rounded-full shadow-sm"></div>
+              <span className="text-gray-700">违章摄像</span>
             </div>
           </div>
         </div>

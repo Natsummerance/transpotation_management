@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Camera, User, Clock, MapPin, Search, Eye } from "lucide-react"
+import { Camera, User, Clock, MapPin, Search, Eye, BarChart3 } from "lucide-react"
 import MapComponent from "@/components/map-component"
 
 export default function ViolationModule() {
@@ -89,16 +89,28 @@ export default function ViolationModule() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold mb-2">违章识别系统</h2>
-        <p className="text-gray-600">基于AI和人脸识别的智能违章检测</p>
+    <div className="space-y-8">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold text-gray-900">违章识别系统</h2>
+          <p className="text-gray-600 mt-1">基于AI和人脸识别的智能违章检测</p>
+        </div>
+        <div className="flex space-x-3">
+          <Button variant="outline" className="border-blue-200 text-blue-600 hover:bg-blue-50 bg-transparent">
+            <Eye className="w-4 h-4 mr-2" />
+            实时监控
+          </Button>
+          <Button className="bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg">
+            <BarChart3 className="w-4 h-4 mr-2" />
+            违章报告
+          </Button>
+        </div>
       </div>
 
       {/* 搜索和筛选 */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex space-x-4">
+      <Card className="border-0 shadow-lg">
+        <CardContent className="p-6">
+          <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -106,12 +118,12 @@ export default function ViolationModule() {
                   placeholder="搜索车牌号或位置..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 h-12 border-gray-200 focus:border-blue-500"
                 />
               </div>
             </div>
             <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-full md:w-48 h-12">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -122,7 +134,7 @@ export default function ViolationModule() {
                 <SelectItem value="不按道行驶">不按道行驶</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline">
+            <Button variant="outline" className="h-12 px-6 border-gray-200 hover:bg-gray-50 bg-transparent">
               <Camera className="w-4 h-4 mr-2" />
               实时监控
             </Button>
@@ -131,55 +143,63 @@ export default function ViolationModule() {
       </Card>
 
       {/* 统计面板 */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <Card className="border-0 shadow-lg bg-gradient-to-br from-red-50 to-pink-50">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">今日违章</p>
-                <p className="text-2xl font-bold">89</p>
+                <p className="text-sm font-medium text-gray-600">今日违章</p>
+                <p className="text-3xl font-bold text-red-600">89</p>
               </div>
-              <Camera className="w-8 h-8 text-red-600" />
+              <div className="w-12 h-12 bg-gradient-to-r from-red-500 to-pink-500 rounded-xl flex items-center justify-center">
+                <Camera className="w-6 h-6 text-white" />
+              </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-4">
+        <Card className="border-0 shadow-lg bg-gradient-to-br from-orange-50 to-yellow-50">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">待审核</p>
-                <p className="text-2xl font-bold">23</p>
+                <p className="text-sm font-medium text-gray-600">待审核</p>
+                <p className="text-3xl font-bold text-orange-600">23</p>
               </div>
-              <Clock className="w-8 h-8 text-orange-600" />
+              <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-yellow-500 rounded-xl flex items-center justify-center">
+                <Clock className="w-6 h-6 text-white" />
+              </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-4">
+        <Card className="border-0 shadow-lg bg-gradient-to-br from-green-50 to-emerald-50">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">识别准确率</p>
-                <p className="text-2xl font-bold">94%</p>
+                <p className="text-sm font-medium text-gray-600">识别准确率</p>
+                <p className="text-3xl font-bold text-green-600">94%</p>
               </div>
-              <Eye className="w-8 h-8 text-green-600" />
+              <div className="w-12 h-12 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl flex items-center justify-center">
+                <Eye className="w-6 h-6 text-white" />
+              </div>
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-4">
+        <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-cyan-50">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">罚款总额</p>
-                <p className="text-2xl font-bold">¥12,450</p>
+                <p className="text-sm font-medium text-gray-600">罚款总额</p>
+                <p className="text-3xl font-bold text-blue-600">¥12,450</p>
               </div>
-              <User className="w-8 h-8 text-blue-600" />
+              <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center">
+                <User className="w-6 h-6 text-white" />
+              </div>
             </div>
           </CardContent>
         </Card>
       </div>
-      <Card>
+      <Card className="border-0 shadow-lg">
         <CardHeader>
-          <CardTitle>违章监控点分布</CardTitle>
+          <CardTitle className="text-xl font-bold">违章监控点分布</CardTitle>
           <CardDescription>显示违章检测摄像头位置和覆盖范围</CardDescription>
         </CardHeader>
         <CardContent>
@@ -257,17 +277,20 @@ export default function ViolationModule() {
       </Card>
 
       {/* 违章记录列表 */}
-      <Card>
+      <Card className="border-0 shadow-lg">
         <CardHeader>
-          <CardTitle>违章记录</CardTitle>
+          <CardTitle className="text-xl font-bold">违章记录</CardTitle>
           <CardDescription>AI识别的违章行为记录</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             {violations.map((violation) => (
-              <div key={violation.id} className="border rounded-lg p-4 hover:bg-gray-50">
+              <div
+                key={violation.id}
+                className="border border-gray-100 rounded-xl p-6 hover:shadow-md transition-all duration-300 bg-white"
+              >
                 <div className="flex items-start space-x-4">
-                  <div className="w-16 h-16 bg-gray-200 rounded-lg overflow-hidden">
+                  <div className="w-16 h-16 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl overflow-hidden shadow-sm">
                     <img
                       src={violation.driverFace || "/placeholder.svg"}
                       alt="驾驶员"
@@ -275,35 +298,47 @@ export default function ViolationModule() {
                     />
                   </div>
                   <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <Badge variant={getViolationColor(violation.type)}>{violation.type}</Badge>
-                      <Badge variant={getStatusColor(violation.status)}>{violation.status}</Badge>
-                      <span className="text-sm text-gray-500">识别度: {violation.confidence}%</span>
+                    <div className="flex items-center space-x-3 mb-3">
+                      <Badge variant={getViolationColor(violation.type)} className="font-medium">
+                        {violation.type}
+                      </Badge>
+                      <Badge variant={getStatusColor(violation.status)} className="font-medium">
+                        {violation.status}
+                      </Badge>
+                      <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
+                        识别度: {violation.confidence}%
+                      </span>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
-                      <div className="flex items-center">
-                        <User className="w-3 h-3 mr-1 text-gray-400" />
-                        车牌: {violation.plateNumber}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm mb-3">
+                      <div className="flex items-center bg-blue-50 rounded-lg p-2">
+                        <User className="w-3 h-3 mr-2 text-blue-600" />
+                        <span className="text-gray-700">车牌: {violation.plateNumber}</span>
                       </div>
-                      <div className="flex items-center">
-                        <MapPin className="w-3 h-3 mr-1 text-gray-400" />
-                        {violation.location}
+                      <div className="flex items-center bg-green-50 rounded-lg p-2">
+                        <MapPin className="w-3 h-3 mr-2 text-green-600" />
+                        <span className="text-gray-700">{violation.location}</span>
                       </div>
-                      <div className="flex items-center">
-                        <Clock className="w-3 h-3 mr-1 text-gray-400" />
-                        {violation.time}
+                      <div className="flex items-center bg-orange-50 rounded-lg p-2">
+                        <Clock className="w-3 h-3 mr-2 text-orange-600" />
+                        <span className="text-gray-700">{violation.time}</span>
                       </div>
                     </div>
-                    <div className="mt-2 text-sm">
-                      <span className="text-gray-600">罚款金额: </span>
-                      <span className="font-semibold text-red-600">¥{violation.fine}</span>
+                    <div className="bg-red-50 rounded-lg p-2 inline-block">
+                      <span className="text-sm text-gray-600">罚款金额: </span>
+                      <span className="font-bold text-red-600">¥{violation.fine}</span>
                     </div>
                   </div>
                   <div className="flex flex-col space-y-2">
-                    <Button size="sm" variant="outline">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-blue-200 text-blue-600 hover:bg-blue-50 bg-transparent"
+                    >
                       查看详情
                     </Button>
-                    <Button size="sm">处理</Button>
+                    <Button size="sm" className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+                      立即处理
+                    </Button>
                   </div>
                 </div>
               </div>
