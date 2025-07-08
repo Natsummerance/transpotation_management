@@ -50,64 +50,82 @@ export default function LoginPage() {
 
   // 调用登录接口 POST /api/login
   const handleLogin = async () => {
-    setIsLoading(true)
-    try {
-      // 模拟API调用
-      const response = await fetch("/api/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          username: loginData.account,
-          password: loginData.password,
-          loginType: loginMode,
-        }),
-      })
+  setIsLoading(true)
+  try {
+    const params = new URLSearchParams();
+    params.append("uname", loginData.account);
+    params.append("password", loginData.password);
 
-      if (response.ok) {
-        setTimeout(() => {
-          setIsLoading(false)
-          window.location.href = "/dashboard"
-        }, 2000)
-      }
-    } catch (error) {
-      console.error("Login failed:", error)
-      setIsLoading(false)
-    }
-  }
+    const response = await fetch("http://localhost:8080/user/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: params.toString(),
+    });
 
-  // 调用注册接口 POST /api/register
-  const handleRegister = async () => {
-    if (registerStep === "info") {
-      setIsLoading(true)
-      try {
-        const response = await fetch("/api/register", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(registerData),
-        })
+    const result = await response.json()
 
-        if (response.ok) {
-          setTimeout(() => {
-            setIsLoading(false)
-            setRegisterStep("face")
-          }, 1000)
-        }
-      } catch (error) {
-        console.error("Registration failed:", error)
-        setIsLoading(false)
-      }
-    } else if (registerStep === "face") {
-      setIsLoading(true)
+    if (result.msg == "登录成功！") {
       setTimeout(() => {
         setIsLoading(false)
-        setRegisterStep("success")
-      }, 3000)
+        window.location.href = "/dashboard"
+      }, 2000)
     }
+    else {
+      alert(result.msg);
+      setIsLoading(false)
+    }
+  } catch (error) {
+    console.error("Login failed:", error)
+    setIsLoading(false)
   }
+}
+
+const handleRegister = async () => {
+  if (registerStep === "info") {
+    setIsLoading(true)
+    try {
+      // 使用URLSearchParams构建表单数据
+      const params = new URLSearchParams();
+      params.append("uname", registerData.username);
+      params.append("password", registerData.password);
+      params.append("email", registerData.email);
+      params.append("phone", registerData.phone);
+      // 其他User类需要的字段可以继续追加
+
+      const response = await fetch("http://localhost:8080/user/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",  // 设置正确的Content-Type
+        },
+        body: params.toString(),  // 使用toString()方法
+      })
+
+      const result = await response.json()
+
+      if (result.msg="注册成功！") {
+        setTimeout(() => {
+          setIsLoading(false)
+          setRegisterStep("face")
+        }, 1000)
+      } else {
+        alert(result.msg || "注册失败");  // 显示后端返回的错误信息
+        setIsLoading(false)
+      }
+    } catch (error) {
+      console.error("Registration failed:", error)
+      alert("注册请求发送失败，请检查网络连接");
+      setIsLoading(false)
+    }
+  } else if (registerStep === "face") {
+    setIsLoading(true)
+    setTimeout(() => {
+      setIsLoading(false)
+      setRegisterStep("success")
+    }, 3000)
+  }
+}
 
   // 调用人脸识别接口 POST /api/face/verify 或 POST /api/face/register
   const startFaceRecognition = async () => {
