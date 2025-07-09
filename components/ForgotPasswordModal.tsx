@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { CheckCircle } from "lucide-react";
 
-export default function ForgotPasswordModal({ open, onClose }) {
+export default function ForgotPasswordModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [step, setStep] = useState("email"); // "email" | "verify" | "reset" | "success"
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");

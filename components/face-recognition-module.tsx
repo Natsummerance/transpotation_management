@@ -383,7 +383,16 @@ export default function FaceRecognitionModule() {
                 关闭摄像头
               </Button>
             )}
-            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+            <input 
+              ref={fileInputRef} 
+              type="file" 
+              accept="image/*" 
+              onChange={handleFileUpload} 
+              className="hidden"
+              title="选择图片文件"
+              aria-label="选择图片文件上传"
+              placeholder="选择要上传的图片文件" 
+            />
           </CardContent>
         </Card>
 
@@ -400,6 +409,9 @@ export default function FaceRecognitionModule() {
                 选择多个文件
               </Button>
               <input
+                title="选择多个图片文件"
+                placeholder="选择要批量上传的图片文件"
+                aria-label="选择多个图片文件上传"
                 ref={batchFileInputRef}
                 type="file"
                 accept="image/*"
