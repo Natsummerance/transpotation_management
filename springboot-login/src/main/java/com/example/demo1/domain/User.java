@@ -18,26 +18,13 @@ public class User {
     // 密码属性varchar对应String
     private String password;
 
-    // 密码哈希字段
+    // 手机号属性varchar对应String
+    private String phone;
+
+    // 邮箱属性varchar对应String
+    private String email;
+
     private String passwordHash;
-
-    // 添加无参构造函数，Spring Boot反序列化需要
-    public User() {
-    }
-
-    // 添加带参构造函数
-    public User(String uname, String password) {
-        this.uname = uname;
-        this.password = password;
-        this.passwordHash = password; // 简单处理，实际应该加密
-    }
-
-    // 添加带参构造函数（包含passwordHash）
-    public User(String uname, String password, String passwordHash) {
-        this.uname = uname;
-        this.password = password;
-        this.passwordHash = passwordHash;
-    }
 
     public long getUid() {
         return uid;
@@ -63,11 +50,34 @@ public class User {
         this.password = password;
     }
 
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    /**
+     * @return String return the passwordHash
+     */
     public String getPasswordHash() {
         return passwordHash;
     }
 
+    /**
+     * @param passwordHash the passwordHash to set
+     */
     public void setPasswordHash(String passwordHash) {
         this.passwordHash = passwordHash;
     }
+
 }
