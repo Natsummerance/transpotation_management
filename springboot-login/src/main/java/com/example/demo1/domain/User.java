@@ -18,6 +18,27 @@ public class User {
     // 密码属性varchar对应String
     private String password;
 
+    // 密码哈希字段
+    private String passwordHash;
+
+    // 添加无参构造函数，Spring Boot反序列化需要
+    public User() {
+    }
+
+    // 添加带参构造函数
+    public User(String uname, String password) {
+        this.uname = uname;
+        this.password = password;
+        this.passwordHash = password; // 简单处理，实际应该加密
+    }
+
+    // 添加带参构造函数（包含passwordHash）
+    public User(String uname, String password, String passwordHash) {
+        this.uname = uname;
+        this.password = password;
+        this.passwordHash = passwordHash;
+    }
+
     public long getUid() {
         return uid;
     }
@@ -40,5 +61,13 @@ public class User {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public String getPasswordHash() {
+        return passwordHash;
+    }
+
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
     }
 }

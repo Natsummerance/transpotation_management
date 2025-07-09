@@ -40,6 +40,10 @@ public class UserServiceImpl implements UserService {
         if (userDao.findByUname(user.getUname()) != null) {
             return null;
         } else {
+            // 确保password_hash字段不为null
+            if (user.getPasswordHash() == null || user.getPasswordHash().isEmpty()) {
+                user.setPasswordHash(user.getPassword());
+            }
             User newUser = userDao.save(user);
             if (newUser != null) {
                 newUser.setPassword("");

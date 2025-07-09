@@ -52,7 +52,7 @@ public class Result<T> {
 
     public static <T> Result<T> success(String code, T data, String msg) {
         Result<T> result = new Result<>(data);
-        result.setCode("0");
+        result.setCode(code);
         result.setMsg(msg);
         return result;
     }

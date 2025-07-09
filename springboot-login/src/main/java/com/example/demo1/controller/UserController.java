@@ -30,11 +30,17 @@ public class UserController {
 
     @PostMapping("/register")
     public Result<User> registController(@RequestBody User newUser) {
-        User user = userService.registService(newUser);
-        if (user != null) {
-            return Result.success("1", user, "注册成功！");
-        } else {
-            return Result.error("456", "用户名已存在！");
+        try {
+            System.out.println("接收到注册请求: " + newUser.getUname());
+            User user = userService.registService(newUser);
+            if (user != null) {
+                return Result.success("1", user, "注册成功！");
+            } else {
+                return Result.error("456", "用户名已存在！");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Result.error("500", "注册失败: " + e.getMessage());
         }
     }
 

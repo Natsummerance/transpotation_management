@@ -1,0 +1,10 @@
+com\example\demo1\config\GlobalCorsConfig.class
+com\example\demo1\repository\UserDao.class
+com\example\demo1\config\GlobalCorsConfig$1.class
+com\example\demo1\controller\UserController.class
+com\example\demo1\service\UserService.class
+com\example\demo1\config\RestTemplateConfig.class
+com\example\demo1\utils\Result.class
+com\example\demo1\domain\User.class
+com\example\demo1\service\servicelmpl\UserServiceImpl.class
+com\example\demo1\Demo1Application.class
