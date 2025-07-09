@@ -113,89 +113,109 @@ export default function LoginPage() {
   // 调用人脸识别API
   const performFaceRecognition = async (imageData: string) => {
     try {
-      const response = await fetch("/api/face/recognize", {
+      // 移除base64前缀
+      const base64Data = imageData.replace(/^data:image\/[a-z]+;base64,/, "");
+      
+      const response = await fetch("http://localhost:3010/user/login/face", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          image: imageData,
+          image: base64Data,
         }),
       })
 
       const result = await response.json()
-      return result
+      return {
+        success: result.code === "1",
+        message: result.msg,
+        user: result.data
+      }
     } catch (error) {
       console.error("Face recognition failed:", error)
       throw error
     }
   }
 
-  // 调用登录接口 POST /api/login
+const [loginError, setLoginError] = useState<string | null>(null);
+
+  // 调用登录接口 POST /user/login
   const handleLogin = async () => {
-    setIsLoading(true)
+    if (!loginData.account || !loginData.password) {
+      setLoginError("请输入账号和密码");
+      return;
+    }
+    setIsLoading(true);
+    setLoginError(null);
     try {
-      const response = await fetch("http://localhost:8080/user/login", {
+      const params = new URLSearchParams();
+      params.append("uname", loginData.account);
+      params.append("password", loginData.password);
+      const response = await fetch(`http://localhost:3010/user/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
         },
-        body: JSON.stringify({
-          username: loginData.account,
-          password: loginData.password,
-          loginType: loginMode,
-        }),
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        localStorage.setItem("authToken", data.token)
-        localStorage.setItem("user", JSON.stringify(data.user))
-
-        setTimeout(() => {
-          setIsLoading(false)
-          window.location.href = "/dashboard"
-        }, 2000)
+        body: params.toString(),
+      });
+      const result = await response.json();
+      if (result.code === "1") {
+        localStorage.setItem("user", JSON.stringify(result.data));
+        window.location.href = "/dashboard";
       } else {
-        throw new Error("Login failed")
+        setLoginError(result.msg || "登录失败");
       }
     } catch (error) {
-      console.error("Login failed:", error)
-      setIsLoading(false)
+      setLoginError("登录请求失败");
+    } finally {
+      setIsLoading(false);
     }
-  }
-
-  // 调用注册接口 POST /api/register
+  };
+  // 调用注册接口 POST /user/register
   const handleRegister = async () => {
     if (registerStep === "info") {
+      // 验证密码确认
+      if (registerData.password !== registerData.confirmPassword) {
+        alert("两次输入的密码不一致")
+        return
+      }
+      
       setIsLoading(true)
       try {
-         // 使用URLSearchParams构建表单数据
-        const params = new URLSearchParams();
-        params.append("uname", registerData.username);
-        params.append("password", registerData.password);
-        params.append("email", registerData.email);
-        params.append("phone", registerData.phone);
-        // 其他User类需要的字段可以继续追加
+        // 构建User对象
+        const userObj = {
+          uname: registerData.username,
+          password: registerData.password,
+          email: registerData.email,
+          phone: registerData.phone
+        };
 
-        const response = await fetch("http://localhost:8080/user/register", {
+        const response = await fetch("http://localhost:3010/user/register", {
           method: "POST",
           headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
+            "Content-Type": "application/json",
           },
-          body: params.toString(),
+          body: JSON.stringify(userObj),
         })
 
         const result = await response.json()
 
-        if (response.ok) {
+        if (response.ok && result.code === "1") {
+          // 注册成功
+          alert(result.msg || "注册成功！")
           setTimeout(() => {
             setIsLoading(false)
             setRegisterStep("face")
           }, 1000)
+        } else {
+          // 注册失败
+          alert(result.msg || "注册失败")
+          setIsLoading(false)
         }
       } catch (error) {
         console.error("Registration failed:", error)
+        alert("网络错误，请稍后重试")
         setIsLoading(false)
       }
     } else if (registerStep === "face") {
@@ -222,18 +242,18 @@ export default function LoginPage() {
           const result = await performFaceRecognition(imageData)
 
           if (result.success) {
-            if (isLogin) {
-              // 人脸识别登录成功
-              localStorage.setItem("authToken", result.token)
-              localStorage.setItem("user", JSON.stringify(result.user))
-              window.location.href = "/dashboard"
-            } else {
-              // 人脸注册成功
-              handleRegister()
-            }
+          if (isLogin) {
+            // 人脸识别登录成功
+            localStorage.setItem("user", JSON.stringify(result.user))
+            alert(result.message || "人脸识别登录成功！")
+            window.location.href = "/dashboard"
           } else {
-            setCameraError(result.message || "人脸识别失败")
+            // 人脸注册成功
+            handleRegister()
           }
+        } else {
+          setCameraError(result.message || "人脸识别失败")
+        }
         }
       } catch (error) {
         setCameraError("人脸识别过程中出现错误")
@@ -244,32 +264,23 @@ export default function LoginPage() {
     }, 3000)
   }
 
-  // 调用发送验证码接口 POST /api/auth/send-code
+  // 发送验证码功能（暂未实现后端接口）
   const sendVerificationCode = async () => {
     try {
-      const response = await fetch("/api/auth/send-code", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contact: loginData.account,
-          type: loginData.account.includes("@") ? "email" : "phone",
-        }),
-      })
-
-      if (response.ok) {
-        setCountdown(60)
-        const timer = setInterval(() => {
-          setCountdown((prev) => {
-            if (prev <= 1) {
-              clearInterval(timer)
-              return 0
-            }
-            return prev - 1
-          })
-        }, 1000)
-      }
+      // 注意：后端暂未提供验证码接口，这里仅做前端演示
+      alert("验证码功能暂未开放，请使用密码登录或人脸识别")
+      
+      // 模拟发送成功，启动倒计时
+      setCountdown(60)
+      const timer = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer)
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
     } catch (error) {
       console.error("Send code failed:", error)
     }
@@ -417,7 +428,7 @@ export default function LoginPage() {
                       "登录系统"
                     )}
                   </Button>
-                  <div className="absolute -bottom-5 right-0 text-xs text-gray-400">调用 /api/login</div>
+                  <div className="absolute -bottom-5 right-0 text-xs text-gray-400">调用 /user/login</div>
                 </div>
               </TabsContent>
 
@@ -461,7 +472,7 @@ export default function LoginPage() {
                       >
                         {countdown > 0 ? `${countdown}s` : "发送"}
                       </Button>
-                      <div className="absolute -bottom-5 right-0 text-xs text-gray-400">/api/auth/send-code</div>
+                      <div className="absolute -bottom-5 right-0 text-xs text-gray-400">验证码功能暂未开放</div>
                     </div>
                   </div>
                 </div>
@@ -480,7 +491,7 @@ export default function LoginPage() {
                       "验证登录"
                     )}
                   </Button>
-                  <div className="absolute -bottom-5 right-0 text-xs text-gray-400">调用 /api/login</div>
+                  <div className="absolute -bottom-5 right-0 text-xs text-gray-400">调用 /user/login</div>
                 </div>
               </TabsContent>
 
@@ -548,7 +559,7 @@ export default function LoginPage() {
                         </>
                       )}
                     </Button>
-                    <div className="absolute -bottom-5 right-0 text-xs text-gray-400">调用 /api/face/recognize</div>
+                    <div className="absolute -bottom-5 right-0 text-xs text-gray-400">调用 /user/login/face</div>
                   </div>
                   {stream && (
                     <Button
@@ -681,7 +692,7 @@ export default function LoginPage() {
                         "下一步：录入人脸"
                       )}
                     </Button>
-                    <div className="absolute -bottom-5 right-0 text-xs text-gray-400">调用 /api/register</div>
+                    <div className="absolute -bottom-5 right-0 text-xs text-gray-400">调用 /user/register</div>
                   </div>
                 </>
               )}
@@ -751,7 +762,7 @@ export default function LoginPage() {
                           </>
                         )}
                       </Button>
-                      <div className="absolute -bottom-5 right-0 text-xs text-gray-400">调用 /api/face/register</div>
+                      <div className="absolute -bottom-5 right-0 text-xs text-gray-400">人脸录入功能（演示）</div>
                     </div>
                     {stream && (
                       <Button
@@ -766,6 +777,13 @@ export default function LoginPage() {
                         关闭摄像头
                       </Button>
                     )}
+                    <Button
+                      variant="ghost"
+                      className="w-full text-gray-500 hover:text-gray-700"
+                      onClick={() => setRegisterStep("success")}
+                    >
+                      跳过此步骤
+                    </Button>
                   </div>
                   <Button
                     variant="outline"
