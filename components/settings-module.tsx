@@ -29,6 +29,7 @@ import {
   X,
   Loader2,
 } from "lucide-react"
+import FaceRecognitionModule from "./face-recognition-module"
 
 export default function SettingsModule() {
   const [activeTab, setActiveTab] = useState("profile")
@@ -472,6 +473,9 @@ export default function SettingsModule() {
               </Button>
             </CardContent>
           </Card>
+
+          {/* 人脸录入模块 */}
+          <FaceRecognitionModule />
         </TabsContent>
 
         {/* 安全设置 */}

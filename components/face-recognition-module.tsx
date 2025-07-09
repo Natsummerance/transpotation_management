@@ -34,11 +34,20 @@ export default function FaceRecognitionModule() {
   const [capturedImage, setCapturedImage] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
+  const [videoReady, setVideoReady] = useState(false)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const batchFileInputRef = useRef<HTMLInputElement>(null)
+
+    // 新增：监听 stream，设置 video.srcObject
+  useEffect(() => {
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream
+      videoRef.current.play()
+    }
+  }, [stream])
 
   const recognitionLogs = [
     {
@@ -72,6 +81,7 @@ export default function FaceRecognitionModule() {
 
   // 启动摄像头
   const startCamera = async () => {
+    setVideoReady(false) // 新增，重置状态
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
@@ -103,27 +113,48 @@ export default function FaceRecognitionModule() {
     if (videoRef.current) {
       videoRef.current.srcObject = null
     }
+    setVideoReady(false)
   }
 
   // 捕获人脸图像
-  const captureFrame = () => {
-    if (videoRef.current && canvasRef.current) {
-      const canvas = canvasRef.current
-      const video = videoRef.current
-      const ctx = canvas.getContext("2d")
+  const captureFrame = () => {
+      if (videoRef.current && canvasRef.current) {
+        const canvas = canvasRef.current
+        const video = videoRef.current
+        const ctx = canvas.getContext("2d")
+  
+        console.log("videoWidth:", video.videoWidth, "videoHeight:", video.videoHeight)
+        if (ctx && video.videoWidth && video.videoHeight) {
+          canvas.width = video.videoWidth
+          canvas.height = video.videoHeight
+          ctx.drawImage(video, 0, 0)
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.8)
+          return dataUrl
+        }
+      }
+      return null
+    }
 
-      if (ctx) {
-        canvas.width = video.videoWidth
-        canvas.height = video.videoHeight
-        ctx.drawImage(video, 0, 0)
-        return canvas.toDataURL("image/jpeg", 0.8)
+  // 等待 videoReady 的 Promise 封装
+  const waitForVideoReady = (timeout = 5000) => {
+    return new Promise<boolean>((resolve) => {
+      const start = Date.now()
+      const check = () => {
+        if (videoRef.current && videoRef.current.videoWidth > 0 && videoRef.current.videoHeight > 0) {
+          resolve(true)
+        } else if (Date.now() - start > timeout) {
+          resolve(false)
+        } else {
+          setTimeout(check, 100)
+        }
       }
-    }
-    return null
+      check()
+    })
   }
 
   // 人脸录入流程
   const handleFaceCapture = async () => {
+    setVideoReady(false) // 每次都重置
     if (!stream) {
       const cameraStarted = await startCamera()
       if (!cameraStarted) return
@@ -132,50 +163,74 @@ export default function FaceRecognitionModule() {
     setIsRecording(true)
     setIsProcessing(true)
 
+    // 等待 videoReady
+    const ready = await waitForVideoReady(5000)
+    if (!ready) {
+      alert("摄像头画面未准备好，请重试")
+      setIsRecording(false)
+      setIsProcessing(false)
+      return
+    }
+
     // 等待3秒让用户准备
     setTimeout(async () => {
-      try {
-        const imageData = captureFrame()
-        if (imageData) {
-          setCapturedImage(imageData)
-
-          // 调用人脸注册API
-          const response = await fetch("/api/face/recognize", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              image: imageData,
-              action: "register",
-              userId: "current_user",
-            }),
-          })
-
-          const result = await response.json()
-
-          if (result.success) {
-            setIsEncrypting(true)
-            setTimeout(() => {
-              setIsEncrypting(false)
-              setIsRecording(false)
-              setIsProcessing(false)
-              alert("人脸录入成功！")
-            }, 2000)
-          } else {
-            throw new Error(result.message || "人脸录入失败")
-          }
-        }
-      } catch (error) {
-        console.error("Face capture failed:", error)
-        alert("人脸录入失败，请重试")
-      } finally {
-        setIsRecording(false)
-        setIsProcessing(false)
-      }
-    }, 3000)
-  }
-
+            try {
+              const imageData = captureFrame()
+              console.log("handleFaceCapture 捕获到 imageData:", imageData)
+              if (imageData) {
+                setCapturedImage(imageData)
+      
+                // 输出图片信息到终端
+                console.log("捕获图片 base64 长度:", imageData.length)
+                console.log("图片 base64 前100字符:", imageData.slice(0, 100))
+                const mimeMatch = imageData.match(/^data:(.*?);base64,/)
+                console.log("图片MIME类型:", mimeMatch ? mimeMatch[1] : "未知")
+      
+                // 输出POST内容
+                const postBody = {
+                  image: imageData,
+                  //action: "register",
+                  //userId: "current_user",
+                }
+                console.log("POST内容（image字段长度）:", postBody.image.length)
+                console.log("POST内容（image字段前100字符）:", postBody.image.slice(0, 100))
+      
+                // 调用人脸注册API
+                const response = await fetch("http://10.61.96.186:5000/recognize", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify(postBody),
+                })
+      
+                const result = await response.json()
+                alert(result.toString)
+                if (result.success) {
+                  setIsEncrypting(true)
+                  setTimeout(() => {
+                    setIsEncrypting(false)
+                    setIsRecording(false)
+                    setIsProcessing(false)
+                    alert("人脸录入成功！")
+                  }, 2000)
+                } else {
+                  throw new Error(result.message || "人脸录入失败")
+                }
+              } else {
+                console.log("handleFaceCapture 未捕获到有效图像")
+                alert("未能捕获到有效图像，请重试")
+              }
+            } catch (error) {
+              console.error("Face capture failed:", error)
+              alert("人脸录入失败，请重试...")
+            } finally {
+              setIsRecording(false)
+              setIsProcessing(false)
+            }
+          }, 3000)
+        }
+      
   // 处理文件上传
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
@@ -269,20 +324,9 @@ export default function FaceRecognitionModule() {
           <h2 className="text-3xl font-bold text-gray-900">人脸识别管理</h2>
           <p className="text-gray-600 mt-1">用户人脸录入、验证与访问控制管理</p>
         </div>
-        <div className="flex space-x-3">
-          <Button variant="outline" className="border-blue-200 text-blue-600 hover:bg-blue-50 bg-transparent">
-            <Eye className="w-4 h-4 mr-2" />
-            实时监控
-          </Button>
-          <Button className="bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg">
-            <Download className="w-4 h-4 mr-2" />
-            导出日志
-          </Button>
-        </div>
       </div>
-
-      {/* 人脸录入与验证区域 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      {/* 人脸录入区域 */}
+      <div className="grid grid-cols-1 gap-8">
         <Card className="border-0 shadow-lg">
           <CardHeader>
             <CardTitle className="text-xl font-bold">人脸录入</CardTitle>
@@ -299,6 +343,7 @@ export default function FaceRecognitionModule() {
                       autoPlay
                       muted
                       playsInline
+                      onLoadedMetadata={() => setVideoReady(true)}
                     />
                     {isRecording && (
                       <div className="absolute inset-0 flex items-center justify-center bg-black/20">
@@ -383,193 +428,10 @@ export default function FaceRecognitionModule() {
                 关闭摄像头
               </Button>
             )}
-            <input 
-              ref={fileInputRef} 
-              type="file" 
-              accept="image/*" 
-              onChange={handleFileUpload} 
-              className="hidden"
-              title="选择图片文件"
-              aria-label="选择图片文件上传"
-              placeholder="选择要上传的图片文件" 
-            />
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-xl font-bold">批量处理</CardTitle>
-            <CardDescription>批量上传和处理人脸图片</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center">
-              <Upload className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-              <p className="text-sm text-gray-600 mb-3">拖拽文件到此处或点击选择</p>
-              <Button variant="outline" onClick={() => batchFileInputRef.current?.click()} className="bg-transparent">
-                选择多个文件
-              </Button>
-              <input
-                title="选择多个图片文件"
-                placeholder="选择要批量上传的图片文件"
-                aria-label="选择多个图片文件上传"
-                ref={batchFileInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-            </div>
-
-            {uploadedFiles.length > 0 && (
-              <div className="space-y-3">
-                <h4 className="font-medium">已选择文件 ({uploadedFiles.length})</h4>
-                <div className="max-h-32 overflow-y-auto space-y-2">
-                  {uploadedFiles.map((file, index) => (
-                    <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                      <div className="flex items-center space-x-2">
-                        <User className="w-4 h-4 text-gray-500" />
-                        <span className="text-sm truncate">{file.name}</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs text-gray-500">{(file.size / 1024).toFixed(1)}KB</span>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setUploadedFiles((files) => files.filter((_, i) => i !== index))}
-                          className="h-6 w-6 p-0"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <Button
-                  onClick={handleBatchProcess}
-                  disabled={isProcessing}
-                  className="w-full bg-gradient-to-r from-green-600 to-blue-600 text-white"
-                >
-                  {isProcessing ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      处理中...
-                    </>
-                  ) : (
-                    <>
-                      <Check className="w-4 h-4 mr-2" />
-                      开始批量处理
-                    </>
-                  )}
-                </Button>
-              </div>
-            )}
-
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="bg-green-50 rounded-lg p-3">
-                <p className="text-sm text-gray-600">今日成功</p>
-                <p className="text-lg font-bold text-green-600">156</p>
-              </div>
-              <div className="bg-red-50 rounded-lg p-3">
-                <p className="text-sm text-gray-600">今日失败</p>
-                <p className="text-lg font-bold text-red-600">23</p>
-              </div>
-              <div className="bg-blue-50 rounded-lg p-3">
-                <p className="text-sm text-gray-600">识别率</p>
-                <p className="text-lg font-bold text-blue-600">87%</p>
-              </div>
-            </div>
+            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
           </CardContent>
         </Card>
       </div>
-
-      {/* 识别日志 */}
-      <Card className="border-0 shadow-lg">
-        <CardHeader>
-          <CardTitle className="text-xl font-bold">识别日志</CardTitle>
-          <CardDescription>人脸识别访问记录</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <div className="flex space-x-4">
-              <Input placeholder="搜索用户或IP..." className="max-w-xs" />
-              <Button variant="outline" className="bg-transparent">
-                <Clock className="w-4 h-4 mr-2" />
-                时间筛选
-              </Button>
-            </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>时间</TableHead>
-                  <TableHead>IP地址</TableHead>
-                  <TableHead>识别结果</TableHead>
-                  <TableHead>用户</TableHead>
-                  <TableHead>置信度</TableHead>
-                  <TableHead>位置</TableHead>
-                  <TableHead>操作</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {recognitionLogs.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell className="font-mono text-sm">{log.time}</TableCell>
-                    <TableCell>{log.ip}</TableCell>
-                    <TableCell>
-                      <Badge variant={log.result === "成功" ? "default" : "destructive"}>{log.result}</Badge>
-                    </TableCell>
-                    <TableCell>{log.user}</TableCell>
-                    <TableCell>{log.confidence}%</TableCell>
-                    <TableCell>
-                      <div className="flex items-center">
-                        <MapPin className="w-3 h-3 mr-1" />
-                        {log.location}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Button size="sm" variant="outline" className="bg-transparent">
-                        查看详情
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 未授权访问警告弹窗 */}
-      {showUnauthorizedAlert && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <Card className="w-full max-w-md">
-            <CardHeader className="text-center">
-              <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
-                <AlertTriangle className="w-8 h-8 text-red-600" />
-              </div>
-              <CardTitle className="text-red-600">未授权访问警告</CardTitle>
-              <CardDescription>检测到未授权人员尝试访问</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="bg-gray-100 rounded-lg p-4 text-center">
-                <img src="/placeholder.svg?height=120&width=120" alt="抓拍图像" className="mx-auto rounded-lg" />
-                <p className="text-sm text-gray-600 mt-2">抓拍时间: {new Date().toLocaleString()}</p>
-              </div>
-              <div className="flex space-x-3">
-                <Button
-                  variant="outline"
-                  className="flex-1 bg-transparent"
-                  onClick={() => setShowUnauthorizedAlert(false)}
-                >
-                  关闭
-                </Button>
-                <Button className="flex-1 bg-red-600 text-white">立即处理</Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
       {/* 隐藏的canvas用于捕获图像 */}
       <canvas ref={canvasRef} className="hidden" />
     </div>

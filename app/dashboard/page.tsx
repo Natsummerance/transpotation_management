@@ -160,7 +160,6 @@ export default function Dashboard() {
   // 导航项目
   const navigationItems = [
     { id: "overview", label: "系统概览", icon: Home, shortLabel: "概览" },
-    { id: "face-recognition", label: "人脸识别管理", icon: User, shortLabel: "人脸" },
     { id: "road-damage", label: "路面病害检测", icon: AlertTriangle, shortLabel: "病害" },
     { id: "traffic-monitor", label: "实时交通监控", icon: Camera, shortLabel: "监控" },
     { id: "violation", label: "交通违章识别", icon: Shield, shortLabel: "违章" },
