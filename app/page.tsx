@@ -23,6 +23,7 @@ import {
   Video,
   VideoOff,
 } from "lucide-react"
+import ForgotPasswordModal from "@/components/ForgotPasswordModal";
 
 type LoginMode = "password" | "code" | "face"
 type RegisterStep = "info" | "face" | "success"
@@ -40,6 +41,9 @@ export default function LoginPage() {
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  //找回密码
+  const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
 
   // 表单数据
   const [loginData, setLoginData] = useState({
@@ -226,6 +230,7 @@ const [loginError, setLoginError] = useState<string | null>(null);
       }, 3000)
     }
   }
+
 
   // 人脸识别流程
   const startFaceRecognition = async () => {
@@ -428,7 +433,17 @@ const [loginError, setLoginError] = useState<string | null>(null);
                       "登录系统"
                     )}
                   </Button>
-                  <div className="absolute -bottom-5 right-0 text-xs text-gray-400"></div>
+                  <Button
+                    variant="link"
+                    className="absolute -bottom-9 right-0 text-xs text-blue-600 hover:text-blue-700"
+                    onClick={() => setForgotPasswordOpen(true)}
+                  >
+                    忘记密码?
+                  </Button>
+                  <ForgotPasswordModal
+                    open={forgotPasswordOpen}
+                    onClose={() => setForgotPasswordOpen(false)}
+                  />
                 </div>
               </TabsContent>
 
