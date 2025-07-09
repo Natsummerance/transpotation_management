@@ -563,3 +563,35 @@ export default function FaceRecognitionModule() {
     </div>
   )
 }
+
+// 新增：调用后端 /train 接口进行人脸模型训练
+const trainFaceModel = async (userId: number, username: string, images: string[]) => {
+  const response = await fetch("http://localhost:5000/train", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId, username, images })
+  })
+  return await response.json()
+}
+
+// 新增：调用后端 /recognize 接口进行人脸识别
+const recognizeFace = async (image: string) => {
+  const response = await fetch("http://localhost:5000/recognize", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ image })
+  })
+  return await response.json()
+}
+
+// 新增：获取用户列表
+const fetchUsers = async () => {
+  const response = await fetch("http://localhost:5000/users")
+  return await response.json()
+}
+
+// 新增：删除用户
+const deleteUser = async (userId: number) => {
+  const response = await fetch(`http://localhost:5000/user/${userId}`, { method: "DELETE" })
+  return await response.json()
+}
