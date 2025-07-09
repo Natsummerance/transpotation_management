@@ -1,12 +1,57 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useCallback, useRef } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Upload, MapPin, Clock, FileText, Download, AlertTriangle, Camera, Eye, Loader2 } from "lucide-react"
+import { toast } from "sonner";
+
+interface DamageResults {
+  '纵向裂缝': number;
+  '横向裂缝': number;
+  '龟裂': number;
+  '坑洼': number;
+}
+
+interface DetectionResponse {
+  results: DamageResults;
+  originalImage?: string;
+  resultImage?: string;
+}
+
+const damageTypes = [
+  {
+    key: '纵向裂缝',
+    label: '纵向裂缝',
+    bgFrom: 'from-red-50',
+    bgTo: 'to-pink-50',
+    textColor: 'text-red-600',
+  },
+  {
+    key: '横向裂缝',
+    label: '横向裂缝',
+    bgFrom: 'from-orange-50',
+    bgTo: 'to-yellow-50',
+    textColor: 'text-orange-600',
+  },
+  {
+    key: '龟裂',
+    label: '龟裂',
+    bgFrom: 'from-blue-50',
+    bgTo: 'to-cyan-50',
+    textColor: 'text-blue-600',
+  },
+  {
+    key: '坑洼',
+    label: '坑洼',
+    bgFrom: 'from-green-50',
+    bgTo: 'to-emerald-50',
+    textColor: 'text-green-600',
+  },
+];
 
 export default function RoadDamageModule() {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
@@ -46,29 +91,70 @@ export default function RoadDamageModule() {
     },
   ]
 
-  // 调用路面病害检测接口 POST /api/detect/road-damage
-  const handleFileUpload = async () => {
-    setIsAnalyzing(true)
-    try {
-      const formData = new FormData()
-      // 模拟文件上传
-      const response = await fetch("/api/detect/road-damage", {
-        method: "POST",
-        body: formData,
-      })
+  const [dragOver, setDragOver] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const [resultImage, setResultImage] = useState<string | null>(null)
+  const [file, setFile] = useState<File | null>(null);
+  const [results, setResults] = useState<DamageResults | null>(null);
 
-      if (response.ok) {
-        const result = await response.json()
-        setTimeout(() => {
-          setIsAnalyzing(false)
-          setUploadedFile("road_inspection_video.mp4")
-        }, 3000)
-      }
-    } catch (error) {
-      console.error("Upload failed:", error)
-      setIsAnalyzing(false)
-    }
+
+const handleDrop = useCallback((event: React.DragEvent) => {
+  event.preventDefault();
+  setDragOver(false);
+  const droppedFile = event.dataTransfer.files?.[0];
+  if (droppedFile) {
+    setFile(droppedFile);
+    handleUploadAndAnalyze(droppedFile);
   }
+}, []);
+
+  // 调用路面病害检测接口 POST /api/detect/road-damage
+const handleUploadAndAnalyze = async (file: File) => {
+  if (!file) {
+    toast.error("请先选择一个文件");
+    return;
+  }
+
+  setIsAnalyzing(true);       // 替代旧的 setIsLoading()
+  setResults(null);
+  setResultImage(null);
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const response = await fetch('/api/detect/road-damage', {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || '分析失败');
+    }
+
+    const data: DetectionResponse = await response.json();
+    setResults(data.results);
+    if (data.resultImage) {
+      setResultImage(data.resultImage);
+    }
+    toast.success("分析成功！");
+    setUploadedFile(file.name);
+  } catch (error: any) {
+    console.error("分析错误:", error);
+    toast.error(error.message || "分析过程中发生错误");
+  } finally {
+    setIsAnalyzing(false);
+  }
+};
+
+const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const selectedFile = e.target.files?.[0];
+  if (selectedFile) {
+    setFile(selectedFile);                // 保存文件
+    handleUploadAndAnalyze(selectedFile); // 上传后直接开始分析
+  }
+};
 
   // 调用导出报告接口 POST /api/report/export
   const handleExportReport = async () => {
@@ -147,7 +233,17 @@ export default function RoadDamageModule() {
             <CardDescription>上传巡查视频或图片进行AI分析</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 sm:space-y-6">
-            <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 sm:p-8 text-center">
+            <div
+              className={`border-2 border-dashed rounded-xl p-6 sm:p-8 text-center transition-colors duration-200 ${
+                dragOver ? "border-blue-500 bg-blue-50" : "border-gray-300"
+              }`}
+              onDragOver={(e) => {
+                e.preventDefault()
+                setDragOver(true)
+              }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+            >
               {isAnalyzing ? (
                 <div className="space-y-4">
                   <Loader2 className="animate-spin mx-auto w-8 sm:w-12 h-8 sm:h-12 text-blue-600" />
@@ -171,7 +267,7 @@ export default function RoadDamageModule() {
             <div className="relative">
               <Button
                 className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white h-10 sm:h-12 text-sm sm:text-base"
-                onClick={handleFileUpload}
+                onClick={() => fileInputRef.current?.click()}
                 disabled={isAnalyzing}
               >
                 {isAnalyzing ? (
@@ -186,6 +282,16 @@ export default function RoadDamageModule() {
                   </>
                 )}
               </Button>
+              <input
+                  aria-label="上传路面病害检测文件"
+                  title="选择要上传的路面病害检测文件"
+                  placeholder="选择文件进行上传"
+                  type="file"
+                  ref={fileInputRef}
+                  accept=".mp4,.avi,.jpg,.jpeg,.png"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
               <div className="absolute -bottom-5 right-0 text-xs text-gray-400">调用 /api/detect/road-damage</div>
             </div>
           </CardContent>
@@ -198,6 +304,18 @@ export default function RoadDamageModule() {
           </CardHeader>
           <CardContent className="space-y-4">
             {uploadedFile && !isAnalyzing ? (
+              <>
+                <div className="space-y-2">
+                  {resultImage ? (
+                    <div className="aspect-video bg-muted rounded-md overflow-hidden">
+                      <img src={resultImage} alt="Detection Result" className="w-full h-full object-cover" />
+                    </div>
+                  ) : (
+                    <div className="aspect-video bg-muted rounded-md flex items-center justify-center">
+                      <p className="text-sm text-muted-foreground">检测结果图片将在此处显示</p>
+                    </div>
+                  )}
+                </div>
               <div className="space-y-4">
                 <div className="bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4">
                   <div className="flex items-center space-x-3 mb-3">
@@ -248,6 +366,7 @@ export default function RoadDamageModule() {
                   </Button>
                 </div>
               </div>
+            </>
             ) : (
               <div className="text-center py-6 sm:py-8 text-gray-500">
                 <Camera className="w-8 sm:w-12 h-8 sm:h-12 mx-auto mb-3 text-gray-300" />
@@ -260,50 +379,27 @@ export default function RoadDamageModule() {
 
       {/* 统计概览 - 移动端优化 */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-red-50 to-pink-50">
-          <CardContent className="p-3 sm:p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between">
-              <div className="mb-2 sm:mb-0">
-                <p className="text-xs sm:text-sm font-medium text-gray-600">严重病害</p>
-                <p className="text-xl sm:text-3xl font-bold text-red-600">12</p>
-              </div>
-              <AlertTriangle className="w-6 sm:w-8 h-6 sm:h-8 text-red-600 self-end sm:self-auto" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-orange-50 to-yellow-50">
-          <CardContent className="p-3 sm:p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between">
-              <div className="mb-2 sm:mb-0">
-                <p className="text-xs sm:text-sm font-medium text-gray-600">中等病害</p>
-                <p className="text-xl sm:text-3xl font-bold text-orange-600">28</p>
-              </div>
-              <AlertTriangle className="w-6 sm:w-8 h-6 sm:h-8 text-orange-600 self-end sm:self-auto" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-cyan-50">
-          <CardContent className="p-3 sm:p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between">
-              <div className="mb-2 sm:mb-0">
-                <p className="text-xs sm:text-sm font-medium text-gray-600">轻微病害</p>
-                <p className="text-xl sm:text-3xl font-bold text-blue-600">45</p>
-              </div>
-              <AlertTriangle className="w-6 sm:w-8 h-6 sm:h-8 text-blue-600 self-end sm:self-auto" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-green-50 to-emerald-50">
-          <CardContent className="p-3 sm:p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between">
-              <div className="mb-2 sm:mb-0">
-                <p className="text-xs sm:text-sm font-medium text-gray-600">已处理</p>
-                <p className="text-xl sm:text-3xl font-bold text-green-600">67</p>
-              </div>
-              <AlertTriangle className="w-6 sm:w-8 h-6 sm:h-8 text-green-600 self-end sm:self-auto" />
-            </div>
-          </CardContent>
-        </Card>
+        {results &&
+          damageTypes.map(({ key, label, bgFrom, bgTo, textColor }) => (
+            <Card
+              key={key}
+              className={`border-0 shadow-lg bg-gradient-to-br ${bgFrom} ${bgTo}`}
+            >
+              <CardContent className="p-3 sm:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between">
+                  <div className="mb-2 sm:mb-0">
+                    <p className="text-xs sm:text-sm font-medium text-gray-600">{label}</p>
+                    <p className={`text-xl sm:text-3xl font-bold ${textColor}`}>
+                      {results[key as keyof DamageResults]}
+                    </p>
+                  </div>
+                  <AlertTriangle
+                    className={`w-6 sm:w-8 h-6 sm:h-8 ${textColor} self-end sm:self-auto`}
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
       </div>
 
       {/* 检测历史 - 移动端优化 */}
