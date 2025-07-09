@@ -383,7 +383,16 @@ export default function FaceRecognitionModule() {
                 关闭摄像头
               </Button>
             )}
-            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+            <input 
+              ref={fileInputRef} 
+              type="file" 
+              accept="image/*" 
+              onChange={handleFileUpload} 
+              className="hidden"
+              title="选择图片文件"
+              aria-label="选择图片文件上传"
+              placeholder="选择要上传的图片文件" 
+            />
           </CardContent>
         </Card>
 
@@ -400,6 +409,9 @@ export default function FaceRecognitionModule() {
                 选择多个文件
               </Button>
               <input
+                title="选择多个图片文件"
+                placeholder="选择要批量上传的图片文件"
+                aria-label="选择多个图片文件上传"
                 ref={batchFileInputRef}
                 type="file"
                 accept="image/*"
@@ -562,4 +574,36 @@ export default function FaceRecognitionModule() {
       <canvas ref={canvasRef} className="hidden" />
     </div>
   )
+}
+
+// 新增：调用后端 /train 接口进行人脸模型训练
+const trainFaceModel = async (userId: number, username: string, images: string[]) => {
+  const response = await fetch("http://localhost:5000/train", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId, username, images })
+  })
+  return await response.json()
+}
+
+// 新增：调用后端 /recognize 接口进行人脸识别
+const recognizeFace = async (image: string) => {
+  const response = await fetch("http://localhost:5000/recognize", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ image })
+  })
+  return await response.json()
+}
+
+// 新增：获取用户列表
+const fetchUsers = async () => {
+  const response = await fetch("http://localhost:5000/users")
+  return await response.json()
+}
+
+// 新增：删除用户
+const deleteUser = async (userId: number) => {
+  const response = await fetch(`http://localhost:5000/user/${userId}`, { method: "DELETE" })
+  return await response.json()
 }
