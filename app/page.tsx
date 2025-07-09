@@ -428,7 +428,7 @@ const [loginError, setLoginError] = useState<string | null>(null);
                       "登录系统"
                     )}
                   </Button>
-                  <div className="absolute -bottom-5 right-0 text-xs text-gray-400">调用 /user/login</div>
+                  <div className="absolute -bottom-5 right-0 text-xs text-gray-400"></div>
                 </div>
               </TabsContent>
 
@@ -472,7 +472,7 @@ const [loginError, setLoginError] = useState<string | null>(null);
                       >
                         {countdown > 0 ? `${countdown}s` : "发送"}
                       </Button>
-                      <div className="absolute -bottom-5 right-0 text-xs text-gray-400">验证码功能暂未开放</div>
+                      <div className="absolute -bottom-5 right-0 text-xs text-gray-400">敬请期待</div>
                     </div>
                   </div>
                 </div>
@@ -491,7 +491,7 @@ const [loginError, setLoginError] = useState<string | null>(null);
                       "验证登录"
                     )}
                   </Button>
-                  <div className="absolute -bottom-5 right-0 text-xs text-gray-400">调用 /user/login</div>
+                  <div className="absolute -bottom-5 right-0 text-xs text-gray-400"></div>
                 </div>
               </TabsContent>
 
@@ -559,7 +559,7 @@ const [loginError, setLoginError] = useState<string | null>(null);
                         </>
                       )}
                     </Button>
-                    <div className="absolute -bottom-5 right-0 text-xs text-gray-400">调用 /user/login/face</div>
+                    <div className="absolute -bottom-5 right-0 text-xs text-gray-400"></div>
                   </div>
                   {stream && (
                     <Button
@@ -692,7 +692,7 @@ const [loginError, setLoginError] = useState<string | null>(null);
                         "下一步：录入人脸"
                       )}
                     </Button>
-                    <div className="absolute -bottom-5 right-0 text-xs text-gray-400">调用 /user/register</div>
+                    <div className="absolute -bottom-5 right-0 text-xs text-gray-400"></div>
                   </div>
                 </>
               )}
