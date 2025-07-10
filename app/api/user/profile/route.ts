@@ -1,9 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server"
+import jwt from 'jsonwebtoken';
+import { UserService } from '@/lib/userService';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'default_secret_key';
 
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get("authorization")
-    const token = authHeader?.replace("Bearer ", "")
+    const authHeader = request.headers.get("authorization");
+    const token = authHeader?.replace("Bearer ", "");
 
     if (!token) {
       return NextResponse.json(
@@ -12,47 +16,51 @@ export async function GET(request: NextRequest) {
           message: "未授权访问",
         },
         { status: 401 },
-      )
+      );
     }
 
-    // 模拟用户数据
-    const userData = {
-      id: "user_123",
-      username: "zhangsan",
-      email: "zhangsan@example.com",
-      phone: "13800138000",
-      name: "张三",
-      department: "交通管理科",
-      position: "高级工程师",
-      bio: "负责智慧交通系统的运维和管理工作",
-      avatar: null,
-      createdAt: "2023-06-15T08:00:00Z",
-      lastLoginAt: "2024-01-20T09:00:00Z",
-      loginCount: 156,
-      status: "active",
-      permissions: ["read", "write", "admin"],
+    let payload: any;
+    try {
+      payload = jwt.verify(token, JWT_SECRET);
+    } catch (err) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "无效的token",
+        },
+        { status: 401 },
+      );
+    }
+
+    // 根据uid查找用户
+    const user = await UserService.getUserById(Number(payload.uid));
+    if (!user) {
+      return NextResponse.json({
+        success: false,
+        message: "用户不存在",
+      }, { status: 404 });
     }
 
     return NextResponse.json({
       success: true,
-      data: userData,
-    })
+      data: user,
+    });
   } catch (error) {
-    console.error("Get profile error:", error)
+    console.error("Get profile error:", error);
     return NextResponse.json(
       {
         success: false,
         message: "获取用户信息失败",
       },
       { status: 500 },
-    )
+    );
   }
 }
 
 export async function PUT(request: NextRequest) {
   try {
-    const authHeader = request.headers.get("authorization")
-    const token = authHeader?.replace("Bearer ", "")
+    const authHeader = request.headers.get("authorization");
+    const token = authHeader?.replace("Bearer ", "");
 
     if (!token) {
       return NextResponse.json(
@@ -61,55 +69,69 @@ export async function PUT(request: NextRequest) {
           message: "未授权访问",
         },
         { status: 401 },
-      )
+      );
     }
 
-    const updateData = await request.json()
+    let payload: any;
+    try {
+      payload = jwt.verify(token, JWT_SECRET);
+    } catch (err) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "无效的token",
+        },
+        { status: 401 },
+      );
+    }
 
-    // 模拟数据验证
-    if (updateData.email && !updateData.email.includes("@")) {
+    const uid = Number(payload.uid);
+    const updateData = await request.json();
+
+    // 只允许更新实际存在的字段
+    const allowedFields = ["uname", "email", "phone"];
+    const updates: any = {};
+    for (const key of allowedFields) {
+      if (updateData[key] !== undefined) updates[key] = updateData[key];
+    }
+
+    // 校验邮箱格式
+    if (updates.email && !updates.email.includes("@")) {
       return NextResponse.json(
         {
           success: false,
           message: "邮箱格式不正确",
         },
         { status: 400 },
-      )
+      );
     }
-
-    if (updateData.phone && !/^1[3-9]\d{9}$/.test(updateData.phone)) {
+    // 校验手机号格式
+    if (updates.phone && !/^1[3-9]\d{9}$/.test(updates.phone)) {
       return NextResponse.json(
         {
           success: false,
           message: "手机号格式不正确",
         },
         { status: 400 },
-      )
+      );
     }
 
-    // 模拟更新处理
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
-    const updatedUser = {
-      id: "user_123",
-      ...updateData,
-      updatedAt: new Date().toISOString(),
+    const ok = await UserService.updateUser(uid, updates);
+    if (!ok) {
+      return NextResponse.json({ success: false, message: "更新失败" }, { status: 500 });
     }
-
-    return NextResponse.json({
-      success: true,
-      data: updatedUser,
-      message: "用户信息更新成功",
-    })
+    // 返回最新用户信息
+    const user = await UserService.getUserById(uid);
+    return NextResponse.json({ success: true, data: user, message: "用户信息更新成功" });
   } catch (error) {
-    console.error("Update profile error:", error)
+    console.error("Update profile error:", error);
     return NextResponse.json(
       {
         success: false,
         message: "更新用户信息失败",
       },
       { status: 500 },
-    )
+    );
   }
 }
 

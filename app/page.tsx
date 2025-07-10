@@ -165,6 +165,7 @@ const [loginError, setLoginError] = useState<string | null>(null);
       });
       const result = await response.json();
       if (result.code === "1") {
+        localStorage.setItem("token", result.data.token);
         localStorage.setItem("user", JSON.stringify(result.data));
         window.location.href = "/dashboard";
       } else {
@@ -198,6 +199,7 @@ const [loginError, setLoginError] = useState<string | null>(null);
       });
       const result = await response.json();
       if (result.code === "1") {
+        localStorage.setItem("token", result.data.token);
         localStorage.setItem("user", JSON.stringify(result.data));
         window.location.href = "/dashboard";
       } else {
@@ -283,6 +285,7 @@ const [loginError, setLoginError] = useState<string | null>(null);
           if (result.success) {
           if (isLogin) {
             // 人脸识别登录成功
+            localStorage.setItem("token", result.user.token);
             localStorage.setItem("user", JSON.stringify(result.user))
             alert(result.message || "人脸识别登录成功！")
             window.location.href = "/dashboard"

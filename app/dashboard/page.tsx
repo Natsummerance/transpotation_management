@@ -317,11 +317,11 @@ export default function Dashboard() {
                   <Avatar className="w-6 sm:w-8 h-6 sm:h-8">
                     <AvatarImage src={user?.avatar || "/placeholder.svg"} />
                     <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs sm:text-sm">
-                      {user?.username?.charAt(0) || "管"}
+                      {user?.uname?.charAt(0) || "未"}
                     </AvatarFallback>
                   </Avatar>
                   <div className="hidden sm:block text-left">
-                    <p className="text-sm font-medium">{user?.username || "管理员"}</p>
+                    <p className="text-sm font-medium">{user?.uname || "未登录"}</p>
                     <div className="flex items-center space-x-1">
                       <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                       <span className="text-xs text-green-600">已认证</span>

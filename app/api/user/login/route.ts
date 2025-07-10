@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { UserService } from '@/lib/userService';
 import { Result } from '@/lib/result';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'default_secret_key';
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,7 +20,9 @@ export async function POST(request: NextRequest) {
     // 登录验证
     const user = await UserService.loginService(uname, password);
     if (user) {
-      return NextResponse.json(Result.success('1', user, '登录成功！'));
+      // 生成token
+      const token = jwt.sign({ uid: user.uid, uname: user.uname }, JWT_SECRET, { expiresIn: '8h' });
+      return NextResponse.json(Result.success('1', { ...user, token }, '登录成功！'));
     } else {
       return NextResponse.json(Result.error('123', '账号或密码错误！'));
     }
