@@ -120,7 +120,7 @@ export default function RoadDamageModule() {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [resultImage, setResultImage] = useState<string | null>(null)
   const [file, setFile] = useState<File | null>(null);
-  const [results, setResults] = useState<DamageResults | null>(null);
+  const [results, setResults] = useState<DetectionResponse['results'] | null>(null);
 
   const [isMapVisible, setIsMapVisible] = useState(false)
   const [map, setMap] = useState<any>(null)
