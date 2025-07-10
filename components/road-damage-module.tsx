@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useRef } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -9,12 +9,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Upload, MapPin, Clock, FileText, Download, AlertTriangle, Camera, Eye, Loader2 } from "lucide-react"
 import { toast } from "sonner";
 
-interface DamageResults {
+interface Damage {
   '纵向裂缝': number;
   '横向裂缝': number;
   '龟裂': number;
   '坑洼': number;
 }
+
+interface DamageResultItem {
+  type: string;
+  count: number;
+  confidence: number;
+}
+
+type DamageResults = DamageResultItem[];
+
 
 interface DetectionResponse {
   results: DamageResults;
@@ -52,6 +61,9 @@ const damageTypes = [
     textColor: 'text-green-600',
   },
 ];
+
+const AMapLoaderUrl = "https://webapi.amap.com/maps?v=2.0&key=4c0958011b7f86aca896a60d37f1d7c5"
+declare const AMap: any
 
 export default function RoadDamageModule() {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
@@ -97,6 +109,118 @@ export default function RoadDamageModule() {
   const [file, setFile] = useState<File | null>(null);
   const [results, setResults] = useState<DamageResults | null>(null);
 
+  const [isMapVisible, setIsMapVisible] = useState(false)
+  const [map, setMap] = useState<any>(null)
+  const [marker, setMarker] = useState<any>(null)
+  const [selectedPosition, setSelectedPosition] = useState<{ lng: number; lat: number } | null>(null)
+  const mapContainerRef = useRef<HTMLDivElement>(null)
+
+    // 加载高德地图脚本
+  const loadAMap = (): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      if (typeof AMap !== "undefined") return resolve()
+      const script = document.createElement("script")
+      script.src = AMapLoaderUrl
+      script.onload = () => resolve()
+      script.onerror = () => reject(new Error("高德地图加载失败"))
+      document.head.appendChild(script)
+    })
+  }
+
+  const initMap = async () => {
+    await loadAMap()
+
+    // 获取当前定位作为地图中心
+    const geolocation = new AMap.Geolocation({ enableHighAccuracy: true, timeout: 10000 })
+    geolocation.getCurrentPosition((status: string, result: any) => {
+      if (status !== "complete") {
+        alert("无法获取定位，默认定位北京")
+        result = { position: { lng: 116.397428, lat: 39.90923 } } // 默认北京
+      }
+
+      const { lng, lat } = result.position
+
+      const mapInstance = new AMap.Map(mapContainerRef.current, {
+        center: [lng, lat],
+        zoom: 15,
+      })
+
+      const markerInstance = new AMap.Marker({
+        position: [lng, lat],
+        draggable: true,
+        map: mapInstance,
+      })
+
+      // 点击地图移动标记点
+      mapInstance.on("click", (e: any) => {
+        markerInstance.setPosition(e.lnglat)
+        setSelectedPosition({ lng: e.lnglat.lng, lat: e.lnglat.lat })
+      })
+
+      setMap(mapInstance)
+      setMarker(markerInstance)
+      setSelectedPosition({ lng, lat })
+    })
+  }
+
+  const handleOpenMap = async () => {
+    setIsMapVisible(true)
+    setTimeout(initMap, 100) // 确保 DOM 已渲染
+  }
+
+  const handleConfirmLocation = async () => {
+    if (!selectedPosition) {
+      alert("请先选择一个位置")
+      return
+    }
+
+    const currentTime = new Date()
+    .toLocaleString("zh-CN", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    })
+    .replace(/\//g, "-") // 保证日期格式为 yyyy-MM-dd
+
+    setIsLoading(true)
+
+    try {
+      const response = await fetch("/api/report/damage", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          module: "road-damage",
+          location: selectedPosition,
+          timestamp: currentTime,
+          results,
+          resultImage,
+        }),
+      })
+
+      if (response.ok) {
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = "road-damage-report.pdf"
+        a.click()
+      } else {
+        alert("导出失败")
+      }
+    } catch (err) {
+      console.error("导出失败", err)
+      alert("导出失败")
+    } finally {
+      setIsLoading(false)
+      setIsMapVisible(false)
+    }
+  }
 
 const handleDrop = useCallback((event: React.DragEvent) => {
   event.preventDefault();
@@ -316,56 +440,36 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                     </div>
                   )}
                 </div>
-              <div className="space-y-4">
-                <div className="bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4">
-                  <div className="flex items-center space-x-3 mb-3">
-                    <AlertTriangle className="w-5 sm:w-6 h-5 sm:h-6 text-red-600" />
-                    <div>
-                      <h4 className="font-semibold text-red-800 text-sm sm:text-base">检测到严重坑洼</h4>
-                      <p className="text-xs sm:text-sm text-red-600">置信度: 94.5%</p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-xs sm:text-sm">
-                    <div className="flex items-center">
-                      <MapPin className="w-3 h-3 mr-1 text-gray-500" />
-                      <span>GPS: 36.6512, 117.1201</span>
-                    </div>
-                    <div className="flex items-center">
-                      <Clock className="w-3 h-3 mr-1 text-gray-500" />
-                      <span>{new Date().toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 sm:p-4">
-                  <div className="flex items-center space-x-3 mb-3">
-                    <AlertTriangle className="w-5 sm:w-6 h-5 sm:h-6 text-orange-600" />
-                    <div>
-                      <h4 className="font-semibold text-orange-800 text-sm sm:text-base">检测到路面裂缝</h4>
-                      <p className="text-xs sm:text-sm text-orange-600">置信度: 87.2%</p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 text-xs sm:text-sm">
-                    <div className="flex items-center">
-                      <MapPin className="w-3 h-3 mr-1 text-gray-500" />
-                      <span>GPS: 36.6523, 117.1189</span>
-                    </div>
-                    <div className="flex items-center">
-                      <Clock className="w-3 h-3 mr-1 text-gray-500" />
-                      <span>{new Date().toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
+
+                {/* 导出模块 */}
                 <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
                   <Button size="sm" variant="outline" className="flex-1 bg-transparent text-sm">
-                    <FileText className="w-4 h-4 mr-2" />
-                    生成PDF
-                  </Button>
-                  <Button size="sm" variant="outline" className="flex-1 bg-transparent text-sm">
                     <Download className="w-4 h-4 mr-2" />
-                    导出Excel
+                    上传信息
                   </Button>
+                  {isMapVisible && (
+                    <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+                      <div className="bg-white rounded-lg shadow-lg p-4 w-[600px] h-[500px] flex flex-col relative">
+                        <div className="text-xl font-bold mb-2">请选择位置</div>
+                        <div ref={mapContainerRef} className="flex-1" style={{ width: "100%", height: "100%" }}></div>
+
+                        <div className="mt-4 flex justify-end gap-2">
+                          <button onClick={() => setIsMapVisible(false)} className="bg-gray-400 text-white px-4 py-2 rounded">
+                            取消
+                          </button>
+                          <button
+                            onClick={handleConfirmLocation}
+                            className="bg-green-600 text-white px-4 py-2 rounded"
+                            disabled={isLoading}
+                          >
+                            {isLoading ? "导出中..." : "确认并导出"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
+
             </>
             ) : (
               <div className="text-center py-6 sm:py-8 text-gray-500">
@@ -380,26 +484,34 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       {/* 统计概览 - 移动端优化 */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
         {results &&
-          damageTypes.map(({ key, label, bgFrom, bgTo, textColor }) => (
-            <Card
-              key={key}
-              className={`border-0 shadow-lg bg-gradient-to-br ${bgFrom} ${bgTo}`}
-            >
-              <CardContent className="p-3 sm:p-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between">
-                  <div className="mb-2 sm:mb-0">
-                    <p className="text-xs sm:text-sm font-medium text-gray-600">{label}</p>
-                    <p className={`text-xl sm:text-3xl font-bold ${textColor}`}>
-                      {results[key as keyof DamageResults]}
-                    </p>
-                  </div>
-                  <AlertTriangle
-                    className={`w-6 sm:w-8 h-6 sm:h-8 ${textColor} self-end sm:self-auto`}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+          damageTypes.map(({ key, label, bgFrom, bgTo, textColor }) => {
+            const item = results.find((r) => r.type === label); // label 是中文名，对应 type
+              return (
+                <Card
+                  key={key}
+                  className={`border-0 shadow-lg bg-gradient-to-br ${bgFrom} ${bgTo}`}
+                >
+                  <CardContent className="p-3 sm:p-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between">
+                      <div className="mb-2 sm:mb-0">
+                        <p className="text-xs sm:text-sm font-medium text-gray-600">
+                          {label}
+                        </p>
+                        <p className={`text-xl sm:text-3xl font-bold ${textColor}`}>
+                          数量: {item?.count ?? 0}
+                        </p>
+                        <p className="text-xs text-gray-200">
+                          置信度: {(item?.confidence ?? 0).toFixed(2)}
+                        </p>
+                      </div>
+                      <AlertTriangle
+                        className={`w-6 sm:w-8 h-6 sm:h-8 ${textColor} self-end sm:self-auto`}
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+          })}
       </div>
 
       {/* 检测历史 - 移动端优化 */}
@@ -462,6 +574,8 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
           </div>
         </CardContent>
       </Card>
+
+
     </div>
   )
 }
