@@ -81,10 +81,26 @@ export class UserService {
    */
   static async faceRecognitionService(imageBase64: string): Promise<User | null> {
     try {
-      // 这里应该调用人脸识别API
-      // 目前只是模拟实现，返回第一个用户
-      const users = await UserDao.findAll();
-      return users.length > 0 ? users[0] : null;
+      // 调用后端人脸识别API
+      const response = await fetch('http://localhost:5000/recognize', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          image: imageBase64
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (result.success && result.user_id) {
+        // 根据识别到的用户ID查找用户信息
+        const user = await UserDao.findById(result.user_id);
+        return user;
+      }
+      
+      return null;
     } catch (error) {
       console.error('人脸识别服务失败:', error);
       throw error;
@@ -145,4 +161,4 @@ export class UserService {
       throw error;
     }
   }
-} 
+}
