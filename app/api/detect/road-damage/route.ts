@@ -69,35 +69,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to parse detection results' }, { status: 500 });
     }
 
-// 初始化结构
-const results: { type: string; count: number; confidence: number }[] = [
-  { type: '纵向裂缝', count: 0, confidence: 0 },
-  { type: '横向裂缝', count: 0, confidence: 0 },
-  { type: '龟裂', count: 0, confidence: 0 },
-  { type: '坑洼', count: 0, confidence: 0 },
-];
+// 初始化结构为对象形式
+const results: Record<string, { count: number; confidence: number }> = {
+  '纵向裂缝': { count: 0, confidence: 0 },
+  '横向裂缝': { count: 0, confidence: 0 },
+  '龟裂': { count: 0, confidence: 0 },
+  '坑洼': { count: 0, confidence: 0 },
+};
 
-const typeToResultItem = Object.fromEntries(results.map(item => [item.type, item]));
+const damageMapping: Record<string, string> = {
+  'longitudinal_crack': '纵向裂缝',
+  'transverse_crack': '横向裂缝',
+  'alligator_crack': '龟裂',
+  'pothole': '坑洼',
+};
 
-// 遍历 detections
+const countConfidenceMap: Record<string, { totalConf: number; count: number }> = {};
+
 if (pythonResult.detections && Array.isArray(pythonResult.detections)) {
-  const damageMapping: Record<string, string> = {
-    'longitudinal_crack': '纵向裂缝',
-    'transverse_crack': '横向裂缝',
-    'alligator_crack': '龟裂',
-    'pothole': '坑洼'
-  };
-
-  const countConfidenceMap: Record<string, { totalConf: number, count: number }> = {};
-
   pythonResult.detections.forEach((detection: any) => {
     const rawLabel = detection.name;
     const confidence = detection.confidence;
     const type = damageMapping[rawLabel];
 
-    if (type && typeToResultItem[type]) {
-      const entry = typeToResultItem[type];
-      entry.count += 1;
+    if (type && results[type]) {
+      results[type].count += 1;
 
       if (!countConfidenceMap[type]) {
         countConfidenceMap[type] = { totalConf: 0, count: 0 };
@@ -109,11 +105,12 @@ if (pythonResult.detections && Array.isArray(pythonResult.detections)) {
   });
 
   // 计算平均置信度
-  Object.entries(countConfidenceMap).forEach(([type, { totalConf, count }]) => {
+  for (const type in countConfidenceMap) {
+    const { totalConf, count } = countConfidenceMap[type];
     if (count > 0) {
-      typeToResultItem[type].confidence = parseFloat((totalConf / count).toFixed(4));
+      results[type].confidence = parseFloat((totalConf / count).toFixed(4));
     }
-  });
+  }
 }
 
     // 从检测结果中提取标签并统计
