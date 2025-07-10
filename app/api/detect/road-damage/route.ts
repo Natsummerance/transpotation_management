@@ -113,17 +113,6 @@ if (pythonResult.detections && Array.isArray(pythonResult.detections)) {
   }
 }
 
-    // 从检测结果中提取标签并统计
-    if (pythonResult.detections && Array.isArray(pythonResult.detections)) {
-      pythonResult.detections.forEach((detection: any) => {
-        const label = detection.name;
-        const category = damageMapping[label];
-        if (category && results.hasOwnProperty(category)) {
-          (results as any)[category]++;
-        }
-      });
-    }
-
     // 构建结果图片的URL路径
     const resultImagePath = pythonResult.image_path;
     let resultImageUrl = null;
