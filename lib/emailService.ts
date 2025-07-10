@@ -18,7 +18,15 @@ export class EmailService {
       pass: process.env.MAIL_PASS || ''
     };
 
-    this.transporter = nodemailer.createTransporter({
+    // 调试信息
+    console.log('邮箱配置信息:', {
+      host: mailConfig.host,
+      port: mailConfig.port,
+      user: mailConfig.user ? `${mailConfig.user.substring(0, 3)}***` : '未配置',
+      pass: mailConfig.pass ? '已配置' : '未配置'
+    });
+
+    this.transporter = nodemailer.createTransport({
       host: mailConfig.host,
       port: mailConfig.port,
       secure: true, // 使用 SSL
@@ -51,11 +59,18 @@ export class EmailService {
     };
 
     try {
+      console.log('正在发送邮件到:', email);
       await this.transporter.sendMail(mailOptions);
       console.log(`验证码邮件已发送到: ${email}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('发送邮件失败:', error);
-      throw new Error('邮件发送失败');
+      console.error('错误详情:', {
+        code: error?.code,
+        command: error?.command,
+        response: error?.response,
+        responseCode: error?.responseCode
+      });
+      throw new Error(`邮件发送失败: ${error?.message || '未知错误'}`);
     }
   }
 
