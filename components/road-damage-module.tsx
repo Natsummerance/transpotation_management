@@ -9,24 +9,37 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Upload, MapPin, Clock, FileText, Download, AlertTriangle, Camera, Eye, Loader2 } from "lucide-react"
 import { toast } from "sonner";
 
-interface Damage {
-  '纵向裂缝': number;
-  '横向裂缝': number;
-  '龟裂': number;
-  '坑洼': number;
+interface DamageResults {
+  纵向裂缝: {
+    count: number
+    confidence: number
+  }
+  横向裂缝: {
+    count: number
+    confidence: number
+  }
+  龟裂: {
+    count: number
+    confidence: number
+  }
+  坑洼: {
+    count: number
+    confidence: number
+  }
 }
 
-interface DamageResultItem {
-  type: string;
+interface DamageStats {
   count: number;
   confidence: number;
 }
 
-type DamageResults = DamageResultItem[];
-
-
 interface DetectionResponse {
-  results: DamageResults;
+  results: {
+    纵向裂缝: DamageStats;
+    横向裂缝: DamageStats;
+    龟裂: DamageStats;
+    坑洼: DamageStats;
+  };
   originalImage?: string;
   resultImage?: string;
 }
@@ -130,8 +143,13 @@ export default function RoadDamageModule() {
   const initMap = async () => {
     await loadAMap()
 
-    // 获取当前定位作为地图中心
-    const geolocation = new AMap.Geolocation({ enableHighAccuracy: true, timeout: 10000 })
+    // 加载 Geolocation 插件
+    AMap.plugin("AMap.Geolocation", () => {
+      const geolocation = new AMap.Geolocation({
+        enableHighAccuracy: true,
+        timeout: 10000,
+      });
+
     geolocation.getCurrentPosition((status: string, result: any) => {
       if (status !== "complete") {
         alert("无法获取定位，默认定位北京")
@@ -160,6 +178,7 @@ export default function RoadDamageModule() {
       setMap(mapInstance)
       setMarker(markerInstance)
       setSelectedPosition({ lng, lat })
+    })
     })
   }
 
@@ -416,7 +435,8 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                   className="hidden"
                   onChange={handleFileChange}
                 />
-              <div className="absolute -bottom-5 right-0 text-xs text-gray-400">调用 /api/detect/road-damage</div>
+                {/*api*/}
+              <div className="absolute -bottom-5 right-0 text-xs text-gray-400"></div>
             </div>
           </CardContent>
         </Card>
@@ -443,7 +463,10 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 
                 {/* 导出模块 */}
                 <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
-                  <Button size="sm" variant="outline" className="flex-1 bg-transparent text-sm">
+                  <Button size="sm" variant="outline" 
+                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white h-10 sm:h-12 text-sm sm:text-base"
+                    onClick={handleOpenMap}
+                  >
                     <Download className="w-4 h-4 mr-2" />
                     上传信息
                   </Button>
@@ -451,15 +474,20 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                     <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
                       <div className="bg-white rounded-lg shadow-lg p-4 w-[600px] h-[500px] flex flex-col relative">
                         <div className="text-xl font-bold mb-2">请选择位置</div>
-                        <div ref={mapContainerRef} className="flex-1" style={{ width: "100%", height: "100%" }}></div>
+                        <div 
+                          ref={mapContainerRef} className="flex-1" style={{ width: "100%", height: "100%" }}
+                          >
+                        </div>
 
                         <div className="mt-4 flex justify-end gap-2">
-                          <button onClick={() => setIsMapVisible(false)} className="bg-gray-400 text-white px-4 py-2 rounded">
+                          <button onClick={() => setIsMapVisible(false)} 
+                          className="px-5 h-10 sm:h-12 text-sm sm:text-base bg-gray-100 text-gray-700 rounded-lg shadow-md hover:bg-gray-200 transition"
+                          >
                             取消
                           </button>
                           <button
                             onClick={handleConfirmLocation}
-                            className="bg-green-600 text-white px-4 py-2 rounded"
+                            className="px-5 h-10 sm:h-12 text-sm sm:text-base bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg shadow-md hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed transition"
                             disabled={isLoading}
                           >
                             {isLoading ? "导出中..." : "确认并导出"}
@@ -485,7 +513,7 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
         {results &&
           damageTypes.map(({ key, label, bgFrom, bgTo, textColor }) => {
-            const item = results.find((r) => r.type === label); // label 是中文名，对应 type
+            const item = results[key as keyof DamageResults] 
               return (
                 <Card
                   key={key}
@@ -494,14 +522,14 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                   <CardContent className="p-3 sm:p-6">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between">
                       <div className="mb-2 sm:mb-0">
-                        <p className="text-xs sm:text-sm font-medium text-gray-600">
+                        <p className={`text-xs sm:text-sm font-bold ${textColor}`}>
                           {label}
                         </p>
                         <p className={`text-xl sm:text-3xl font-bold ${textColor}`}>
-                          数量: {item?.count ?? 0}
+                           {item?.count ?? 0}
                         </p>
-                        <p className="text-xs text-gray-200">
-                          置信度: {(item?.confidence ?? 0).toFixed(2)}
+                        <p className="text-xs text-gray-500">
+                          置信度: {typeof item?.confidence === 'number' ? item.confidence.toFixed(2) : '0.00'}
                         </p>
                       </div>
                       <AlertTriangle
