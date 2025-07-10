@@ -10,19 +10,19 @@ import { Upload, MapPin, Clock, FileText, Download, AlertTriangle, Camera, Eye, 
 import { toast } from "sonner";
 
 interface DamageResults {
-  纵向裂缝: {
+  '纵向裂缝': {
     count: number
     confidence: number
   }
-  横向裂缝: {
+  '横向裂缝': {
     count: number
     confidence: number
   }
-  龟裂: {
+  '龟裂': {
     count: number
     confidence: number
   }
-  坑洼: {
+  '坑洼': {
     count: number
     confidence: number
   }
@@ -35,10 +35,10 @@ interface DamageStats {
 
 interface DetectionResponse {
   results: {
-    纵向裂缝: DamageStats;
-    横向裂缝: DamageStats;
-    龟裂: DamageStats;
-    坑洼: DamageStats;
+    '纵向裂缝': DamageStats;
+    '横向裂缝': DamageStats;
+    '龟裂': DamageStats;
+    '坑洼': DamageStats;
   };
   originalImage?: string;
   resultImage?: string;
@@ -299,36 +299,6 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
   }
 };
 
-  // 调用导出报告接口 POST /api/report/export
-  const handleExportReport = async () => {
-    setIsLoading(true)
-    try {
-      const response = await fetch("/api/report/export", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          module: "road-damage",
-          format: "pdf",
-        }),
-      })
-
-      if (response.ok) {
-        const blob = await response.blob()
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement("a")
-        a.href = url
-        a.download = "road-damage-report.pdf"
-        a.click()
-      }
-    } catch (error) {
-      console.error("Export failed:", error)
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
   const getSeverityColor = (severity: string) => {
     switch (severity) {
       case "严重":
@@ -357,7 +327,7 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
           <div className="relative">
             <Button
               className="bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg text-sm w-full sm:w-auto"
-              onClick={handleExportReport}
+              onClick={handleConfirmLocation}
               disabled={isLoading}
             >
               {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}

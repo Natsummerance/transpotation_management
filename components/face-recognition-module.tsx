@@ -26,6 +26,12 @@ import {
   Trash2,
 } from "lucide-react"
 
+// 添加API基础URL配置
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+
+// 添加调试信息
+console.log('当前API地址:', API_BASE_URL)
+
 export default function FaceRecognitionModule() {
   const [isRecording, setIsRecording] = useState(false)
   const [isEncrypting, setIsEncrypting] = useState(false)
@@ -35,11 +41,14 @@ export default function FaceRecognitionModule() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
   const [videoReady, setVideoReady] = useState(false)
+  const [username, setUsername] = useState<string>('')
+  const [capturedImages, setCapturedImages] = useState<string[]>([])
+  const [progress, setProgress] = useState<number>(0)
+  const [progressText, setProgressText] = useState<string>('')
+  const [isTraining, setIsTraining] = useState(false)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const batchFileInputRef = useRef<HTMLInputElement>(null)
 
     // 新增：监听 stream，设置 video.srcObject
   useEffect(() => {
@@ -153,157 +162,164 @@ export default function FaceRecognitionModule() {
   }
 
   // 人脸录入流程
-  const handleFaceCapture = async () => {
-    setVideoReady(false) // 每次都重置
+  const handleFaceRegistration = async () => {
+    if (!username.trim()) {
+      alert('请输入用户名')
+      return
+    }
+
     if (!stream) {
-      const cameraStarted = await startCamera()
-      if (!cameraStarted) return
-    }
-
-    setIsRecording(true)
-    setIsProcessing(true)
-
-    // 等待 videoReady
-    const ready = await waitForVideoReady(5000)
-    if (!ready) {
-      alert("摄像头画面未准备好，请重试")
-      setIsRecording(false)
-      setIsProcessing(false)
+      alert('请先启动摄像头')
       return
     }
 
-    // 等待3秒让用户准备
-    setTimeout(async () => {
-            try {
-              const imageData = captureFrame()
-              console.log("handleFaceCapture 捕获到 imageData:", imageData)
-              if (imageData) {
-                setCapturedImage(imageData)
-      
-                // 输出图片信息到终端
-                console.log("捕获图片 base64 长度:", imageData.length)
-                console.log("图片 base64 前100字符:", imageData.slice(0, 100))
-                const mimeMatch = imageData.match(/^data:(.*?);base64,/)
-                console.log("图片MIME类型:", mimeMatch ? mimeMatch[1] : "未知")
-      
-                // 输出POST内容
-                const postBody = {
-                  image: imageData,
-                  //action: "register",
-                  //userId: "current_user",
-                }
-                console.log("POST内容（image字段长度）:", postBody.image.length)
-                console.log("POST内容（image字段前100字符）:", postBody.image.slice(0, 100))
-      
-                // 调用人脸注册API
-                const response = await fetch("http://10.61.96.186:5000/recognize", {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                  },
-                  body: JSON.stringify(postBody),
-                })
-      
-                const result = await response.json()
-                alert(result.toString)
-                if (result.success) {
-                  setIsEncrypting(true)
-                  setTimeout(() => {
-                    setIsEncrypting(false)
-                    setIsRecording(false)
-                    setIsProcessing(false)
-                    alert("人脸录入成功！")
-                  }, 2000)
-                } else {
-                  throw new Error(result.message || "人脸录入失败")
-                }
-              } else {
-                console.log("handleFaceCapture 未捕获到有效图像")
-                alert("未能捕获到有效图像，请重试")
-              }
-            } catch (error) {
-              console.error("Face capture failed:", error)
-              alert("人脸录入失败，请重试...")
-            } finally {
-              setIsRecording(false)
-              setIsProcessing(false)
-            }
-          }, 3000)
-        }
-      
-  // 处理文件上传
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files
-    if (files) {
-      const imageFiles = Array.from(files).filter((file) => file.type.startsWith("image/"))
-
-      if (imageFiles.length === 0) {
-        alert("请选择图片文件")
-        return
-      }
-
-      if (imageFiles.some((file) => file.size > 5 * 1024 * 1024)) {
-        alert("文件大小不能超过5MB")
-        return
-      }
-
-      // 处理单个文件
-      if (imageFiles.length === 1) {
-        const reader = new FileReader()
-        reader.onload = (e) => {
-          setCapturedImage(e.target?.result as string)
-        }
-        reader.readAsDataURL(imageFiles[0])
-      } else {
-        // 处理批量文件
-        setUploadedFiles(imageFiles)
-      }
-    }
-  }
-
-  // 批量处理人脸图片
-  const handleBatchProcess = async () => {
-    if (uploadedFiles.length === 0) {
-      alert("请先选择要处理的图片文件")
-      return
-    }
-
-    setIsProcessing(true)
+    setIsTraining(true)
+    setCapturedImages([])
+    setProgress(0)
+    setProgressText('开始录入会话...')
 
     try {
-      for (const file of uploadedFiles) {
-        const reader = new FileReader()
-        const imageData = await new Promise<string>((resolve) => {
-          reader.onload = (e) => resolve(e.target?.result as string)
-          reader.readAsDataURL(file)
-        })
-
-        // 调用人脸识别API
-        const response = await fetch("/api/face/recognize", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            image: imageData,
-            action: "register",
-            userId: file.name.split(".")[0], // 使用文件名作为用户ID
-          }),
-        })
-
-        const result = await response.json()
-        console.log(`处理文件 ${file.name}:`, result)
+      console.log('发送请求到:', `${API_BASE_URL}/start_registration`)
+      
+      // 1. 开始录入会话
+      const startResponse = await fetch(`${API_BASE_URL}/start_registration`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: username
+        }),
+      })
+      
+      // 添加响应状态检查
+      console.log('响应状态:', startResponse.status)
+      console.log('响应头:', startResponse.headers.get('content-type'))
+      
+      if (!startResponse.ok) {
+        const errorText = await startResponse.text()
+        console.error('API响应错误:', errorText)
+        throw new Error(`HTTP ${startResponse.status}: ${errorText}`)
+      }
+      
+      const startResult = await startResponse.json()
+      if (!startResult.success) {
+        throw new Error(startResult.message || '开始录入会话失败')
       }
 
-      alert(`批量处理完成，共处理 ${uploadedFiles.length} 个文件`)
-      setUploadedFiles([])
+      const sessionId = startResult.session_id
+      const targetImages = startResult.target_images
+      setProgressText(`开始采集人脸图像，目标: ${targetImages} 张`)
+
+      // 2. 连续采集图像
+      let collectedCount = 0
+      const collectInterval = setInterval(async () => {
+        try {
+          const canvas = canvasRef.current
+          const video = videoRef.current
+          
+          if (!canvas || !video) return
+
+          const context = canvas.getContext('2d')
+          if (!context) return
+
+          // 设置canvas尺寸
+          canvas.width = video.videoWidth
+          canvas.height = video.videoHeight
+
+          // 绘制当前帧
+          context.drawImage(video, 0, 0)
+
+          // 转换为base64
+          const imageData = canvas.toDataURL('image/jpeg', 0.8)
+
+          // 发送图像到后端
+          const collectResponse = await fetch(`${API_BASE_URL}/collect_image`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              session_id: sessionId,
+              image: imageData
+            }),
+          })
+
+          const collectResult = await collectResponse.json()
+          
+          if (collectResult.success) {
+            collectedCount = collectResult.collected
+            const progress = collectResult.progress
+            setProgress(progress)
+            setProgressText(`正在采集图像: ${collectResult.collected}/${collectResult.target}`)
+            
+            // 更新已采集图像列表（只保留最新的几张用于显示）
+            setCapturedImages(prev => {
+              const newImages = [...prev, imageData]
+              return newImages.slice(-5) // 只保留最新的5张图像用于显示
+            })
+
+            // 检查是否完成采集
+            if (collectResult.completed) {
+              clearInterval(collectInterval)
+              setProgressText('图像采集完成，开始训练模型...')
+              
+              // 3. 开始训练
+              const trainResponse = await fetch(`${API_BASE_URL}/train_session`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  session_id: sessionId
+                }),
+              })
+
+              const trainResult = await trainResponse.json()
+              
+              if (trainResult.success) {
+                setProgressText('人脸录入成功！')
+                alert(`人脸录入成功！用户: ${username}，共训练 ${trainResult.samples} 张图像`)
+                // 重置状态
+                setUsername('')
+                setCapturedImages([])
+                setProgress(0)
+              } else {
+                throw new Error(trainResult.message || '训练失败')
+              }
+              
+              setIsTraining(false)
+            }
+          } else {
+            // 如果当前帧没有检测到人脸，继续下一帧
+            console.log('当前帧未检测到人脸，继续采集...')
+          }
+        } catch (error) {
+          console.error('采集图像错误:', error)
+          // 继续采集，不中断流程
+        }
+      }, 100) // 每100ms采集一次
+
+      // 设置超时保护，防止无限循环
+      setTimeout(() => {
+        if (collectedCount < targetImages) {
+          clearInterval(collectInterval)
+          setIsTraining(false)
+          setProgressText('采集超时，请重试')
+          alert('图像采集超时，请确保人脸清晰可见并重试')
+        }
+      }, 60000) // 60秒超时
+
     } catch (error) {
-      console.error("Batch process failed:", error)
-      alert("批量处理失败，请重试")
-    } finally {
-      setIsProcessing(false)
+      console.error('详细错误信息:', error)
+      console.error('错误类型:', (error as Error).constructor.name)
+      setProgressText('人脸录入失败')
+      alert(`人脸录入失败: ${(error as Error).message || '未知错误'}`)
+      setIsTraining(false)
     }
   }
+      
+
 
   // 模拟未授权访问
   const simulateUnauthorizedAccess = () => {
@@ -333,6 +349,20 @@ export default function FaceRecognitionModule() {
             <CardDescription>录入新用户人脸信息</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* 用户名输入 */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">用户名</label>
+              <Input
+                type="text"
+                placeholder="请输入要录入的用户名"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                disabled={isProcessing}
+                className="w-full"
+              />
+            </div>
+            
+            {/* 摄像头预览区域 */}
             <div className="flex justify-center">
               <div className="w-64 h-48 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl flex items-center justify-center relative overflow-hidden">
                 {stream ? (
@@ -358,21 +388,16 @@ export default function FaceRecognitionModule() {
                       <span className="text-xs text-white bg-black/50 px-1 rounded">LIVE</span>
                     </div>
                   </div>
-                ) : capturedImage ? (
+                ) : capturedImages.length > 0 ? (
                   <div className="relative w-full h-full">
                     <img
-                      src={capturedImage || "/placeholder.svg"}
-                      alt="捕获的人脸"
+                      src={capturedImages[capturedImages.length - 1] || "/placeholder.svg"}
+                      alt="最后捕获的人脸"
                       className="w-full h-full object-cover rounded-xl"
                     />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="absolute top-2 right-2 bg-white/80"
-                      onClick={() => setCapturedImage(null)}
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
+                    <div className="absolute top-2 left-2 bg-green-500 text-white text-xs px-2 py-1 rounded">
+                      已采集 {capturedImages.length} 张
+                    </div>
                   </div>
                 ) : (
                   <div className="text-center">
@@ -384,10 +409,10 @@ export default function FaceRecognitionModule() {
                         </div>
                         <p className="text-sm text-blue-600 font-medium">正在录入...</p>
                       </div>
-                    ) : isEncrypting ? (
+                    ) : isTraining ? (
                       <div>
                         <Shield className="w-12 h-12 mx-auto mb-3 text-green-600 animate-spin" />
-                        <p className="text-sm text-green-600 font-medium">加密中...</p>
+                        <p className="text-sm text-green-600 font-medium">训练中...</p>
                       </div>
                     ) : (
                       <div>
@@ -399,36 +424,61 @@ export default function FaceRecognitionModule() {
                 )}
               </div>
             </div>
-            <div className="flex space-x-3">
-              <Button
-                className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white"
-                onClick={handleFaceCapture}
-                disabled={isRecording || isEncrypting || isProcessing}
-              >
-                {stream ? (
-                  <>
-                    <Camera className="w-4 h-4 mr-2" />
-                    开始录入
-                  </>
-                ) : (
-                  <>
-                    <Video className="w-4 h-4 mr-2" />
-                    启动摄像头
-                  </>
-                )}
-              </Button>
-              <Button variant="outline" className="flex-1 bg-transparent" onClick={() => fileInputRef.current?.click()}>
-                <Upload className="w-4 h-4 mr-2" />
-                上传图片
-              </Button>
-            </div>
-            {stream && (
-              <Button variant="outline" className="w-full bg-transparent" onClick={stopCamera}>
-                <VideoOff className="w-4 h-4 mr-2" />
-                关闭摄像头
-              </Button>
+            
+            {/* 进度显示 */}
+            {(isProcessing || progress > 0) && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">{progressText}</span>
+                  <span className="text-blue-600">{progress.toFixed(1)}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                    style={{ width: `${progress}%` }}
+                  ></div>
+                </div>
+              </div>
             )}
-            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileUpload} className="hidden" />
+            
+            {/* 操作按钮 */}
+            <div className="space-y-3">
+              {!stream ? (
+                <Button
+                  className="w-full bg-gradient-to-r from-green-600 to-blue-600 text-white"
+                  onClick={startCamera}
+                  disabled={isProcessing}
+                >
+                  <Camera className="w-4 h-4 mr-2" />
+                  启动摄像头
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white"
+                    onClick={handleFaceRegistration}
+                    disabled={isProcessing || !username.trim()}
+                  >
+                    {isProcessing ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        {isTraining ? '训练中...' : '录入中...'}
+                      </>
+                    ) : (
+                      <>
+                        <Camera className="w-4 h-4 mr-2" />
+                        开始录入
+                      </>
+                    )}
+                  </Button>
+                  
+                  <Button variant="outline" className="w-full bg-transparent" onClick={stopCamera}>
+                    <VideoOff className="w-4 h-4 mr-2" />
+                    关闭摄像头
+                  </Button>
+                </>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -440,7 +490,7 @@ export default function FaceRecognitionModule() {
 
 // 新增：调用后端 /train 接口进行人脸模型训练
 const trainFaceModel = async (userId: number, username: string, images: string[]) => {
-  const response = await fetch("http://localhost:5000/train", {
+  const response = await fetch(`${API_BASE_URL}/train`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ user_id: userId, username, images })
@@ -450,7 +500,7 @@ const trainFaceModel = async (userId: number, username: string, images: string[]
 
 // 新增：调用后端 /recognize 接口进行人脸识别
 const recognizeFace = async (image: string) => {
-  const response = await fetch("http://localhost:5000/recognize", {
+  const response = await fetch(`${API_BASE_URL}/recognize`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ image })
@@ -460,12 +510,13 @@ const recognizeFace = async (image: string) => {
 
 // 新增：获取用户列表
 const fetchUsers = async () => {
-  const response = await fetch("http://localhost:5000/users")
+  const response = await fetch(`${API_BASE_URL}/users`)
   return await response.json()
 }
 
 // 新增：删除用户
 const deleteUser = async (userId: number) => {
-  const response = await fetch(`http://localhost:5000/user/${userId}`, { method: "DELETE" })
+  const response = await fetch(`${API_BASE_URL}/user/${userId}`, { method: "DELETE" })
   return await response.json()
 }
+
