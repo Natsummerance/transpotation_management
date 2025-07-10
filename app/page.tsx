@@ -120,7 +120,7 @@ export default function LoginPage() {
       // 移除base64前缀
       const base64Data = imageData.replace(/^data:image\/[a-z]+;base64,/, "");
       
-      const response = await fetch("http://localhost:3010/user/login/face", {
+      const response = await fetch("/api/user/login/face", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -144,7 +144,7 @@ export default function LoginPage() {
 
 const [loginError, setLoginError] = useState<string | null>(null);
 
-  // 调用登录接口 POST /user/login
+  // 调用登录接口 POST /api/user/login
   const handleLogin = async () => {
     if (!loginData.account || !loginData.password) {
       setLoginError("请输入账号和密码");
@@ -153,15 +153,15 @@ const [loginError, setLoginError] = useState<string | null>(null);
     setIsLoading(true);
     setLoginError(null);
     try {
-      const params = new URLSearchParams();
-      params.append("uname", loginData.account);
-      params.append("password", loginData.password);
-      const response = await fetch(`http://localhost:3010/user/login`, {
+      const response = await fetch(`/api/user/login`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
+          "Content-Type": "application/json",
         },
-        body: params.toString(),
+        body: JSON.stringify({
+          uname: loginData.account,
+          password: loginData.password
+        }),
       });
       const result = await response.json();
       if (result.code === "1") {
@@ -176,6 +176,40 @@ const [loginError, setLoginError] = useState<string | null>(null);
       setIsLoading(false);
     }
   };
+
+  // 验证码登录
+  const handleCodeLogin = async () => {
+    if (!loginData.account || !loginData.code) {
+      setLoginError("请输入邮箱和验证码");
+      return;
+    }
+    setIsLoading(true);
+    setLoginError(null);
+    try {
+      const response = await fetch(`/api/auth/loginByCode`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: loginData.account,
+          code: loginData.code
+        }),
+      });
+      const result = await response.json();
+      if (result.code === "1") {
+        localStorage.setItem("user", JSON.stringify(result.data));
+        window.location.href = "/dashboard";
+      } else {
+        setLoginError(result.msg || "验证码登录失败");
+      }
+    } catch (error) {
+      setLoginError("验证码登录请求失败");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // 调用注册接口 POST /user/register
   const handleRegister = async () => {
     if (registerStep === "info") {
@@ -195,7 +229,7 @@ const [loginError, setLoginError] = useState<string | null>(null);
           phone: registerData.phone
         };
 
-        const response = await fetch("http://localhost:3010/user/register", {
+        const response = await fetch("/api/user/register", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -269,25 +303,42 @@ const [loginError, setLoginError] = useState<string | null>(null);
     }, 3000)
   }
 
-  // 发送验证码功能（暂未实现后端接口）
+  // 发送验证码功能
   const sendVerificationCode = async () => {
+    if (!loginData.account) {
+      alert("请输入邮箱地址");
+      return;
+    }
+    
     try {
-      // 注意：后端暂未提供验证码接口，这里仅做前端演示
-      alert("验证码功能暂未开放，请使用密码登录或人脸识别")
+      const response = await fetch("/api/auth/sendCode", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email: loginData.account }),
+      });
       
-      // 模拟发送成功，启动倒计时
-      setCountdown(60)
-      const timer = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(timer)
-            return 0
-          }
-          return prev - 1
-        })
-      }, 1000)
+      const result = await response.json();
+      if (result.code === "0") {
+        alert("验证码已发送到您的邮箱");
+        // 启动倒计时
+        setCountdown(60)
+        const timer = setInterval(() => {
+          setCountdown((prev) => {
+            if (prev <= 1) {
+              clearInterval(timer)
+              return 0
+            }
+            return prev - 1
+          })
+        }, 1000)
+      } else {
+        alert(result.msg || "发送验证码失败");
+      }
     } catch (error) {
       console.error("Send code failed:", error)
+      alert("发送验证码失败，请稍后重试");
     }
   }
 
@@ -494,7 +545,7 @@ const [loginError, setLoginError] = useState<string | null>(null);
                 <div className="relative">
                   <Button
                     className="w-full h-10 sm:h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white font-medium shadow-lg text-sm sm:text-base"
-                    onClick={handleLogin}
+                    onClick={handleCodeLogin}
                     disabled={isLoading}
                   >
                     {isLoading ? (
