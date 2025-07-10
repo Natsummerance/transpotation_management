@@ -115,7 +115,7 @@ if (pythonResult.detections && Array.isArray(pythonResult.detections)) {
 
     // 构建结果图片的URL路径
     const resultImagePath = pythonResult.image_path;
-    let resultImageUrl = null;
+    let resultImageUrl: string | null = null;
     
     if (resultImagePath && await fs.access(resultImagePath).then(() => true).catch(() => false)) {
       // 将结果图片路径转换为可访问的URL
