@@ -58,6 +58,17 @@ export default function FaceRecognitionModule() {
     }
   }, [stream])
 
+  // 自动获取当前登录用户
+  useEffect(() => {
+    const userData = localStorage.getItem("user");
+    if (userData) {
+      try {
+        const user = JSON.parse(userData);
+        if (user.uname) setUsername(user.uname);
+      } catch {}
+    }
+  }, []);
+
   const recognitionLogs = [
     {
       id: 1,
@@ -349,18 +360,6 @@ export default function FaceRecognitionModule() {
             <CardDescription>录入新用户人脸信息</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* 用户名输入 */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">用户名</label>
-              <Input
-                type="text"
-                placeholder="请输入要录入的用户名"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                disabled={isProcessing}
-                className="w-full"
-              />
-            </div>
             
             {/* 摄像头预览区域 */}
             <div className="flex justify-center">

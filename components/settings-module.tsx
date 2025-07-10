@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -42,13 +42,40 @@ export default function SettingsModule() {
 
   // 用户信息状态
   const [userInfo, setUserInfo] = useState({
-    username: "张三",
-    email: "zhangsan@example.com",
-    phone: "13800138000",
-    department: "交通管理科",
-    position: "高级工程师",
-    bio: "负责智慧交通系统的运维和管理工作",
+    uname: "",
+    email: "",
+    phone: "",
+    department: "",
+    position: "",
+    bio: "",
   })
+
+  // 页面加载时获取用户信息
+  useEffect(() => {
+    async function fetchProfile() {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        const res = await fetch("/api/user/profile", {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
+        if (data.success && data.data) {
+          setUserInfo({
+            uname: data.data.uname || "",
+            email: data.data.email || "",
+            phone: data.data.phone || "",
+            department: "",
+            position: "",
+            bio: "",
+          });
+        }
+      } catch (e) {
+        // 获取失败不处理
+      }
+    }
+    fetchProfile();
+  }, []);
 
   // 密码修改状态
   const [passwordData, setPasswordData] = useState({
@@ -101,12 +128,14 @@ export default function SettingsModule() {
   const handleSaveProfile = async () => {
     setIsLoading(true)
     try {
+      const token = localStorage.getItem('token');
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
       const response = await fetch("/api/user/profile", {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-        },
+        headers,
         body: JSON.stringify({
           ...userInfo,
           avatar: profileImage,
@@ -115,7 +144,11 @@ export default function SettingsModule() {
 
       if (response.ok) {
         setIsEditing(false)
+        // 更新localStorage里的user
+        const data = await response.json();
+        localStorage.setItem("user", JSON.stringify(data.data));
         alert("个人信息更新成功")
+        window.location.reload(); // 让dashboard右上角立即刷新
       } else {
         throw new Error("更新失败")
       }
@@ -141,16 +174,22 @@ export default function SettingsModule() {
 
     setIsLoading(true)
     try {
+      const token = localStorage.getItem('token');
+      const pwdHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (token) pwdHeaders["Authorization"] = `Bearer ${token}`;
       const response = await fetch("/api/user/change-password", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-        },
-        body: JSON.stringify(passwordData),
+        headers: pwdHeaders,
+        body: JSON.stringify({
+          currentPassword: passwordData.currentPassword,
+          newPassword: passwordData.newPassword,
+        }),
       })
 
-      if (response.ok) {
+      const result = await response.json();
+      if (result.success) {
         setPasswordData({
           currentPassword: "",
           newPassword: "",
@@ -158,7 +197,7 @@ export default function SettingsModule() {
         })
         alert("密码修改成功")
       } else {
-        throw new Error("密码修改失败")
+        alert(result.message || "密码修改失败")
       }
     } catch (error) {
       console.error("Password change failed:", error)
@@ -320,7 +359,7 @@ export default function SettingsModule() {
                   />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-lg">{userInfo.username}</h3>
+                  <h3 className="font-semibold text-lg">{userInfo.uname}</h3>
                   <p className="text-gray-600">{userInfo.position}</p>
                   <p className="text-sm text-gray-500">{userInfo.department}</p>
                 </div>
@@ -354,8 +393,8 @@ export default function SettingsModule() {
                   <Label htmlFor="username">用户名</Label>
                   <Input
                     id="username"
-                    value={userInfo.username}
-                    onChange={(e) => setUserInfo({ ...userInfo, username: e.target.value })}
+                    value={userInfo.uname}
+                    onChange={(e) => setUserInfo({ ...userInfo, uname: e.target.value })}
                     disabled={!isEditing}
                   />
                 </div>
