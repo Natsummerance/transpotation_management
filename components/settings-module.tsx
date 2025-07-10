@@ -309,6 +309,9 @@ export default function SettingsModule() {
                     <Camera className="w-4 h-4" />
                   </Button>
                   <input
+                    aria-label="上传头像"
+                    title="选择头像图片"
+                    placeholder="选择头像图片"
                     ref={fileInputRef}
                     type="file"
                     accept="image/*"
@@ -409,6 +412,7 @@ export default function SettingsModule() {
           </Card>
 
           {/* 密码修改 */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
           <Card className="border-0 shadow-lg">
             <CardHeader>
               <CardTitle className="text-xl font-bold">修改密码</CardTitle>
@@ -467,15 +471,17 @@ export default function SettingsModule() {
                   placeholder="请再次输入新密码"
                 />
               </div>
-              <Button onClick={handleChangePassword} disabled={isLoading} className="w-full">
+              <Button onClick={handleChangePassword} disabled={isLoading} className="w-full h-10 sm:h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg text-sm">
                 {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Lock className="w-4 h-4 mr-2" />}
                 修改密码
               </Button>
             </CardContent>
           </Card>
+          
 
           {/* 人脸录入模块 */}
           <FaceRecognitionModule />
+          </div>
         </TabsContent>
 
         {/* 安全设置 */}
