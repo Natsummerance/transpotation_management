@@ -24,6 +24,8 @@ import {
   VideoOff,
 } from "lucide-react"
 import ForgotPasswordModal from "@/components/ForgotPasswordModal";
+import { encryptAES } from "@/lib/cryptoFront";
+
 
 type LoginMode = "password" | "code" | "face"
 type RegisterStep = "info" | "face" | "success"
@@ -120,6 +122,11 @@ export default function LoginPage() {
       // 移除base64前缀
       const base64Data = imageData.replace(/^data:image\/[a-z]+;base64,/, "");
       
+      const encryptedImage = encryptAES(base64Data);
+      if (!encryptedImage) {
+        throw new Error("加密失败，请检查配置");
+      }
+
       const response = await fetch("/api/user/login/face", {
         method: "POST",
         headers: {

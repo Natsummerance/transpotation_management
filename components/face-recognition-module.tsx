@@ -25,6 +25,7 @@ import {
   User,
   Trash2,
 } from "lucide-react"
+import { encryptAES } from "@/lib/cryptoFront";
 
 // 添加API基础URL配置
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
@@ -190,136 +191,60 @@ export default function FaceRecognitionModule() {
     setProgressText('开始录入会话...')
 
     try {
-      console.log('发送请求到:', `${API_BASE_URL}/start_registration`)
+      // 捕获多张人脸图像
+      const images = []
+      for (let i = 0; i < 5; i++) {
+        setProgressText(`捕获第 ${i + 1} 张图像...`)
+        setProgress((i + 1) * 20)
+        
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        
+        const imageData = captureFrame()
+        if (imageData) {
+          // 加密图像数据
+          const encryptedImage = encryptAES(imageData);
+          images.push(encryptedImage)
+          setCapturedImages(prev => [...prev, imageData])
+        }
+      }
+
+      // 发送注册请求
+      setProgressText('开始训练模型...')
+      setProgress(80)
       
-      // 1. 开始录入会话
-      const startResponse = await fetch(`${API_BASE_URL}/start_registration`, {
+      const response = await fetch(`${API_BASE_URL}/face/recognize`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          username: username
+          username: username,
+          image: images[0], // 使用第一张图像进行注册
+          action: "register"
         }),
       })
       
-      // 添加响应状态检查
-      console.log('响应状态:', startResponse.status)
-      console.log('响应头:', startResponse.headers.get('content-type'))
-      
-      if (!startResponse.ok) {
-        const errorText = await startResponse.text()
+      if (!response.ok) {
+        const errorText = await response.text()
         console.error('API响应错误:', errorText)
-        throw new Error(`HTTP ${startResponse.status}: ${errorText}`)
+        throw new Error(`HTTP ${response.status}: ${errorText}`)
       }
       
-      const startResult = await startResponse.json()
-      if (!startResult.success) {
-        throw new Error(startResult.message || '开始录入会话失败')
+      const result = await response.json()
+      if (result.success) {
+        setProgressText('人脸录入成功！')
+        setProgress(100)
+        alert(`人脸录入成功！用户: ${username}`)
+        // 重置状态
+        setUsername('')
+        setCapturedImages([])
+        setProgress(0)
+      } else {
+        setProgressText('人脸录入失败')
+        alert(`人脸录入失败: ${result.message || '未知错误'}`)
       }
-
-      const sessionId = startResult.session_id
-      const targetImages = startResult.target_images
-      setProgressText(`开始采集人脸图像，目标: ${targetImages} 张`)
-
-      // 2. 连续采集图像
-      let collectedCount = 0
-      const collectInterval = setInterval(async () => {
-        try {
-          const canvas = canvasRef.current
-          const video = videoRef.current
-          
-          if (!canvas || !video) return
-
-          const context = canvas.getContext('2d')
-          if (!context) return
-
-          // 设置canvas尺寸
-          canvas.width = video.videoWidth
-          canvas.height = video.videoHeight
-
-          // 绘制当前帧
-          context.drawImage(video, 0, 0)
-
-          // 转换为base64
-          const imageData = canvas.toDataURL('image/jpeg', 0.8)
-
-          // 发送图像到后端
-          const collectResponse = await fetch(`${API_BASE_URL}/collect_image`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              session_id: sessionId,
-              image: imageData
-            }),
-          })
-
-          const collectResult = await collectResponse.json()
-          
-          if (collectResult.success) {
-            collectedCount = collectResult.collected
-            const progress = collectResult.progress
-            setProgress(progress)
-            setProgressText(`正在采集图像: ${collectResult.collected}/${collectResult.target}`)
-            
-            // 更新已采集图像列表（只保留最新的几张用于显示）
-            setCapturedImages(prev => {
-              const newImages = [...prev, imageData]
-              return newImages.slice(-5) // 只保留最新的5张图像用于显示
-            })
-
-            // 检查是否完成采集
-            if (collectResult.completed) {
-              clearInterval(collectInterval)
-              setProgressText('图像采集完成，开始训练模型...')
-              
-              // 3. 开始训练
-              const trainResponse = await fetch(`${API_BASE_URL}/train_session`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  session_id: sessionId
-                }),
-              })
-
-              const trainResult = await trainResponse.json()
-              
-              if (trainResult.success) {
-                setProgressText('人脸录入成功！')
-                alert(`人脸录入成功！用户: ${username}，共训练 ${trainResult.samples} 张图像`)
-                // 重置状态
-                setUsername('')
-                setCapturedImages([])
-                setProgress(0)
-              } else {
-                throw new Error(trainResult.message || '训练失败')
-              }
-              
-              setIsTraining(false)
-            }
-          } else {
-            // 如果当前帧没有检测到人脸，继续下一帧
-            console.log('当前帧未检测到人脸，继续采集...')
-          }
-        } catch (error) {
-          console.error('采集图像错误:', error)
-          // 继续采集，不中断流程
-        }
-      }, 100) // 每100ms采集一次
-
-      // 设置超时保护，防止无限循环
-      setTimeout(() => {
-        if (collectedCount < targetImages) {
-          clearInterval(collectInterval)
-          setIsTraining(false)
-          setProgressText('采集超时，请重试')
-          alert('图像采集超时，请确保人脸清晰可见并重试')
-        }
-      }, 60000) // 60秒超时
+      
+      setIsTraining(false)
 
     } catch (error) {
       console.error('详细错误信息:', error)
@@ -450,12 +375,12 @@ export default function FaceRecognitionModule() {
                   <Button
                     className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white"
                     onClick={handleFaceRegistration}
-                    disabled={isProcessing || !username.trim()}
+                    disabled={isTraining || !stream}
                   >
-                    {isProcessing ? (
+                    {isTraining ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        {isTraining ? '训练中...' : '录入中...'}
+                        录入中...
                       </>
                     ) : (
                       <>

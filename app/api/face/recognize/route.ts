@@ -1,8 +1,12 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { decryptAES } from "@/lib/crypto";
 
 export async function POST(request: NextRequest) {
   try {
-    const { image, action, userId } = await request.json()
+    let { image, action, userId } = await request.json();
+    if (image) {
+      image = decryptAES(image);
+    }
 
     // 模拟人脸识别处理
     await new Promise((resolve) => setTimeout(resolve, 2000))
