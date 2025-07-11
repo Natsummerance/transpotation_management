@@ -57,14 +57,17 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(false)
   const [currentTime, setCurrentTime] = useState(new Date())
   const [user, setUser] = useState<any>(null)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
 
-  // 更新UTC时间
+  // 登录控制 - 在渲染前检查
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date())
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [])
+    const token = localStorage.getItem('token');
+    if (!token) {
+      window.location.href = '/';
+      return;
+    }
+    setIsAuthenticated(true);
+  }, []);
 
   // 获取用户信息
   useEffect(() => {
@@ -72,6 +75,14 @@ export default function Dashboard() {
     if (userData) {
       setUser(JSON.parse(userData))
     }
+  }, [])
+
+  // 更新UTC时间
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date())
+    }, 1000)
+    return () => clearInterval(timer)
   }, [])
 
   // 调用系统状态接口 GET /api/system/status
@@ -100,14 +111,14 @@ export default function Dashboard() {
       await fetch("/api/logout", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${localStorage.getItem("authToken")}`,
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
       })
     } catch (error) {
       console.error("Logout API failed:", error)
     } finally {
-      // 清除本地存储
-      localStorage.removeItem("authToken")
+      // 清除本地存储 - 修正key
+      localStorage.removeItem("token")
       localStorage.removeItem("user")
       // 重定向到登录页
       window.location.href = "/"
@@ -222,6 +233,11 @@ export default function Dashboard() {
       </div>
     </div>
   )
+
+  // 在return前添加认证检查
+  if (!isAuthenticated) {
+    return null; // 未认证时不渲染任何内容
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
