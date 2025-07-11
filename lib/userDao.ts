@@ -5,6 +5,7 @@ export interface User {
   uname: string;
   password_hash: string;
   email: string;
+  avatar?: string;
 }
 
 export class UserDao {

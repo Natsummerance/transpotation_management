@@ -30,6 +30,7 @@ import {
   Loader2,
 } from "lucide-react"
 import FaceRecognitionModule from "./face-recognition-module"
+import { useUser } from '@/components/user-context';
 
 export default function SettingsModule() {
   const [activeTab, setActiveTab] = useState("profile")
@@ -50,6 +51,8 @@ export default function SettingsModule() {
     bio: "",
   })
 
+  const { setUser } = useUser();
+
   // 页面加载时获取用户信息
   useEffect(() => {
     async function fetchProfile() {
@@ -69,6 +72,11 @@ export default function SettingsModule() {
             position: "",
             bio: "",
           });
+          
+          // 设置头像
+          if (data.data.avatar) {
+            setProfileImage(data.data.avatar);
+          }
         }
       } catch (e) {
         // 获取失败不处理
@@ -108,7 +116,7 @@ export default function SettingsModule() {
   })
 
   // 处理头像上传
-  const handleAvatarUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
@@ -116,11 +124,54 @@ export default function SettingsModule() {
         return
       }
 
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        setProfileImage(e.target?.result as string)
+      // 验证文件类型
+      if (!file.type.startsWith('image/')) {
+        alert("只能上传图片文件")
+        return
       }
-      reader.readAsDataURL(file)
+
+      setIsLoading(true)
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          alert("请先登录")
+          return
+        }
+
+        // 创建FormData
+        const formData = new FormData();
+        formData.append('avatar', file);
+
+        const response = await fetch("/api/user/avatar", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        });
+
+        const result = await response.json();
+        
+        if (result.success) {
+          // 更新本地状态
+          setProfileImage(result.data.avatar);
+          
+          // 更新localStorage中的用户信息
+          const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+          currentUser.avatar = result.data.avatar;
+          localStorage.setItem('user', JSON.stringify(currentUser));
+          // 更新全局Context
+          setUser(currentUser);
+          alert("头像上传成功")
+        } else {
+          alert(result.message || "头像上传失败")
+        }
+      } catch (error) {
+        console.error("Avatar upload failed:", error)
+        alert("头像上传失败，请重试")
+      } finally {
+        setIsLoading(false)
+      }
     }
   }
 
@@ -335,17 +386,31 @@ export default function SettingsModule() {
                 <div className="relative">
                   <div className="w-24 h-24 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center overflow-hidden">
                     {profileImage ? (
-                      <img src={profileImage || "/placeholder.svg"} alt="头像" className="w-full h-full object-cover" />
-                    ) : (
-                      <User className="w-12 h-12 text-white" />
-                    )}
+                      <img 
+                        src={profileImage.startsWith('data:') ? profileImage : profileImage} 
+                        alt="头像" 
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          // 如果图片加载失败，显示默认图标
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                          target.nextElementSibling?.classList.remove('hidden');
+                        }}
+                      />
+                    ) : null}
+                    {!profileImage && <User className="w-12 h-12 text-white" />}
                   </div>
                   <Button
                     size="sm"
                     className="absolute -bottom-2 -right-2 rounded-full w-8 h-8 p-0"
                     onClick={() => fileInputRef.current?.click()}
+                    disabled={isLoading}
                   >
-                    <Camera className="w-4 h-4" />
+                    {isLoading ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Camera className="w-4 h-4" />
+                    )}
                   </Button>
                   <input
                     aria-label="上传头像"

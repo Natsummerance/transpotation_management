@@ -122,7 +122,7 @@ export class UserService {
   /**
    * 更新用户信息
    */
-  static async updateUser(uid: number, updates: Partial<User> & { password?: string }): Promise<boolean> {
+  static async updateUser(uid: number, updates: Partial<User> & { password?: string; avatar?: string }): Promise<boolean> {
     try {
       // 如果要更新密码，需要加密并存储到 password_hash 字段
       if (updates.password) {
