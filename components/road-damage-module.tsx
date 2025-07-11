@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Upload, MapPin, Clock, FileText, Download, AlertTriangle, Camera, Eye, Loader2 } from "lucide-react"
+import { Upload, MapPin, Clock, FileText, Download, AlertTriangle, Camera, Eye, Loader2, Search, RefreshCw } from "lucide-react"
 import { toast } from "sonner";
 
 interface DamageResults {
@@ -44,6 +44,29 @@ interface DetectionResponse {
   resultImage?: string;
 }
 
+// 检测历史记录接口
+interface DamageRecord {
+  id: number;
+  module: string;
+  location_lat: number;
+  location_lng: number;
+  results: string; // JSON字符串
+  result_image: string;
+  timestamp: string;
+  created_at: string;
+}
+
+interface DetectionHistoryResponse {
+  data: DamageRecord[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+  error?: string;
+}
+
 const damageTypes = [
   {
     key: '纵向裂缝',
@@ -78,43 +101,30 @@ const damageTypes = [
 const AMapLoaderUrl = "https://webapi.amap.com/maps?v=2.0&key=4c0958011b7f86aca896a60d37f1d7c5"
 declare const AMap: any
 
+// 生成MySQL兼容的时间字符串
+function getMySQLDateTimeString() {
+  const now = new Date();
+  return now.getFullYear() + '-' +
+    String(now.getMonth() + 1).padStart(2, '0') + '-' +
+    String(now.getDate()).padStart(2, '0') + ' ' +
+    String(now.getHours()).padStart(2, '0') + ':' +
+    String(now.getMinutes()).padStart(2, '0') + ':' +
+    String(now.getSeconds()).padStart(2, '0');
+}
+
 export default function RoadDamageModule() {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [uploadedFile, setUploadedFile] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
-  const damageRecords = [
-    {
-      id: 1,
-      type: "坑洼",
-      location: "中山路与解放路交叉口",
-      gps: "36.6512, 117.1201",
-      time: "2024-01-15 14:30",
-      severity: "严重",
-      status: "待处理",
-      image: "/placeholder.svg?height=100&width=100",
-    },
-    {
-      id: 2,
-      type: "裂缝",
-      location: "人民大道128号附近",
-      gps: "36.6523, 117.1189",
-      time: "2024-01-15 13:45",
-      severity: "中等",
-      status: "处理中",
-      image: "/placeholder.svg?height=100&width=100",
-    },
-    {
-      id: 3,
-      type: "龟裂",
-      location: "建设路商业街",
-      gps: "36.6534, 117.1167",
-      time: "2024-01-15 12:20",
-      severity: "轻微",
-      status: "已完成",
-      image: "/placeholder.svg?height=100&width=100",
-    },
-  ]
+  // 检测历史相关状态
+  const [damageRecords, setDamageRecords] = useState<DamageRecord[]>([])
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [selectedType, setSelectedType] = useState('all')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalRecords, setTotalRecords] = useState(0)
 
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -127,6 +137,143 @@ export default function RoadDamageModule() {
   const [marker, setMarker] = useState<any>(null)
   const [selectedPosition, setSelectedPosition] = useState<{ lng: number; lat: number } | null>(null)
   const mapContainerRef = useRef<HTMLDivElement>(null)
+
+  // 获取检测历史数据
+  const fetchDetectionHistory = useCallback(async () => {
+    setIsLoadingHistory(true);
+    try {
+      const params = new URLSearchParams({
+        page: currentPage.toString(),
+        limit: '10',
+        type: selectedType,
+        search: searchTerm
+      });
+
+      console.log('请求检测历史，参数:', params.toString());
+
+      const response = await fetch(`/api/report/damage?${params}`);
+      console.log('API响应状态:', response.status);
+      console.log('API响应头:', Object.fromEntries(response.headers.entries()));
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API错误响应:', errorText);
+        throw new Error(`获取检测历史失败: ${response.status} - ${errorText}`);
+      }
+
+      const data: DetectionHistoryResponse = await response.json();
+      console.log('API返回数据:', data);
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      setDamageRecords(data.data || []);
+      setTotalPages(data.pagination?.totalPages || 1);
+      setTotalRecords(data.pagination?.total || 0);
+    } catch (error) {
+      console.error('获取检测历史错误:', error);
+      toast.error(`获取检测历史失败: ${(error as Error).message}`);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, [currentPage, selectedType, searchTerm]);
+
+  // 组件加载时获取检测历史
+  useEffect(() => {
+    fetchDetectionHistory();
+  }, [fetchDetectionHistory]);
+
+  // 解析检测结果JSON字符串
+  const parseResults = (resultsJson: string | object): DamageResults => {
+    try {
+      if (typeof resultsJson === 'string') {
+        return JSON.parse(resultsJson);
+      }
+      if (typeof resultsJson === 'object' && resultsJson !== null) {
+        return resultsJson as DamageResults;
+      }
+      throw new Error('未知results类型');
+    } catch (error) {
+      console.error('解析检测结果失败:', error, resultsJson);
+      return {
+        '纵向裂缝': { count: 0, confidence: 0 },
+        '横向裂缝': { count: 0, confidence: 0 },
+        '龟裂': { count: 0, confidence: 0 },
+        '坑洼': { count: 0, confidence: 0 },
+      };
+    }
+  };
+
+  // 获取主要检测类型
+  const getMainDamageType = (results: DamageResults): string => {
+    let maxCount = 0;
+    let mainType = '未知';
+    
+    Object.entries(results).forEach(([type, data]) => {
+      if (data.count > maxCount) {
+        maxCount = data.count;
+        mainType = type;
+      }
+    });
+    
+    return mainType;
+  };
+
+  // 获取严重程度
+  const getSeverityLevel = (results: DamageResults): string => {
+    const totalCount = Object.values(results).reduce((sum, data) => sum + data.count, 0);
+    const avgConfidence = Object.values(results).reduce((sum, data) => sum + data.confidence, 0) / 4;
+    
+    if (totalCount >= 5 || avgConfidence >= 0.8) return '严重';
+    if (totalCount >= 3 || avgConfidence >= 0.6) return '中等';
+    return '轻微';
+  };
+
+  // 获取状态
+  const getStatus = (createdAt: string): string => {
+    const createdDate = new Date(createdAt);
+    const now = new Date();
+    const diffHours = (now.getTime() - createdDate.getTime()) / (1000 * 60 * 60);
+    
+    if (diffHours < 1) return '待处理';
+    if (diffHours < 24) return '处理中';
+    return '已完成';
+  };
+
+  // 格式化时间
+  const formatTime = (timestamp: string): string => {
+    return new Date(timestamp).toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+  };
+
+  // 处理搜索
+  const handleSearch = () => {
+    setCurrentPage(1);
+    fetchDetectionHistory();
+  };
+
+  // 处理类型筛选
+  const handleTypeChange = (value: string) => {
+    setSelectedType(value);
+    setCurrentPage(1);
+  };
+
+  // 处理分页
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  // 刷新数据
+  const handleRefresh = () => {
+    fetchDetectionHistory();
+  };
 
     // 加载高德地图脚本
   const loadAMap = (): Promise<void> => {
@@ -193,21 +340,21 @@ export default function RoadDamageModule() {
       return
     }
 
-    const currentTime = new Date()
-    .toLocaleString("zh-CN", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hour12: false,
-    })
-    .replace(/\//g, "-") // 保证日期格式为 yyyy-MM-dd
+    if (!results) {
+      alert("没有检测结果可保存")
+      return
+    }
+
+    const currentTime = getMySQLDateTimeString();
 
     setIsLoading(true)
 
     try {
+      console.log('开始保存检测结果...');
+      console.log('位置信息:', selectedPosition);
+      console.log('检测结果:', results);
+      console.log('结果图片:', resultImage);
+      
       const response = await fetch("/api/report/damage", {
         method: "POST",
         headers: {
@@ -222,19 +369,22 @@ export default function RoadDamageModule() {
         }),
       })
 
+      console.log('保存API响应状态:', response.status);
+
       if (response.ok) {
-        const blob = await response.blob()
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement("a")
-        a.href = url
-        a.download = "road-damage-report.pdf"
-        a.click()
+        const result = await response.json();
+        console.log('保存成功:', result);
+        toast.success("检测结果保存成功！");
+        // 保存成功后刷新检测历史
+        fetchDetectionHistory();
       } else {
-        alert("导出失败")
+        const errorText = await response.text();
+        console.error('保存失败:', errorText);
+        toast.error(`保存失败: ${errorText}`);
       }
     } catch (err) {
-      console.error("导出失败", err)
-      alert("导出失败")
+      console.error("保存失败", err)
+      alert("保存失败，请检查网络连接")
     } finally {
       setIsLoading(false)
       setIsMapVisible(false)
@@ -266,21 +416,38 @@ const handleUploadAndAnalyze = async (file: File) => {
   formData.append('file', file);
 
   try {
+    console.log('开始上传文件:', file.name);
     const response = await fetch('/api/detect/road-damage', {
       method: 'POST',
       body: formData,
     });
 
+    console.log('API响应状态:', response.status);
+    console.log('API响应头:', response.headers);
+
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || '分析失败');
+      const errorData = await response.text();
+      console.error('API错误响应:', errorData);
+      throw new Error(`API请求失败: ${response.status} - ${errorData}`);
     }
 
     const data: DetectionResponse = await response.json();
-    setResults(data.results);
+    console.log('API响应数据:', data);
+    
+    if (data.results) {
+      setResults(data.results);
+      console.log('设置检测结果:', data.results);
+    } else {
+      console.warn('API响应中没有results字段');
+    }
+    
     if (data.resultImage) {
       setResultImage(data.resultImage);
+      console.log('设置结果图片:', data.resultImage);
+    } else {
+      console.warn('API响应中没有resultImage字段');
     }
+    
     toast.success("分析成功！");
     setUploadedFile(file.name);
   } catch (error: any) {
@@ -515,60 +682,155 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       {/* 检测历史 - 移动端优化 */}
       <Card className="border-0 shadow-lg">
         <CardHeader>
-          <CardTitle className="text-lg sm:text-xl font-bold">检测历史</CardTitle>
-          <CardDescription>路面病害检测记录</CardDescription>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-3 sm:space-y-0">
+            <div>
+              <CardTitle className="text-lg sm:text-xl font-bold">检测历史</CardTitle>
+              <CardDescription>路面病害检测记录 ({totalRecords} 条)</CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isLoadingHistory}
+              className="flex items-center space-x-2"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoadingHistory ? 'animate-spin' : ''}`} />
+              <span>刷新</span>
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
+            {/* 搜索和筛选 */}
             <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
-              <Input placeholder="搜索位置..." className="flex-1 text-sm" />
-              <Select>
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                <Input 
+                  placeholder="搜索位置或检测结果..." 
+                  className="pl-10 text-sm"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                />
+              </div>
+              <Select value={selectedType} onValueChange={handleTypeChange}>
                 <SelectTrigger className="w-full sm:w-40 text-sm">
                   <SelectValue placeholder="病害类型" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">全部类型</SelectItem>
-                  <SelectItem value="pothole">坑洼</SelectItem>
-                  <SelectItem value="crack">裂缝</SelectItem>
-                  <SelectItem value="alligator">龟裂</SelectItem>
+                  <SelectItem value="纵向裂缝">纵向裂缝</SelectItem>
+                  <SelectItem value="横向裂缝">横向裂缝</SelectItem>
+                  <SelectItem value="龟裂">龟裂</SelectItem>
+                  <SelectItem value="坑洼">坑洼</SelectItem>
                 </SelectContent>
               </Select>
-              <Button variant="outline" className="bg-transparent text-sm">
-                <Clock className="w-4 h-4 mr-2" />
-                时间筛选
+              <Button 
+                variant="outline" 
+                className="bg-transparent text-sm"
+                onClick={handleSearch}
+              >
+                <Search className="w-4 h-4 mr-2" />
+                搜索
               </Button>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-              {damageRecords.map((record) => (
-                <Card key={record.id} className="border border-gray-200">
-                  <CardContent className="p-3 sm:p-4">
-                    <div className="flex items-start space-x-3">
-                      <img
-                        src={record.image || "/placeholder.svg"}
-                        alt="病害图片"
-                        className="w-12 sm:w-16 h-12 sm:h-16 rounded-lg object-cover"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-wrap items-center gap-1 sm:gap-2 mb-2">
-                          <Badge variant={getSeverityColor(record.severity)} className="text-xs">
-                            {record.type}
-                          </Badge>
-                          <Badge variant="outline" className="text-xs">
-                            {record.severity}
-                          </Badge>
+
+            {/* 检测历史列表 */}
+            {isLoadingHistory ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin mr-2" />
+                <span>加载中...</span>
+              </div>
+            ) : damageRecords.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                <p>暂无检测记录</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                {damageRecords.map((record) => {
+                  const results = parseResults(record.results);
+                  const mainType = getMainDamageType(results);
+                  const severity = getSeverityLevel(results);
+                  const status = getStatus(record.created_at);
+                  
+                  return (
+                    <Card key={record.id} className="border border-gray-200 hover:shadow-md transition-shadow">
+                      <CardContent className="p-3 sm:p-4">
+                        <div className="flex items-start space-x-3">
+                          <img
+                            src={record.result_image || "/placeholder.svg"}
+                            alt="检测结果"
+                            className="w-12 sm:w-16 h-12 sm:h-16 rounded-lg object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = "/placeholder.svg";
+                            }}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-1 sm:gap-2 mb-2">
+                              <Badge variant={getSeverityColor(severity)} className="text-xs">
+                                {mainType}
+                              </Badge>
+                              <Badge variant="outline" className="text-xs">
+                                {severity}
+                              </Badge>
+                              <Badge variant="outline" className="text-xs">
+                                {status}
+                              </Badge>
+                            </div>
+                            <p className="text-xs sm:text-sm text-gray-600 mb-1 truncate">
+                              {record.module === 'road-damage' ? '路面病害检测' : record.module}
+                            </p>
+                            <p className="text-xs text-gray-500 mb-2">{formatTime(record.timestamp)}</p>
+                            <div className="flex items-center text-xs text-gray-500">
+                              <MapPin className="w-3 h-3 mr-1" />
+                              <span className="truncate">
+                                {record.location_lat.toFixed(4)}, {record.location_lng.toFixed(4)}
+                              </span>
+                            </div>
+                            {/* 检测结果统计 */}
+                            <div className="mt-2 flex flex-wrap gap-1">
+                              {Object.entries(results).map(([type, data]) => 
+                                data.count > 0 ? (
+                                  <Badge key={type} variant="outline" className="text-xs">
+                                    {type}: {data.count}
+                                  </Badge>
+                                ) : null
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <p className="text-xs sm:text-sm text-gray-600 mb-1 truncate">{record.location}</p>
-                        <p className="text-xs text-gray-500 mb-2">{record.time}</p>
-                        <div className="flex items-center text-xs text-gray-500">
-                          <MapPin className="w-3 h-3 mr-1" />
-                          <span className="truncate">{record.gps}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* 分页 */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center space-x-2 mt-6">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                >
+                  上一页
+                </Button>
+                <span className="text-sm text-gray-600">
+                  第 {currentPage} 页，共 {totalPages} 页
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                >
+                  下一页
+                </Button>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
