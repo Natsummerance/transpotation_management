@@ -492,6 +492,23 @@ export default function RoadDamageModule() {
     setCurrentPage(1);
   };
 
+  // 根据筛选类型过滤历史记录
+  const filteredDamageRecords = selectedType === 'all'
+    ? damageRecords
+    : damageRecords.filter(record => {
+        // result 可能是对象或字符串
+        let resultsObj = record.results;
+        if (typeof resultsObj === 'string') {
+          try {
+            resultsObj = JSON.parse(resultsObj);
+          } catch {
+            return false;
+          }
+        }
+        // 只显示该类型数量大于0的记录
+        return resultsObj && resultsObj[selectedType] && resultsObj[selectedType].count > 0;
+      });
+
   // 处理分页
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -1016,14 +1033,14 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                 <Loader2 className="w-6 h-6 animate-spin mr-2" />
                 <span>加载中...</span>
               </div>
-            ) : damageRecords.length === 0 ? (
+            ) : filteredDamageRecords.length === 0 ? (
               <div className="text-center py-8 text-gray-500">
                 <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                 <p>暂无检测记录</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-                {damageRecords.map((record, index) => {
+                {filteredDamageRecords.map((record, index) => {
                   const addrKey = `${record.location_lat},${record.location_lng}`;
                   return (
                     <Card 
@@ -1052,7 +1069,6 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                               )}
                             </div>
                           </div>
-                          
                           {/* 内容区域 */}
                           <div className="flex-1 p-2 min-w-0">
                             {/* 主要信息 */}
@@ -1077,7 +1093,6 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                                 </div>
                               )}
                             </div>
-                            
                             {/* 时间和位置信息 */}
                             <div className="space-y-1 mb-2">
                               <div className="flex items-center text-xs text-gray-500">
@@ -1091,7 +1106,6 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                                 </span>
                               </div>
                             </div>
-                            
                             {/* 检测结果统计 - 只显示有问题的类型 */}
                             {record.results && record.totalCount > 0 && (
                               <div className="space-y-1">

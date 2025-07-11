@@ -92,10 +92,18 @@ export async function GET(request: NextRequest) {
       // 根据病害类型筛选，使用JSON_EXTRACT函数
       // 支持的病害类型：纵向裂缝、横向裂缝、龟裂、坑洼
       const validTypes = ['纵向裂缝', '横向裂缝', '龟裂', '坑洼'];
-      if (validTypes.includes(type)) {
-        // 注意：JSON_EXTRACT中的路径不能使用参数化查询，需要直接拼接
-        // 但这里我们已经验证了type是安全的，所以可以安全使用
-        whereClause = `WHERE JSON_EXTRACT(results, '$.${type}.count') > 0`;
+      // 字段名映射，防止前端传参有空格或别名
+      const typeMap: Record<string, string> = {
+        '纵向裂缝': '纵向裂缝',
+        '横向裂缝': '横向裂缝',
+        '龟裂': '龟裂',
+        '坑洼': '坑洼',
+        // 可扩展别名
+      };
+      const cleanType = (type + '').replace(/\s/g, '').trim();
+      const dbType = Object.keys(typeMap).find(t => t.replace(/\s/g, '') === cleanType);
+      if (dbType && validTypes.includes(dbType)) {
+        whereClause = `WHERE JSON_EXTRACT(results, '$.${dbType}.count') > 0`;
       }
     }
     
@@ -266,33 +274,7 @@ export async function GET(request: NextRequest) {
     
   } catch (error) {
     console.error('获取检测历史错误:', error);
-    
-    // 更详细的错误信息
-    let errorMessage = '获取数据失败';
-    let errorDetails = (error as Error).message;
-    
-    if (errorDetails.includes('Incorrect arguments to mysqld_stmt_execute')) {
-      errorMessage = '数据库查询参数错误';
-      errorDetails = 'SQL预处理语句参数类型或数量不匹配，请检查查询参数';
-    } else if (errorDetails.includes('ER_NO_SUCH_TABLE')) {
-      errorMessage = '数据库表不存在';
-      errorDetails = 'damage_reports表不存在，请检查数据库结构';
-    } else if (errorDetails.includes('ER_ACCESS_DENIED_ERROR')) {
-      errorMessage = '数据库访问权限错误';
-      errorDetails = '数据库连接权限不足，请检查数据库配置';
-    } else if (errorDetails.includes('ECONNREFUSED')) {
-      errorMessage = '数据库连接失败';
-      errorDetails = '无法连接到数据库服务器，请检查网络和数据库服务状态';
-    } else if (errorDetails.includes('ETIMEDOUT')) {
-      errorMessage = '数据库查询超时';
-      errorDetails = '数据库查询执行时间过长，请稍后重试';
-    }
-    
-    return NextResponse.json({ 
-      error: errorMessage, 
-      details: errorDetails,
-      timestamp: new Date().toISOString()
-    }, { status: 500 });
+    return NextResponse.json({ error: '获取检测历史失败' }, { status: 500 });
   } finally {
     // 确保连接被释放
     if (connection) {
