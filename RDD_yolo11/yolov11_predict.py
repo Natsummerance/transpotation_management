@@ -75,6 +75,7 @@ def real_predict(source_path, weights_path):
         
         # 设置固定的输出目录
         output_dir = 'runs/detect/predict'
+        os.makedirs(output_dir, exist_ok=True)
         results = model.predict(source_path, save=True, project='runs/detect', 
                                name='predict', exist_ok=True)
 
@@ -100,7 +101,7 @@ def real_predict(source_path, weights_path):
         # 无论是否检测到对象，都返回结果图片路径
         result = {
             'detections': detections,
-            'image_path': predicted_image_path,
+            'image_path': os.path.abspath(predicted_image_path),
             'message': f'检测到 {len(detections)} 个对象' if detections else '未检测到对象'
         }
         

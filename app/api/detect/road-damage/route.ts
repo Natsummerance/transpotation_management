@@ -122,8 +122,7 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({ 
         results: mockResults,
-        originalImage: `/api/static/RDD_yolo11/upload/${fileName}`,
-        resultImage: `/api/static/RDD_yolo11/upload/${fileName}`,
+        resultImage: '',
         warning: '使用模拟数据，Python脚本执行失败',
         error: scriptError,
         exitCode
@@ -147,8 +146,7 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({ 
         results: mockResults,
-        originalImage: `/api/static/RDD_yolo11/upload/${fileName}`,
-        resultImage: `/api/static/RDD_yolo11/upload/${fileName}`,
+        resultImage: '',
         warning: '使用模拟数据，Python输出解析失败',
         rawOutput: scriptOutput
       });
@@ -192,21 +190,39 @@ export async function POST(req: NextRequest) {
     }
 
     // 构建结果图片的URL路径
-    const resultImagePath = pythonResult.image_path;
+    const predictDir = path.join(process.cwd(), 'runs', 'detect', 'predict');
+    const predictFileName = path.basename(imagePath); // 与原图同名
+    const predictImagePath = path.join(predictDir, predictFileName);
     let resultImageUrl: string | null = null;
-    
-    if (resultImagePath && await fs.access(resultImagePath).then(() => true).catch(() => false)) {
-      // 将结果图片路径转换为可访问的URL
+    let found = false;
+    // 优先用 pythonResult.image_path
+    let resultImagePath = pythonResult.image_path || predictImagePath;
+    for (let i = 0; i < 5; i++) { // 最多重试5次
+      if (await fs.access(resultImagePath).then(() => true).catch(() => false)) {
+        found = true;
+        break;
+      }
+      // 等待100ms再重试
+      await new Promise(res => setTimeout(res, 100));
+    }
+    if (!found) {
+      // 直接在 runs/detect/predict 目录下找同名图片
+      if (await fs.access(predictImagePath).then(() => true).catch(() => false)) {
+        resultImagePath = predictImagePath;
+        found = true;
+      }
+    }
+    if (found) {
       const relativePath = path.relative(process.cwd(), resultImagePath).replace(/\\/g, '/');
       resultImageUrl = `/api/static/${relativePath}`;
     } else {
-      // 如果没有结果图片，使用原图
-      resultImageUrl = `/api/static/RDD_yolo11/upload/${fileName}`;
+      // 彻底找不到才返回空
+      console.warn('Result image not found after retries and folder scan:', resultImagePath);
+      resultImageUrl = '';
     }
 
     return NextResponse.json({ 
       results,
-      originalImage: `/api/static/RDD_yolo11/upload/${fileName}`,
       resultImage: resultImageUrl,
       pythonResult: pythonResult // 添加原始Python结果用于调试
     });

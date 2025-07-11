@@ -41,7 +41,6 @@ interface DetectionResponse {
     '龟裂': DamageStats;
     '坑洼': DamageStats;
   };
-  originalImage?: string;
   resultImage?: string;
 }
 
@@ -719,6 +718,29 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     }
   }
 
+  // 统计卡片鲜艳背景映射
+  const cardBgMap: Record<string, string> = {
+    '纵向裂缝': 'bg-red-600',
+    '横向裂缝': 'bg-orange-600',
+    '龟裂': 'bg-blue-600',
+    '坑洼': 'bg-green-600',
+  };
+  // 图标主色
+  const iconColorMap: Record<string, string> = {
+    '纵向裂缝': 'text-red-100',
+    '横向裂缝': 'text-orange-100',
+    '龟裂': 'text-blue-100',
+    '坑洼': 'text-green-100',
+  };
+
+  // 柔和渐变背景和主色配色方案
+  const cardGradientMap: Record<string, { bgFrom: string; bgTo: string; mainText: string; icon: string }> = {
+    '纵向裂缝': { bgFrom: 'from-red-50', bgTo: 'to-pink-50', mainText: 'text-red-600', icon: 'text-red-600' },
+    '横向裂缝': { bgFrom: 'from-orange-50', bgTo: 'to-yellow-50', mainText: 'text-orange-600', icon: 'text-orange-600' },
+    '龟裂': { bgFrom: 'from-blue-50', bgTo: 'to-cyan-50', mainText: 'text-blue-600', icon: 'text-blue-600' },
+    '坑洼': { bgFrom: 'from-green-50', bgTo: 'to-emerald-50', mainText: 'text-green-600', icon: 'text-green-600' },
+  };
+
   return (
     <div className="space-y-6 sm:space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-3 sm:space-y-0">
@@ -849,25 +871,40 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                   </Button>
                   {isMapVisible && (
                     <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-                      <div className="bg-white rounded-lg shadow-lg p-4 w-[600px] h-[500px] flex flex-col relative">
-                        <div className="text-xl font-bold mb-2">请选择位置</div>
-                        <div 
-                          ref={mapContainerRef} className="flex-1" style={{ width: "100%", height: "100%" }}
-                          >
+                      <div className="bg-gradient-to-br from-white/90 to-blue-50/80 backdrop-blur-xl rounded-3xl shadow-2xl p-0 w-[95vw] max-w-xl h-[500px] flex flex-col relative border border-blue-100">
+                        {/* 关闭按钮右上角浮动 */}
+                        <button
+                          onClick={() => setIsMapVisible(false)}
+                          className="absolute top-4 right-4 text-gray-400 hover:text-blue-500 text-3xl font-bold focus:outline-none z-10 bg-white/80 rounded-full w-10 h-10 flex items-center justify-center shadow-md hover:scale-110 transition-all"
+                          aria-label="关闭"
+                        >
+                          ×
+                        </button>
+                        {/* 标题区加图标 */}
+                        <div className="px-8 pt-8 pb-3 flex items-center gap-2">
+                          <MapPin className="w-6 h-6 text-blue-500 mr-2" />
+                          <div className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight">选择检测位置</div>
                         </div>
-
-                        <div className="mt-4 flex justify-end gap-2">
-                          <button onClick={() => setIsMapVisible(false)} 
-                          className="px-5 h-10 sm:h-12 text-sm sm:text-base bg-gray-100 text-gray-700 rounded-lg shadow-md hover:bg-gray-200 transition"
+                        {/* 地图区域美化 */}
+                        <div 
+                          ref={mapContainerRef}
+                          className="flex-1 mx-8 my-3 rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 via-white to-blue-100 shadow-lg overflow-hidden"
+                          style={{ width: "auto", height: "270px", minHeight: 200 }}
+                        />
+                        {/* 底部按钮美化 */}
+                        <div className="px-8 pb-8 pt-5 flex justify-end gap-4">
+                          <button
+                            onClick={() => setIsMapVisible(false)}
+                            className="px-6 h-11 text-base rounded-full bg-gray-100 text-gray-700 font-semibold shadow hover:bg-gray-200 hover:text-blue-600 transition-all border border-gray-200"
                           >
                             取消
                           </button>
                           <button
                             onClick={handleConfirmLocation}
-                            className="px-5 h-10 sm:h-12 text-sm sm:text-base bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg shadow-md hover:brightness-110 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                            className="px-6 h-11 text-base rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white font-bold shadow-lg hover:brightness-110 hover:scale-105 transition-all disabled:opacity-60 disabled:cursor-not-allowed border-0"
                             disabled={isLoading}
                           >
-                            {isLoading ? "导出中..." : "确认并导出"}
+                            {isLoading ? "保存中..." : "确认并保存"}
                           </button>
                         </div>
                       </div>
@@ -887,6 +924,34 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       </div>
 
       {/* 统计概览 - 移动端优化 */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
+        {results &&
+          damageTypes.map(({ key, label }) => {
+            const item = results[key as keyof typeof results];
+            const { bgFrom, bgTo, mainText, icon } = cardGradientMap[label] || { bgFrom: 'from-gray-100', bgTo: 'to-gray-50', mainText: 'text-gray-600', icon: 'text-gray-400' };
+            return (
+              <Card
+                key={key}
+                className={`border-0 shadow-lg bg-gradient-to-br ${bgFrom} ${bgTo} transition-transform duration-200 hover:scale-105 hover:shadow-2xl hover:brightness+1100`}
+              >
+                <CardContent className="p-3 sm:p-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between">
+                    <div className="mb-2 sm:mb-0">
+                      <p className="text-xs sm:text-sm font-medium text-gray-600">{label}</p>
+                      <p className={`text-xl sm:text-3xl font-bold ${mainText}`}>{item?.count ?? 0}</p>
+                      <p className="text-xs text-gray-400">
+                        置信度: {typeof item?.confidence === 'number' ? item.confidence.toFixed(2) : '0.00'}
+                      </p>
+                    </div>
+                    <AlertTriangle
+                      className={`w-6 sm:w-8 h-6 sm:h-8 ${icon} self-end sm:self-auto`}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+      </div>
       {/* 统计概览卡片已彻底移除 */}
 
       {/* 检测历史 - 移动端优化 */}
