@@ -291,10 +291,10 @@ export default function SettingsModule() {
           <p className="text-gray-600 mt-1">管理您的账户设置和系统偏好</p>
         </div>
         <div className="flex space-x-3">
-          <Button variant="outline" onClick={handleExportData} disabled={isLoading} className="bg-transparent">
+          {/*<Button variant="outline" onClick={handleExportData} disabled={isLoading} className="bg-transparent">
             <Download className="w-4 h-4 mr-2" />
             导出数据
-          </Button>
+          </Button>*/}
           <Button onClick={handleLogout} variant="destructive">
             <LogOut className="w-4 h-4 mr-2" />
             退出登录
@@ -417,7 +417,7 @@ export default function SettingsModule() {
                     disabled={!isEditing}
                   />
                 </div>
-                <div className="space-y-2">
+                {/*<div className="space-y-2">
                   <Label htmlFor="department">部门</Label>
                   <Input
                     id="department"
@@ -434,10 +434,10 @@ export default function SettingsModule() {
                     onChange={(e) => setUserInfo({ ...userInfo, position: e.target.value })}
                     disabled={!isEditing}
                   />
-                </div>
+                </div>*/}
               </div>
 
-              <div className="space-y-2">
+              {/*<div className="space-y-2">
                 <Label htmlFor="bio">个人简介</Label>
                 <Textarea
                   id="bio"
@@ -446,7 +446,7 @@ export default function SettingsModule() {
                   disabled={!isEditing}
                   rows={3}
                 />
-              </div>
+              </div>*/}
             </CardContent>
           </Card>
 

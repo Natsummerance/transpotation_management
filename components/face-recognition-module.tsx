@@ -346,12 +346,6 @@ export default function FaceRecognitionModule() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold text-gray-900">人脸识别管理</h2>
-          <p className="text-gray-600 mt-1">用户人脸录入、验证与访问控制管理</p>
-        </div>
-      </div>
       {/* 人脸录入区域 */}
       <div className="grid grid-cols-1 gap-8">
         <Card className="border-0 shadow-lg">
@@ -363,7 +357,7 @@ export default function FaceRecognitionModule() {
             
             {/* 摄像头预览区域 */}
             <div className="flex justify-center">
-              <div className="w-64 h-48 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl flex items-center justify-center relative overflow-hidden">
+              <div className="w-96 h-64 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl flex items-center justify-center relative overflow-hidden">
                 {stream ? (
                   <div className="relative w-full h-full">
                     <video
