@@ -505,6 +505,40 @@ const [loginError, setLoginError] = useState<string | null>(null);
                     open={forgotPasswordOpen}
                     onClose={() => setForgotPasswordOpen(false)}
                   />
+                  {loginError && (
+                    <div className="w-full flex justify-center mt-2">
+                      <div
+                        className="flex items-center bg-red-50 border border-red-200 text-red-700 rounded-md px-3 py-2 shadow-lg transition-all duration-300 ease-out animate-fade-in w-full"
+                        style={{
+                          minWidth: 0,
+                          maxWidth: "100%",
+                          opacity: 1,
+                          transform: "translateY(0)",
+                          animation: "fadeInUp 0.3s"
+                        }}
+                      >
+                        <AlertCircle className="w-4 h-4 mr-2 text-red-500" />
+                        <span className="text-sm">{loginError}</span>
+                      </div>
+                      <style>
+                        {`
+                          @keyframes fadeInUp {
+                            0% {
+                              opacity: 0;
+                              transform: translateY(10px);
+                            }
+                            100% {
+                              opacity: 1;
+                              transform: translateY(0);
+                            }
+                          }
+                          .animate-fade-in {
+                            animation: fadeInUp 0.3s;
+                          }
+                        `}
+                      </style>
+                    </div>
+                  )}
                 </div>
               </TabsContent>
 
@@ -548,7 +582,6 @@ const [loginError, setLoginError] = useState<string | null>(null);
                       >
                         {countdown > 0 ? `${countdown}s` : "发送"}
                       </Button>
-                      <div className="absolute -bottom-5 right-0 text-xs text-gray-400">敬请期待</div>
                     </div>
                   </div>
                 </div>
@@ -920,6 +953,7 @@ const [loginError, setLoginError] = useState<string | null>(null);
 
       {/* 隐藏的canvas用于捕获图像 */}
       <canvas ref={canvasRef} className="hidden" />
+
     </div>
   )
 }
