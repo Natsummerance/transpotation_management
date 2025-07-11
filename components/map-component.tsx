@@ -60,7 +60,7 @@ export default function MapComponent({
         // 动态加载高德地图API
         if (!window.AMap) {
           const script = document.createElement("script")
-          script.src = `https://webapi.amap.com/maps?v=2.0&key=4c0958011b7f86aca896a60d37f1d7c5&plugin=AMap.Scale,AMap.ToolBar,AMap.ControlBar,AMap.HeatMap`
+          script.src = `https://webapi.amap.com/maps?v=2.0&key=c6115796bfbad53bd639041995b5b123&plugin=AMap.Scale,AMap.ToolBar,AMap.ControlBar,AMap.HeatMap`
           script.async = true
           document.head.appendChild(script)
 

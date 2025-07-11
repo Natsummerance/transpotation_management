@@ -4,7 +4,7 @@ import { pool, checkPoolHealth } from '@/lib/database';
 // 高德地图逆地理编码API
 async function getAddressFromCoordinates(lat: number, lng: number): Promise<string> {
   try {
-    const key = '4c0958011b7f86aca896a60d37f1d7c5'; // 高德地图API密钥
+    const key = 'c6115796bfbad53bd639041995b5b123'; // 高德地图API密钥
     const url = `https://restapi.amap.com/v3/geocode/regeo?key=${key}&location=${lng},${lat}&output=json`;
     
     const response = await fetch(url);

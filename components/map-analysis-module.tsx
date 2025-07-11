@@ -1,12 +1,13 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Download, Eye, Layers, Filter, Calendar, Loader2 } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 // 声明高德地图全局变量
 declare global {
@@ -23,6 +24,10 @@ export default function MapAnalysisModule() {
   const [analysisData, setAnalysisData] = useState<any>(null)
   const mapRef = useRef<HTMLDivElement>(null)
 
+  // 新增：道路病害点数据和弹窗状态
+  const [damagePoints, setDamagePoints] = useState<any[]>([]);
+  const [selectedDamage, setSelectedDamage] = useState<any | null>(null);
+
   // 加载高德地图和数据
   useEffect(() => {
     const loadMapAndData = async () => {
@@ -30,7 +35,7 @@ export default function MapAnalysisModule() {
         // 加载高德地图API
         if (!window.AMap) {
           const script = document.createElement("script")
-          script.src = `https://webapi.amap.com/maps?v=2.0&key=4c0958011b7f86aca896a60d37f1d7c5&plugin=AMap.HeatMap,AMap.MarkerCluster`
+          script.src = `https://webapi.amap.com/maps?v=2.0&key=c6115796bfbad53bd639041995b5b123&plugin=AMap.HeatMap,AMap.MarkerCluster`
           script.async = true
           document.head.appendChild(script)
 
@@ -77,12 +82,72 @@ export default function MapAnalysisModule() {
     }
   }
 
+  // 新增：获取所有道路病害点
+  const fetchDamagePoints = useCallback(async () => {
+    try {
+      const res = await fetch("/api/report/damage?page=1&limit=100&type=all");
+      const data = await res.json();
+      if (Array.isArray(data.data)) {
+        setDamagePoints(data.data.filter((d:any)=>d.totalCount>0));
+      }
+    } catch (e) {
+      setDamagePoints([]);
+    }
+  }, []);
+
+  // 新增：切换到道路病害图层时加载数据
+  useEffect(() => {
+    if (selectedLayer === "damage") {
+      fetchDamagePoints();
+    }
+  }, [selectedLayer, fetchDamagePoints]);
+
   // 更新地图可视化
   const updateMapVisualization = (data: any) => {
-    if (!mapInstance || !data) return
-
-    // 清除现有图层
-    mapInstance.clearMap()
+    if (!mapInstance) return;
+    mapInstance.clearMap();
+    if (selectedLayer === "damage") {
+      // 绘制道路病害点
+      damagePoints.forEach((point) => {
+        // 统一为红色发光感叹号图标
+        const canvas = document.createElement("canvas");
+        canvas.width = 40; canvas.height = 40;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          // 红色圆底
+          ctx.beginPath();
+          ctx.arc(20, 20, 16, 0, 2 * Math.PI);
+          ctx.fillStyle = "#ef4444";
+          ctx.shadowColor = "#ef4444";
+          ctx.shadowBlur = 16;
+          ctx.fill();
+          // 白色感叹号
+          ctx.font = "bold 22px Arial";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = "#fff";
+          ctx.fillText("!", 20, 22);
+        }
+        const marker = new window.AMap.Marker({
+          position: [point.location_lng, point.location_lat],
+          title: point.mainDamageType,
+          icon: new window.AMap.Icon({
+            image: canvas.toDataURL(),
+            size: new window.AMap.Size(40, 40),
+            imageSize: new window.AMap.Size(40, 40),
+          }),
+          offset: new window.AMap.Pixel(-20, -20),
+        });
+        marker.on("click", () => setSelectedDamage(point));
+        mapInstance.add(marker);
+      });
+      // 自动缩放到所有点
+      if (damagePoints.length > 0) {
+        mapInstance.setFitView();
+      }
+      return;
+    }
 
     if (selectedLayer === "heatmap") {
       // 热力图
@@ -162,9 +227,13 @@ export default function MapAnalysisModule() {
   // 重新获取数据
   useEffect(() => {
     if (mapInstance) {
-      fetchAnalysisData()
+      if (selectedLayer === "damage") {
+        updateMapVisualization({});
+      } else {
+        fetchAnalysisData();
+      }
     }
-  }, [selectedTimeRange, selectedLayer, mapInstance])
+  }, [selectedLayer, mapInstance, damagePoints]);
 
   return (
     <div className="space-y-8">
@@ -214,6 +283,7 @@ export default function MapAnalysisModule() {
                   <SelectItem value="trajectory">轨迹图</SelectItem>
                   <SelectItem value="hotspots">热门上客点</SelectItem>
                   <SelectItem value="flow">客流分析</SelectItem>
+                  <SelectItem value="damage">道路病害</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -265,7 +335,7 @@ export default function MapAnalysisModule() {
                 <div className="text-center">
                   <Loader2 className="w-8 h-8 mx-auto mb-2 animate-spin text-blue-600" />
                   <p className="text-sm text-gray-600">加载高德地图中...</p>
-                  <p className="text-xs text-gray-400 mt-1">API Key: 4c0958011b7f86aca896a60d37f1d7c5</p>
+                  <p className="text-xs text-gray-400 mt-1">API Key: c6115796bfbad53bd639041995b5b123</p>
                 </div>
               </div>
             )}
@@ -360,6 +430,54 @@ export default function MapAnalysisModule() {
           </CardContent>
         </Card>
       </div>
+
+      {/* 新增：道路病害详情弹窗 */}
+      <Dialog open={!!selectedDamage} onOpenChange={() => setSelectedDamage(null)}>
+        <DialogContent style={{zIndex: 9999}} className="max-w-md p-0 overflow-hidden bg-white rounded-2xl shadow-2xl border-0">
+          {/* 弹窗头部已移除，内容直接开始 */}
+          {selectedDamage && (
+            <div className="px-6 pb-6 pt-2 space-y-4">
+              <div className="text-center text-lg font-bold text-gray-900 mb-2">详情</div>
+              {/* 类型标签放到最顶端 */}
+              {selectedDamage.results && (
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {Object.entries(selectedDamage.results).map(([type, data]: [string, any]) => (
+                    data.count > 0 ? (
+                      <span key={type} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium" style={{background: type==='纵向裂缝'? '#fee2e2': type==='横向裂缝'? '#fef9c3': type==='龟裂'? '#cffafe': type==='坑洼'? '#f3e8ff':'#e0e7ef', color: type==='纵向裂缝'? '#b91c1c': type==='横向裂缝'? '#b45309': type==='龟裂'? '#0e7490': type==='坑洼'? '#7c3aed':'#334155'}}>
+                        {type} <b className="ml-1 text-base">{data.count}</b>
+                      </span>
+                    ) : null
+                  ))}
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-gray-50 rounded-lg p-3 flex flex-col items-center">
+                  <span className="text-xs text-gray-500 mb-1">数量</span>
+                  <span className="text-lg font-bold text-blue-600">{selectedDamage.totalCount}</span>
+                </div>
+                <div className="bg-gray-50 rounded-lg p-3 flex flex-col items-center">
+                  <span className="text-xs text-gray-500 mb-1">置信度</span>
+                  <span className="text-lg font-bold text-purple-600">{(selectedDamage.avgConfidence*100).toFixed(1)}%</span>
+                </div>
+              </div>
+              <div className="space-y-1 mt-2">
+                <div className="text-xs text-gray-500 truncate"><b>地址：</b>{selectedDamage.address}</div>
+                <div className="text-xs text-gray-400 truncate"><b>时间：</b>{new Date(selectedDamage.timestamp).toLocaleString()}</div>
+              </div>
+              {selectedDamage.result_image && (
+                <div className="w-full flex justify-center items-center bg-gray-50 rounded-xl mt-2 overflow-hidden group transition-all duration-300" style={{height:'auto', padding:'0'}}>
+                  <img
+                    src={selectedDamage.result_image}
+                    alt="病害图片"
+                    className="object-contain max-w-full max-h-60 transition-transform duration-300 ease-in-out group-hover:scale-110 group-hover:shadow-2xl group-hover:border-blue-400 group-hover:border-2 rounded-xl cursor-zoom-in"
+                    style={{display:'block', margin:'0 auto', width:'100%', height:'100%'}}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

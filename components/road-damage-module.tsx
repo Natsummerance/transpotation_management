@@ -153,7 +153,7 @@ const damageTypes = [
   },
 ];
 
-const AMapLoaderUrl = "https://webapi.amap.com/maps?v=2.0&key=4c0958011b7f86aca896a60d37f1d7c5"
+const AMapLoaderUrl = "https://webapi.amap.com/maps?v=2.0&key=c6115796bfbad53bd639041995b5b123"
 declare const AMap: any
 
 // 生成MySQL兼容的时间字符串
@@ -170,7 +170,7 @@ function getMySQLDateTimeString() {
 // 前端通过高德API获取地址
 async function getAddressFromCoordinatesFront(lat: number, lng: number): Promise<string> {
   try {
-    const key = '4c0958011b7f86aca896a60d37f1d7c5';
+    const key = 'c6115796bfbad53bd639041995b5b123';
     const url = `https://restapi.amap.com/v3/geocode/regeo?key=${key}&location=${lng},${lat}&output=json`;
     const response = await fetch(url);
     const data = await response.json();

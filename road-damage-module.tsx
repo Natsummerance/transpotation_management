@@ -62,7 +62,7 @@ const damageTypes = [
   },
 ];
 
-const AMapLoaderUrl = "https://webapi.amap.com/maps?v=2.0&key=4c0958011b7f86aca896a60d37f1d7c5"
+const AMapLoaderUrl = "https://webapi.amap.com/maps?v=2.0&key=c6115796bfbad53bd639041995b5b123"
 declare const AMap: any
 
 export default function RoadDamageModule() {
