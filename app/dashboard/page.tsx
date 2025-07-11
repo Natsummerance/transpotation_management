@@ -50,13 +50,14 @@ import MapAnalysisModule from "@/components/map-analysis-module"
 import TaxiAnalysisModule from "@/components/taxi-analysis-module"
 import DataVisualizationModule from "@/components/data-visualization-module"
 import SettingsModule from "@/components/settings-module"
+import { useUser } from '@/components/user-context';
 
 export default function Dashboard() {
   const [activeModule, setActiveModule] = useState("overview")
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [currentTime, setCurrentTime] = useState(new Date())
-  const [user, setUser] = useState<any>(null)
+  const { user, setUser } = useUser();
   const [isAuthenticated, setIsAuthenticated] = useState(false)
 
   // 登录控制 - 在渲染前检查
@@ -75,7 +76,7 @@ export default function Dashboard() {
     if (userData) {
       setUser(JSON.parse(userData))
     }
-  }, [])
+  }, [setUser])
 
   // 更新UTC时间
   useEffect(() => {
@@ -179,8 +180,9 @@ export default function Dashboard() {
     { id: "map-analysis", label: "地图时空分析", icon: MapPin, shortLabel: "地图" },
     { id: "taxi-analysis", label: "出租车数据分析", icon: Car, shortLabel: "出租" },
     { id: "data-visualization", label: "统计图表分析", icon: BarChart3, shortLabel: "图表" },
-    { id: "settings", label: "系统设置", icon: Settings, shortLabel: "设置" },
   ]
+  
+  {/* id: "settings", label: "系统设置", icon: Settings, shortLabel: "设置" */}
 
   // 调用导出报告接口 POST /api/report/export
   const handleExportReport = async () => {
