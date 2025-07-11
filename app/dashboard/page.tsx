@@ -173,16 +173,18 @@ export default function Dashboard() {
   const navigationItems = [
     { id: "overview", label: "系统概览", icon: Home, shortLabel: "概览" },
     { id: "road-damage", label: "路面病害检测", icon: AlertTriangle, shortLabel: "病害" },
-    { id: "traffic-monitor", label: "实时交通监控", icon: Camera, shortLabel: "监控" },
-    { id: "violation", label: "交通违章识别", icon: Shield, shortLabel: "违章" },
-    { id: "suspect-alert", label: "嫌疑人识别告警", icon: Eye, shortLabel: "告警" },
-    { id: "logs", label: "日志与事件回放", icon: Activity, shortLabel: "日志" },
     { id: "map-analysis", label: "地图时空分析", icon: MapPin, shortLabel: "地图" },
     { id: "taxi-analysis", label: "出租车数据分析", icon: Car, shortLabel: "出租" },
     { id: "data-visualization", label: "统计图表分析", icon: BarChart3, shortLabel: "图表" },
+    { id: "logs", label: "日志与事件回放", icon: Activity, shortLabel: "日志" },
   ]
   
-  {/* id: "settings", label: "系统设置", icon: Settings, shortLabel: "设置" */}
+  {/* 
+    { id: "traffic-monitor", label: "实时交通监控", icon: Camera, shortLabel: "监控" },
+    { id: "violation", label: "交通违章识别", icon: Shield, shortLabel: "违章" },
+    { id: "suspect-alert", label: "嫌疑人识别告警", icon: Eye, shortLabel: "告警" },
+    id: "settings", label: "系统设置", icon: Settings, shortLabel: "设置" */
+  }
 
   // 调用导出报告接口 POST /api/report/export
   const handleExportReport = async () => {
