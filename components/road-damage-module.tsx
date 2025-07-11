@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Upload, MapPin, Clock, FileText, Download, AlertTriangle, Camera, Eye, Loader2, Search, RefreshCw } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Upload, MapPin, Clock, FileText, Download, AlertTriangle, Camera, Eye, Loader2, Search, RefreshCw, X, Zap, Flame, Waves } from "lucide-react"
 import { toast } from "sonner";
 
 interface DamageResults {
@@ -50,10 +51,16 @@ interface DamageRecord {
   module: string;
   location_lat: number;
   location_lng: number;
-  results: string; // JSON字符串
+  results: any; // 解析后的JSON对象
   result_image: string;
   timestamp: string;
-  created_at: string;
+  address: string;
+  coordinates: string;
+  // 新增字段
+  mainDamageType: string;
+  totalCount: number;
+  avgConfidence: number;
+  severity: string;
 }
 
 interface DetectionHistoryResponse {
@@ -71,30 +78,78 @@ const damageTypes = [
   {
     key: '纵向裂缝',
     label: '纵向裂缝',
-    bgFrom: 'from-red-50',
-    bgTo: 'to-pink-50',
-    textColor: 'text-red-600',
+    bgFrom: 'from-red-500',
+    bgTo: 'to-orange-500',
+    textColor: 'text-white',
+    borderColor: 'border-red-400',
+    bgColor: 'bg-gradient-to-br from-red-500 via-orange-500 to-yellow-500',
+    iconColor: 'text-white',
+    animation: 'fire-pulse',
+    borderAnimation: 'fire-border-glow',
+    gradient: 'linear-gradient(-45deg, #dc2626, #ea580c, #f59e0b, #dc2626)',
+    shadow: '0 0 20px rgba(220, 38, 38, 0.5), 0 0 40px rgba(234, 88, 12, 0.3)',
+    hoverShadow: '0 0 30px rgba(220, 38, 38, 0.8), 0 0 60px rgba(234, 88, 12, 0.5)',
+    textShadow: '0 0 10px rgba(255, 255, 255, 0.8), 0 0 20px rgba(255, 255, 255, 0.6)',
+    numberShadow: '0 0 15px rgba(255, 255, 255, 0.9), 0 0 30px rgba(255, 255, 255, 0.7)',
+    iconShadow: 'drop-shadow(0 0 10px rgba(255, 255, 255, 0.8))',
+    badgeStyle: 'bg-gradient-to-r from-red-500 via-orange-500 to-yellow-500 text-white border-0 animate-pulse'
   },
   {
     key: '横向裂缝',
     label: '横向裂缝',
-    bgFrom: 'from-orange-50',
-    bgTo: 'to-yellow-50',
-    textColor: 'text-orange-600',
+    bgFrom: 'from-yellow-500',
+    bgTo: 'to-green-500',
+    textColor: 'text-white',
+    borderColor: 'border-yellow-400',
+    bgColor: 'bg-gradient-to-br from-yellow-500 via-green-500 to-emerald-500',
+    iconColor: 'text-white',
+    animation: 'ocean-wave',
+    borderAnimation: 'ocean-border-glow',
+    gradient: 'linear-gradient(-45deg, #eab308, #22c55e, #10b981, #eab308)',
+    shadow: '0 0 20px rgba(234, 179, 8, 0.5), 0 0 40px rgba(34, 197, 94, 0.3)',
+    hoverShadow: '0 0 30px rgba(234, 179, 8, 0.8), 0 0 60px rgba(34, 197, 94, 0.5)',
+    textShadow: '0 0 10px rgba(255, 255, 255, 0.8), 0 0 20px rgba(255, 255, 255, 0.6)',
+    numberShadow: '0 0 15px rgba(255, 255, 255, 0.9), 0 0 30px rgba(255, 255, 255, 0.7)',
+    iconShadow: 'drop-shadow(0 0 10px rgba(255, 255, 255, 0.8))',
+    badgeStyle: 'bg-gradient-to-r from-yellow-500 via-green-500 to-emerald-500 text-white border-0 animate-pulse'
   },
   {
     key: '龟裂',
     label: '龟裂',
-    bgFrom: 'from-blue-50',
-    bgTo: 'to-cyan-50',
-    textColor: 'text-blue-600',
+    bgFrom: 'from-blue-500',
+    bgTo: 'to-cyan-500',
+    textColor: 'text-white',
+    borderColor: 'border-blue-400',
+    bgColor: 'bg-gradient-to-br from-blue-500 via-cyan-500 to-teal-500',
+    iconColor: 'text-white',
+    animation: 'teal-bounce',
+    borderAnimation: 'teal-border-glow',
+    gradient: 'linear-gradient(-45deg, #3b82f6, #06b6d4, #14b8a6, #3b82f6)',
+    shadow: '0 0 20px rgba(59, 130, 246, 0.5), 0 0 40px rgba(6, 182, 212, 0.3)',
+    hoverShadow: '0 0 30px rgba(59, 130, 246, 0.8), 0 0 60px rgba(6, 182, 212, 0.5)',
+    textShadow: '0 0 10px rgba(255, 255, 255, 0.8), 0 0 20px rgba(255, 255, 255, 0.6)',
+    numberShadow: '0 0 15px rgba(255, 255, 255, 0.9), 0 0 30px rgba(255, 255, 255, 0.7)',
+    iconShadow: 'drop-shadow(0 0 10px rgba(255, 255, 255, 0.8))',
+    badgeStyle: 'bg-gradient-to-r from-blue-500 via-cyan-500 to-teal-500 text-white border-0 animate-pulse'
   },
   {
     key: '坑洼',
     label: '坑洼',
-    bgFrom: 'from-green-50',
-    bgTo: 'to-emerald-50',
-    textColor: 'text-green-600',
+    bgFrom: 'from-purple-500',
+    bgTo: 'to-pink-500',
+    textColor: 'text-white',
+    borderColor: 'border-purple-400',
+    bgColor: 'bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500 animate-pulse',
+    iconColor: 'text-white',
+    animation: 'rainbow-pulse',
+    borderAnimation: 'border-glow',
+    gradient: 'linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab, #ff6b6b, #4ecdc4, #45b7d1, #96ceb4)',
+    shadow: '0 0 20px rgba(147, 51, 234, 0.5), 0 0 40px rgba(236, 72, 153, 0.3)',
+    hoverShadow: '0 0 30px rgba(147, 51, 234, 0.8), 0 0 60px rgba(236, 72, 153, 0.5)',
+    textShadow: '0 0 10px rgba(255, 255, 255, 0.8), 0 0 20px rgba(255, 255, 255, 0.6)',
+    numberShadow: '0 0 15px rgba(255, 255, 255, 0.9), 0 0 30px rgba(255, 255, 255, 0.7)',
+    iconShadow: 'drop-shadow(0 0 10px rgba(255, 255, 255, 0.8))',
+    badgeStyle: 'bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 text-white border-0 animate-pulse'
   },
 ];
 
@@ -112,7 +167,155 @@ function getMySQLDateTimeString() {
     String(now.getSeconds()).padStart(2, '0');
 }
 
+// 前端通过高德API获取地址
+async function getAddressFromCoordinatesFront(lat: number, lng: number): Promise<string> {
+  try {
+    const key = '4c0958011b7f86aca896a60d37f1d7c5';
+    const url = `https://restapi.amap.com/v3/geocode/regeo?key=${key}&location=${lng},${lat}&output=json`;
+    const response = await fetch(url);
+    const data = await response.json();
+    if (data.status === '1' && data.regeocode) {
+      const formattedAddress = data.regeocode.formatted_address;
+      if (formattedAddress) return formattedAddress;
+      const addressComponent = data.regeocode.addressComponent;
+      let address = '';
+      if (addressComponent.province && addressComponent.province !== addressComponent.city) {
+        address += addressComponent.province;
+      }
+      if (addressComponent.city) {
+        address += addressComponent.city;
+      }
+      if (addressComponent.district) {
+        address += addressComponent.district;
+      }
+      if (addressComponent.township) {
+        address += addressComponent.township;
+      }
+      if (addressComponent.street) {
+        address += addressComponent.street;
+      }
+      if (addressComponent.streetNumber) {
+        address += addressComponent.streetNumber;
+      }
+      return address;
+    }
+    return '未知位置';
+  } catch (error) {
+    return '未知位置';
+  }
+}
+
 export default function RoadDamageModule() {
+  // 添加彩色动画CSS
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes rainbow-gradient {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+      }
+      
+      @keyframes fire-gradient {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+      }
+      
+      @keyframes ocean-gradient {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+      }
+      
+      @keyframes teal-gradient {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+      }
+      
+      @keyframes border-glow {
+        0%, 100% { border-color: rgba(147, 51, 234, 0.5); }
+        50% { border-color: rgba(236, 72, 153, 0.8); }
+      }
+      
+      @keyframes fire-border-glow {
+        0%, 100% { border-color: rgba(239, 68, 68, 0.5); }
+        50% { border-color: rgba(245, 101, 101, 0.8); }
+      }
+      
+      @keyframes ocean-border-glow {
+        0%, 100% { border-color: rgba(59, 130, 246, 0.5); }
+        50% { border-color: rgba(96, 165, 250, 0.8); }
+      }
+      
+      @keyframes teal-border-glow {
+        0%, 100% { border-color: rgba(6, 182, 212, 0.5); }
+        50% { border-color: rgba(20, 184, 166, 0.8); }
+      }
+      
+      .border-glow {
+        animation: border-glow 2s ease-in-out infinite;
+      }
+      
+      .fire-border-glow {
+        animation: fire-border-glow 2s ease-in-out infinite;
+      }
+      
+      .ocean-border-glow {
+        animation: ocean-border-glow 2s ease-in-out infinite;
+      }
+      
+      .teal-border-glow {
+        animation: teal-border-glow 2s ease-in-out infinite;
+      }
+      
+      @keyframes rainbow-pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
+      }
+      
+      @keyframes fire-pulse {
+        0%, 100% { transform: scale(1) rotate(0deg); }
+        25% { transform: scale(1.02) rotate(1deg); }
+        50% { transform: scale(1.05) rotate(0deg); }
+        75% { transform: scale(1.02) rotate(-1deg); }
+        100% { transform: scale(1) rotate(0deg); }
+      }
+      
+      @keyframes ocean-wave {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-5px); }
+      }
+      
+      @keyframes teal-bounce {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.03); }
+      }
+      
+      .rainbow-pulse {
+        animation: rainbow-pulse 2s ease-in-out infinite;
+      }
+      
+      .fire-pulse {
+        animation: fire-pulse 3s ease-in-out infinite;
+      }
+      
+      .ocean-wave {
+        animation: ocean-wave 2s ease-in-out infinite;
+      }
+      
+      .teal-bounce {
+        animation: teal-bounce 2s ease-in-out infinite;
+      }
+    `;
+    document.head.appendChild(style);
+    
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [uploadedFile, setUploadedFile] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -137,6 +340,31 @@ export default function RoadDamageModule() {
   const [marker, setMarker] = useState<any>(null)
   const [selectedPosition, setSelectedPosition] = useState<{ lng: number; lat: number } | null>(null)
   const mapContainerRef = useRef<HTMLDivElement>(null)
+  
+  // 弹窗相关状态
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false)
+  const [selectedRecord, setSelectedRecord] = useState<DamageRecord | null>(null)
+
+  // 新增：用于缓存前端获取的地址
+  const [addressCache, setAddressCache] = useState<Record<string, string>>({});
+
+  // 获取并缓存前端地址
+  const fetchAndCacheAddress = useCallback(async (lat: number, lng: number, id: number) => {
+    const key = `${lat},${lng}`;
+    if (addressCache[key]) return;
+    const addr = await getAddressFromCoordinatesFront(lat, lng);
+    setAddressCache(prev => ({ ...prev, [key]: addr }));
+  }, [addressCache]);
+
+  // 修复：全局 useEffect，遍历所有需要补全的记录
+  useEffect(() => {
+    damageRecords.forEach((record) => {
+      const addrKey = `${record.location_lat},${record.location_lng}`;
+      if (record.address === '未知位置' && !addressCache[addrKey]) {
+        fetchAndCacheAddress(record.location_lat, record.location_lng, record.id);
+      }
+    });
+  }, [damageRecords, addressCache, fetchAndCacheAddress]);
 
   // 获取检测历史数据
   const fetchDetectionHistory = useCallback(async () => {
@@ -184,7 +412,7 @@ export default function RoadDamageModule() {
     fetchDetectionHistory();
   }, [fetchDetectionHistory]);
 
-  // 解析检测结果JSON字符串
+  // 解析检测结果JSON字符串（保留用于兼容性）
   const parseResults = (resultsJson: string | object): DamageResults => {
     try {
       if (typeof resultsJson === 'string') {
@@ -205,7 +433,7 @@ export default function RoadDamageModule() {
     }
   };
 
-  // 获取主要检测类型
+  // 获取主要检测类型（保留用于兼容性）
   const getMainDamageType = (results: DamageResults): string => {
     let maxCount = 0;
     let mainType = '未知';
@@ -220,7 +448,7 @@ export default function RoadDamageModule() {
     return mainType;
   };
 
-  // 获取严重程度
+  // 获取严重程度（保留用于兼容性）
   const getSeverityLevel = (results: DamageResults): string => {
     const totalCount = Object.values(results).reduce((sum, data) => sum + data.count, 0);
     const avgConfidence = Object.values(results).reduce((sum, data) => sum + data.confidence, 0) / 4;
@@ -231,8 +459,8 @@ export default function RoadDamageModule() {
   };
 
   // 获取状态
-  const getStatus = (createdAt: string): string => {
-    const createdDate = new Date(createdAt);
+  const getStatus = (timestamp: string): string => {
+    const createdDate = new Date(timestamp);
     const now = new Date();
     const diffHours = (now.getTime() - createdDate.getTime()) / (1000 * 60 * 60);
     
@@ -273,6 +501,18 @@ export default function RoadDamageModule() {
   // 刷新数据
   const handleRefresh = () => {
     fetchDetectionHistory();
+  };
+
+  // 点击记录显示详情
+  const handleRecordClick = (record: DamageRecord) => {
+    setSelectedRecord(record);
+    setIsDetailDialogOpen(true);
+  };
+
+  // 关闭详情弹窗
+  const handleCloseDetailDialog = () => {
+    setIsDetailDialogOpen(false);
+    setSelectedRecord(null);
   };
 
     // 加载高德地图脚本
@@ -647,37 +887,7 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       </div>
 
       {/* 统计概览 - 移动端优化 */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
-        {results &&
-          damageTypes.map(({ key, label, bgFrom, bgTo, textColor }) => {
-            const item = results[key as keyof DamageResults] 
-              return (
-                <Card
-                  key={key}
-                  className={`border-0 shadow-lg bg-gradient-to-br ${bgFrom} ${bgTo}`}
-                >
-                  <CardContent className="p-3 sm:p-6">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between">
-                      <div className="mb-2 sm:mb-0">
-                        <p className={`text-xs sm:text-sm font-bold ${textColor}`}>
-                          {label}
-                        </p>
-                        <p className={`text-xl sm:text-3xl font-bold ${textColor}`}>
-                           {item?.count ?? 0}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          置信度: {typeof item?.confidence === 'number' ? item.confidence.toFixed(2) : '0.00'}
-                        </p>
-                      </div>
-                      <AlertTriangle
-                        className={`w-6 sm:w-8 h-6 sm:h-8 ${textColor} self-end sm:self-auto`}
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-          })}
-      </div>
+      {/* 统计概览卡片已彻底移除 */}
 
       {/* 检测历史 - 移动端优化 */}
       <Card className="border-0 shadow-lg">
@@ -747,57 +957,106 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                 <p>暂无检测记录</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                {damageRecords.map((record) => {
-                  const results = parseResults(record.results);
-                  const mainType = getMainDamageType(results);
-                  const severity = getSeverityLevel(results);
-                  const status = getStatus(record.created_at);
-                  
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                {damageRecords.map((record, index) => {
+                  const addrKey = `${record.location_lat},${record.location_lng}`;
                   return (
-                    <Card key={record.id} className="border border-gray-200 hover:shadow-md transition-shadow">
-                      <CardContent className="p-3 sm:p-4">
-                        <div className="flex items-start space-x-3">
-                          <img
-                            src={record.result_image || "/placeholder.svg"}
-                            alt="检测结果"
-                            className="w-12 sm:w-16 h-12 sm:h-16 rounded-lg object-cover"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = "/placeholder.svg";
-                            }}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex flex-wrap items-center gap-1 sm:gap-2 mb-2">
-                              <Badge variant={getSeverityColor(severity)} className="text-xs">
-                                {mainType}
-                              </Badge>
-                              <Badge variant="outline" className="text-xs">
-                                {severity}
-                              </Badge>
-                              <Badge variant="outline" className="text-xs">
-                                {status}
-                              </Badge>
-                            </div>
-                            <p className="text-xs sm:text-sm text-gray-600 mb-1 truncate">
-                              {record.module === 'road-damage' ? '路面病害检测' : record.module}
-                            </p>
-                            <p className="text-xs text-gray-500 mb-2">{formatTime(record.timestamp)}</p>
-                            <div className="flex items-center text-xs text-gray-500">
-                              <MapPin className="w-3 h-3 mr-1" />
-                              <span className="truncate">
-                                {record.location_lat.toFixed(4)}, {record.location_lng.toFixed(4)}
-                              </span>
-                            </div>
-                            {/* 检测结果统计 */}
-                            <div className="mt-2 flex flex-wrap gap-1">
-                              {Object.entries(results).map(([type, data]) => 
-                                data.count > 0 ? (
-                                  <Badge key={type} variant="outline" className="text-xs">
-                                    {type}: {data.count}
-                                  </Badge>
-                                ) : null
+                    <Card 
+                      key={record.id || index} 
+                      className="group border-0 shadow-xl hover:shadow-2xl transition-all duration-500 cursor-pointer bg-gradient-to-br from-white via-gray-50 to-white hover:from-blue-50 hover:via-indigo-50 hover:to-purple-50 overflow-hidden transform hover:-translate-y-2"
+                      onClick={() => handleRecordClick(record)}
+                    >
+                      <CardContent className="p-3">
+                        <div className="flex">
+                          {/* 小圆角正方形图片缩略图 */}
+                          <div className="relative w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 overflow-hidden mr-2">
+                            <img
+                              src={record.result_image || "/placeholder.svg"}
+                              alt="检测结果"
+                              className="w-full h-full object-cover rounded-xl border border-gray-200"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = "/placeholder.svg";
+                              }}
+                            />
+                            {/* 状态指示器 */}
+                            <div className="absolute top-1 right-1">
+                              {record.totalCount > 0 ? (
+                                <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse"></div>
+                              ) : (
+                                <div className="w-2.5 h-2.5 bg-green-500 rounded-full"></div>
                               )}
                             </div>
+                          </div>
+                          
+                          {/* 内容区域 */}
+                          <div className="flex-1 p-2 min-w-0">
+                            {/* 主要信息 */}
+                            <div className="mb-2">
+                              {record.totalCount > 0 ? (
+                                <div className="space-y-1">
+                                  <p className="text-sm font-bold text-gray-800">
+                                    发现 {record.totalCount} 个问题
+                                  </p>
+                                  <p className="text-xs text-gray-600">
+                                    平均置信度 <span className="font-semibold text-blue-600">{(record.avgConfidence * 100).toFixed(0)}%</span>
+                                  </p>
+                                </div>
+                              ) : (
+                                <div className="space-y-1">
+                                  <p className="text-sm font-bold text-green-600">
+                                    ✅ 道路状况良好
+                                  </p>
+                                  <p className="text-xs text-gray-600">
+                                    未发现路面病害
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* 时间和位置信息 */}
+                            <div className="space-y-1 mb-2">
+                              <div className="flex items-center text-xs text-gray-500">
+                                <Clock className="w-3 h-3 mr-1 text-gray-400" />
+                                <span className="font-medium">{formatTime(record.timestamp)}</span>
+                              </div>
+                              <div className="flex items-center text-xs text-gray-500">
+                                <MapPin className="w-3 h-3 mr-1 text-gray-400" />
+                                <span className="truncate font-medium" title={addressCache[addrKey] || record.address}>
+                                  {addressCache[addrKey] || record.address || record.coordinates}
+                                </span>
+                              </div>
+                            </div>
+                            
+                            {/* 检测结果统计 - 只显示有问题的类型 */}
+                            {record.results && record.totalCount > 0 && (
+                              <div className="space-y-1">
+                                <p className="text-xs font-semibold text-gray-700">检测详情：</p>
+                                <div className="flex flex-wrap gap-1">
+                                  {Object.entries(record.results).map(([type, data]: [string, any]) => 
+                                    data.count > 0 ? (
+                                      (() => {
+                                        const damageType = damageTypes.find(dt => dt.key === type);
+                                        if (damageType) {
+                                          return (
+                                            <Badge 
+                                              key={type} 
+                                              className={`text-xs ${damageType.badgeStyle} shadow-md`}
+                                            >
+                                              {type}: {data.count}个 ({(data.confidence * 100).toFixed(0)}%)
+                                            </Badge>
+                                          );
+                                        }
+                                        return (
+                                          <Badge key={type} variant="outline" className="text-xs shadow-md">
+                                            {type}: {data.count}个 ({(data.confidence * 100).toFixed(0)}%)
+                                          </Badge>
+                                        );
+                                      })()
+                                    ) : null
+                                  )}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </CardContent>
@@ -835,6 +1094,154 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         </CardContent>
       </Card>
 
+      {/* 详情弹窗 */}
+      <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-gradient-to-br from-gray-50 to-white border-0 shadow-2xl">
+          <DialogHeader className="border-b pb-4">
+            <DialogTitle className="flex items-center text-xl">
+              <AlertTriangle className="h-6 w-6 text-orange-500 mr-2" />
+              <span>路面病害检测详情</span>
+            </DialogTitle>
+            <DialogDescription className="text-gray-600">
+              查看详细的检测结果和问题分析
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="p-6">
+            {selectedRecord && (
+              <div className="space-y-6">
+                {/* 主要信息 */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-200 shadow-sm hover:shadow-md transition-shadow">
+                    <h3 className="font-semibold text-sm text-blue-800 mb-3 flex items-center">
+                      <FileText className="h-4 w-4 mr-2" />
+                      基本信息
+                    </h3>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">检测ID:</span>
+                        <span className="font-medium">#{selectedRecord.id}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">检测时间:</span>
+                        <span className="font-medium">{formatTime(selectedRecord.timestamp)}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">主要类型:</span>
+                        <Badge variant="outline" className="text-xs">
+                          {selectedRecord.mainDamageType}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-4 rounded-xl border border-green-200 shadow-sm hover:shadow-md transition-shadow">
+                    <h3 className="font-semibold text-sm text-green-800 mb-3 flex items-center">
+                      <MapPin className="h-4 w-4 mr-2" />
+                      位置信息
+                    </h3>
+                    <div className="space-y-2 text-sm">
+                      <div>
+                        <span className="text-gray-600">地址:</span>
+                        <p className="font-medium mt-1">{selectedRecord.address}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-600">坐标:</span>
+                        <p className="font-mono text-xs mt-1">{selectedRecord.coordinates}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 检测结果图片 */}
+                <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-4 rounded-xl border border-purple-200 shadow-sm hover:shadow-md transition-shadow">
+                  <h3 className="font-semibold text-sm text-purple-800 mb-3 flex items-center">
+                    <Camera className="h-4 w-4 mr-2" />
+                    检测结果图片
+                  </h3>
+                  <div className="flex justify-center items-center p-2">
+                    <img 
+                      src={selectedRecord.result_image || "/placeholder.svg"} 
+                      alt="检测结果" 
+                      className="max-w-full max-h-[400px] rounded-lg transition-transform duration-300 hover:scale-110 object-contain"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "/placeholder.svg";
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* 详细检测结果 */}
+                <div className="bg-gradient-to-br from-orange-50 to-red-50 p-4 rounded-xl border border-orange-200 shadow-sm hover:shadow-md transition-shadow">
+                  <h3 className="font-semibold text-sm text-orange-800 mb-3 flex items-center">
+                    <AlertTriangle className="h-4 w-4 mr-2" />
+                    详细检测结果
+                  </h3>
+                  {selectedRecord.totalCount > 0 ? (
+                    <div className="space-y-4">
+                      <div className="bg-white/60 p-4 rounded-lg border border-orange-200 shadow-sm">
+                        <p className="text-sm text-orange-800 text-center">
+                          共发现 <span className="font-bold text-lg">{selectedRecord.totalCount}</span> 个问题，
+                          平均置信度 <span className="font-bold text-lg">{(selectedRecord.avgConfidence * 100).toFixed(0)}%</span>
+                        </p>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {selectedRecord.results && Object.entries(selectedRecord.results).map(([type, data]: [string, any]) => {
+                          const damageType = damageTypes.find(dt => dt.key === type);
+                          return data.count > 0 ? (
+                            <div 
+                              key={type} 
+                              className={`${damageType?.bgColor} border ${damageType?.borderColor} rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow`}
+                            >
+                              <div className="flex items-center justify-between mb-3">
+                                <span className={`font-semibold text-sm ${damageType?.textColor}`}>
+                                  {type}
+                                </span>
+                                <Badge 
+                                  variant="outline" 
+                                  className={`text-xs ${damageType?.borderColor} ${damageType?.textColor}`}
+                                >
+                                  {(data.confidence * 100).toFixed(0)}%
+                                </Badge>
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                {type === '坑洼' ? (
+                                  <Zap className={`h-4 w-4 ${damageType?.iconColor} animate-pulse`} />
+                                ) : type === '纵向裂缝' ? (
+                                  <Flame className={`h-4 w-4 ${damageType?.iconColor} animate-pulse`} />
+                                ) : type === '横向裂缝' ? (
+                                  <Waves className={`h-4 w-4 ${damageType?.iconColor}`} />
+                                ) : (
+                                  <AlertTriangle className={`h-4 w-4 ${damageType?.iconColor}`} />
+                                )}
+                                <p className={`text-sm ${damageType?.textColor}`}>
+                                  检测到 <span className="font-bold text-lg">{data.count}</span> 个{type}
+                                </p>
+                              </div>
+                            </div>
+                          ) : null;
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-white/60 p-6 rounded-lg border border-green-200 text-center shadow-sm">
+                      <div className="text-green-600 mb-2">
+                        <svg className="w-12 h-12 mx-auto" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <p className="text-sm text-green-800 font-medium">
+                        ✅ 未发现路面病害，道路状况良好
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
     </div>
   )
