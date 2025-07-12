@@ -24,11 +24,12 @@ import {
   X,
   User,
   Trash2,
+  AlertCircle,
 } from "lucide-react"
 import { encryptAES } from "@/lib/cryptoFront";
 
 // 添加API基础URL配置
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+const API_BASE_URL = 'http://localhost:5000'
 
 // 添加调试信息
 console.log('当前API地址:', API_BASE_URL)
@@ -47,11 +48,20 @@ export default function FaceRecognitionModule() {
   const [progress, setProgress] = useState<number>(0)
   const [progressText, setProgressText] = useState<string>('')
   const [isTraining, setIsTraining] = useState(false)
+  const [isBlinkVerification, setIsBlinkVerification] = useState(false)
+  const [blinkCount, setBlinkCount] = useState<number>(0)
+  const [sessionId, setSessionId] = useState<string>('')
+  const [targetImages, setTargetImages] = useState<number>(300)
+  const [collectedImages, setCollectedImages] = useState<number>(0)
+  const [verificationMode, setVerificationMode] = useState<boolean>(false)
+  const [verificationMessage, setVerificationMessage] = useState<string>('')
+  const [duplicateAlertShown, setDuplicateAlertShown] = useState<boolean>(false)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const collectIntervalRef = useRef<boolean>(false)
 
-    // 新增：监听 stream，设置 video.srcObject
+   // 新增：监听 stream，设置 video.srcObject
   useEffect(() => {
     if (videoRef.current && stream) {
       videoRef.current.srcObject = stream
@@ -69,6 +79,13 @@ export default function FaceRecognitionModule() {
       } catch {}
     }
   }, []);
+
+  // 清理采集状态
+  useEffect(() => {
+    return () => {
+      collectIntervalRef.current = false
+    }
+  }, [])
 
   const recognitionLogs = [
     {
@@ -135,26 +152,29 @@ export default function FaceRecognitionModule() {
       videoRef.current.srcObject = null
     }
     setVideoReady(false)
+    
+    // 清理采集状态
+    collectIntervalRef.current = false
   }
 
   // 捕获人脸图像
-  const captureFrame = () => {
-      if (videoRef.current && canvasRef.current) {
-        const canvas = canvasRef.current
-        const video = videoRef.current
-        const ctx = canvas.getContext("2d")
-  
-        console.log("videoWidth:", video.videoWidth, "videoHeight:", video.videoHeight)
-        if (ctx && video.videoWidth && video.videoHeight) {
-          canvas.width = video.videoWidth
-          canvas.height = video.videoHeight
-          ctx.drawImage(video, 0, 0)
-          const dataUrl = canvas.toDataURL("image/jpeg", 0.8)
-          return dataUrl
-        }
-      }
-      return null
-    }
+  const captureFrame = () => {
+    if (videoRef.current && canvasRef.current) {
+      const canvas = canvasRef.current
+      const video = videoRef.current
+      const ctx = canvas.getContext("2d")
+
+      console.log("videoWidth:", video.videoWidth, "videoHeight:", video.videoHeight)
+      if (ctx && video.videoWidth && video.videoHeight) {
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+        ctx.drawImage(video, 0, 0)
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.8)
+        return dataUrl
+      }
+    }
+    return null
+  }
 
   // 等待 videoReady 的 Promise 封装
   const waitForVideoReady = (timeout = 5000) => {
@@ -173,78 +193,246 @@ export default function FaceRecognitionModule() {
     })
   }
 
-  // 人脸录入流程
+  // 停止采集
+  const stopCollection = () => {
+    // 设置标志位来停止递归调用
+    collectIntervalRef.current = false
+    setIsTraining(false)
+    setIsBlinkVerification(false)
+    setVerificationMode(false)
+    setProgressText('采集已停止')
+    setDuplicateAlertShown(false) // 重置重复提示状态
+  }
+
+  // 人脸录入流程（分步式+检测）
   const handleFaceRegistration = async () => {
-    if (!username.trim()) {
-      alert('请输入用户名')
+    if (!username) {
+      alert('未检测到登录用户，请先登录')
       return
     }
-
     if (!stream) {
       alert('请先启动摄像头')
       return
     }
-
+    
+    // 重置状态
     setIsTraining(true)
     setCapturedImages([])
     setProgress(0)
     setProgressText('开始录入会话...')
-
+    setIsBlinkVerification(false)
+    setBlinkCount(0)
+    setVerificationMode(false)
+    setVerificationMessage('')
+    setCollectedImages(0)
+    setTargetImages(300) // 确保目标图像数设置正确
+    setDuplicateAlertShown(false) // 重置重复提示状态
+    
     try {
-      // 捕获多张人脸图像
-      const images = []
-      for (let i = 0; i < 5; i++) {
-        setProgressText(`捕获第 ${i + 1} 张图像...`)
-        setProgress((i + 1) * 20)
-        
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        
-        const imageData = captureFrame()
-        if (imageData) {
-          // 加密图像数据
-          const encryptedImage = encryptAES(imageData);
-          images.push(encryptedImage)
-          setCapturedImages(prev => [...prev, imageData])
+      console.log('发送请求到:', `${API_BASE_URL}/start_registration`)
+      
+      // 1. 开始录入会话
+      const startResponse = await fetch(`${API_BASE_URL}/start_registration`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username })
+      })
+
+      // 添加响应状态检查
+      console.log('响应状态:', startResponse.status)
+      console.log('响应头:', startResponse.headers.get('content-type'))
+      if (!startResponse.ok) {
+        const errorText = await startResponse.text()
+        console.error('API响应错误:', errorText)
+        throw new Error(`HTTP ${startResponse.status}: ${errorText}`)
+      }
+      
+      const startResult = await startResponse.json()
+      if (!startResult.success) {
+        throw new Error(startResult.message || '开始录入会话失败')
+      }
+
+      const newSessionId = startResult.session_id
+      const newTargetImages = startResult.target_images
+      
+      setSessionId(newSessionId)
+      setTargetImages(newTargetImages)
+      setProgressText(`开始采集人脸图像，目标: ${newTargetImages} 张`)
+
+      // 2. 连续采集图像 - 修改为同步采集，确保上一张验证通过后才采集下一张
+      const collectNextImage = async () => {
+        try {
+          const canvas = canvasRef.current
+          const video = videoRef.current
+          
+          if (!canvas || !video) return
+
+          const context = canvas.getContext('2d')
+          if (!context) return
+
+          // 设置canvas尺寸
+          canvas.width = video.videoWidth
+          canvas.height = video.videoHeight
+
+          // 绘制当前帧
+          context.drawImage(video, 0, 0)
+
+          // 转换为base64
+          const imageData = canvas.toDataURL('image/jpeg', 0.8)
+          // 移除base64前缀，只保留纯base64数据
+          const base64Data = imageData.replace(/^data:image\/[a-z]+;base64,/, "")
+
+          console.log('发送图像到后端，当前进度:', collectedImages, '/', newTargetImages)
+
+          // 发送图像到后端
+          const collectResponse = await fetch(`${API_BASE_URL}/collect_image`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              session_id: newSessionId,
+              image: base64Data
+            }),
+          })
+
+          const collectResult = await collectResponse.json()
+          
+          // 添加调试日志
+          console.log('后端响应:', collectResult)
+          
+          if (collectResult.success) {
+            const currentCollected = collectResult.collected_images || 0
+            const currentProgress = collectResult.progress || 0
+            
+            console.log('当前采集数:', currentCollected, '进度:', currentProgress)
+            
+            setCollectedImages(currentCollected)
+            setProgress(currentProgress)
+            
+            // 处理重复录入检测
+            if (collectResult.duplicate && !duplicateAlertShown) {
+              setDuplicateAlertShown(true) // 标记已显示提示
+              stopCollection()
+              setProgressText(collectResult.message)
+              alert(collectResult.message)
+              return false // 停止采集
+            }
+            
+            // 处理眨眼验证
+            if (collectResult.verification_mode) {
+              setVerificationMode(true)
+              setIsBlinkVerification(true)
+              setVerificationMessage('请眨眼验证 - 防止照片攻击')
+              setProgressText(`眨眼验证中... (${currentCollected}/${newTargetImages})`)
+              // 在验证模式下，继续采集但不增加计数
+              return true // 继续采集
+            } else if (collectResult.verification_complete) {
+              setVerificationMode(false)
+              setIsBlinkVerification(false)
+              setVerificationMessage('')
+              setBlinkCount(0)
+              setProgressText("眨眼验证通过，继续录入...")
+              // 验证完成后，继续采集
+              return true // 继续采集
+            } else {
+              setVerificationMode(false)
+              setIsBlinkVerification(false)
+              setVerificationMessage('')
+              setProgressText(`正在采集图像: ${currentCollected}/${newTargetImages}`)
+            }
+            
+            // 更新已采集图像列表（只保留最新的几张用于显示）
+            setCapturedImages(prev => {
+              const newImages = [...prev, imageData]
+              return newImages.slice(-5) // 只保留最新的5张图像用于显示
+            })
+
+            // 检查是否完成采集
+            if (collectResult.completed) {
+              stopCollection()
+              setProgressText('图像采集完成，开始训练模型...')
+
+              // 3. 开始训练
+              const trainResponse = await fetch(`${API_BASE_URL}/train_session`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  session_id: newSessionId
+                }),
+              })
+
+              const trainResult = await trainResponse.json()
+              
+              if (trainResult.success) {
+                setProgressText('人脸录入成功！')
+                alert(`人脸录入成功！用户: ${username}，共训练 ${trainResult.samples} 张图像`)
+                // 重置状态
+                setCapturedImages([])
+                setProgress(0)
+                setIsBlinkVerification(false)
+                setBlinkCount(0)
+                setVerificationMode(false)
+                setVerificationMessage('')
+                setCollectedImages(0)
+              } else {
+                throw new Error(trainResult.message || '训练失败')
+              }
+              return false // 停止采集
+            }
+            
+            return true // 继续采集
+          } else {
+            // 处理错误情况
+            if (collectResult.duplicate && !duplicateAlertShown) {
+              setDuplicateAlertShown(true) // 标记已显示提示
+              stopCollection()
+              setProgressText(collectResult.message)
+              alert(collectResult.message)
+              return false // 停止采集
+            } else {
+              console.log('当前帧处理失败:', collectResult.message)
+              // 如果未检测到人脸，停止进度条但不中断流程
+              if (collectResult.message && collectResult.message.includes('未检测到人脸')) {
+                setProgressText('未检测到人脸，请确保人脸清晰可见')
+                // 继续尝试，不返回false
+              }
+              return true // 继续采集
+            }
+          }
+        } catch (error) {
+          console.error('采集图像错误:', error)
+          return true // 继续采集
         }
       }
 
-      // 发送注册请求
-      setProgressText('开始训练模型...')
-      setProgress(80)
-      
-      const response = await fetch(`${API_BASE_URL}/face/recognize`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          username: username,
-          image: images[0], // 使用第一张图像进行注册
-          action: "register"
-        }),
-      })
-      
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error('API响应错误:', errorText)
-        throw new Error(`HTTP ${response.status}: ${errorText}`)
+      // 使用递归调用来实现同步采集
+      const startCollection = async () => {
+        if (!collectIntervalRef.current) return // 如果已停止，退出
+        
+        const shouldContinue = await collectNextImage()
+        if (shouldContinue && collectIntervalRef.current) {
+          // 延迟100ms后采集下一张
+          setTimeout(startCollection, 100)
+        }
       }
+
+      // 设置采集标志位
+      collectIntervalRef.current = true
       
-      const result = await response.json()
-      if (result.success) {
-        setProgressText('人脸录入成功！')
-        setProgress(100)
-        alert(`人脸录入成功！用户: ${username}`)
-        // 重置状态
-        setUsername('')
-        setCapturedImages([])
-        setProgress(0)
-      } else {
-        setProgressText('人脸录入失败')
-        alert(`人脸录入失败: ${result.message || '未知错误'}`)
-      }
-      
-      setIsTraining(false)
+      // 开始采集
+      startCollection()
+
+      // 设置超时保护，防止无限循环
+      setTimeout(() => {
+        if (collectedImages < newTargetImages && collectIntervalRef.current) {
+          stopCollection()
+          setProgressText('采集超时，请重试')
+          alert('图像采集超时，请确保人脸清晰可见并重试')
+        }
+      }, 120000) // 2分钟超时
 
     } catch (error) {
       console.error('详细错误信息:', error)
@@ -252,10 +440,12 @@ export default function FaceRecognitionModule() {
       setProgressText('人脸录入失败')
       alert(`人脸录入失败: ${(error as Error).message || '未知错误'}`)
       setIsTraining(false)
+      setIsBlinkVerification(false)
+      setBlinkCount(0)
+      setVerificationMode(false)
+      setVerificationMessage('')
     }
   }
-      
-
 
   // 模拟未授权访问
   const simulateUnauthorizedAccess = () => {
@@ -276,9 +466,11 @@ export default function FaceRecognitionModule() {
         <Card className="border-0 shadow-lg">
           <CardHeader>
             <CardTitle className="text-xl font-bold">人脸录入</CardTitle>
-            <CardDescription>录入新用户人脸信息</CardDescription>
+            <CardDescription>录入新用户人脸信息 - 需要采集300张图像，包含眨眼验证</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            
+
             
             {/* 摄像头预览区域 */}
             <div className="flex justify-center">
@@ -301,10 +493,38 @@ export default function FaceRecognitionModule() {
                         </div>
                       </div>
                     )}
+                    {isBlinkVerification && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-yellow-500/30">
+                        <div className="text-center text-yellow-800 bg-white/90 rounded-lg p-4 max-w-xs">
+                          <Eye className="w-8 h-8 mx-auto mb-2 animate-pulse text-yellow-600" />
+                          <p className="text-sm font-medium mb-1">请眨眼验证</p>
+                          <p className="text-xs text-yellow-700 mb-2">防止照片攻击</p>
+                          <div className="flex justify-center space-x-1">
+                            <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+                            <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
+                            <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse" style={{animationDelay: '0.4s'}}></div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {verificationMode && !isBlinkVerification && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-blue-500/30">
+                        <div className="text-center text-blue-800 bg-white/90 rounded-lg p-4 max-w-xs">
+                          <AlertCircle className="w-8 h-8 mx-auto mb-2 animate-pulse text-blue-600" />
+                          <p className="text-sm font-medium">验证模式</p>
+                          <p className="text-xs text-blue-700">请配合验证</p>
+                        </div>
+                      </div>
+                    )}
                     <div className="absolute top-2 right-2 flex items-center space-x-1">
                       <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
                       <span className="text-xs text-white bg-black/50 px-1 rounded">LIVE</span>
                     </div>
+                    {isTraining && (
+                      <div className="absolute bottom-2 left-2 bg-blue-500 text-white text-xs px-2 py-1 rounded">
+                        已采集 {collectedImages}/{targetImages}
+                      </div>
+                    )}
                   </div>
                 ) : capturedImages.length > 0 ? (
                   <div className="relative w-full h-full">
@@ -344,10 +564,10 @@ export default function FaceRecognitionModule() {
             </div>
             
             {/* 进度显示 */}
-            {(isProcessing || progress > 0) && (
+            {isTraining && (
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">{progressText}</span>
+                  <span className="text-gray-600">{progressText || `正在采集图像: ${collectedImages}/${targetImages}`}</span>
                   <span className="text-blue-600">{progress.toFixed(1)}%</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
@@ -355,6 +575,15 @@ export default function FaceRecognitionModule() {
                     className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
                     style={{ width: `${progress}%` }}
                   ></div>
+                </div>
+                {verificationMessage && (
+                  <div className="text-xs text-yellow-600 bg-yellow-50 p-2 rounded">
+                    {verificationMessage}
+                  </div>
+                )}
+                {/* 调试信息 */}
+                <div className="text-xs text-gray-500">
+                  调试: collectedImages={collectedImages}, progress={progress}, targetImages={targetImages}
                 </div>
               </div>
             )}
@@ -375,7 +604,7 @@ export default function FaceRecognitionModule() {
                   <Button
                     className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white"
                     onClick={handleFaceRegistration}
-                    disabled={isTraining || !stream}
+                    disabled={isTraining || !username}
                   >
                     {isTraining ? (
                       <>
@@ -405,36 +634,3 @@ export default function FaceRecognitionModule() {
     </div>
   )
 }
-
-// 新增：调用后端 /train 接口进行人脸模型训练
-const trainFaceModel = async (userId: number, username: string, images: string[]) => {
-  const response = await fetch(`${API_BASE_URL}/train`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user_id: userId, username, images })
-  })
-  return await response.json()
-}
-
-// 新增：调用后端 /recognize 接口进行人脸识别
-const recognizeFace = async (image: string) => {
-  const response = await fetch(`${API_BASE_URL}/recognize`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ image })
-  })
-  return await response.json()
-}
-
-// 新增：获取用户列表
-const fetchUsers = async () => {
-  const response = await fetch(`${API_BASE_URL}/users`)
-  return await response.json()
-}
-
-// 新增：删除用户
-const deleteUser = async (userId: number) => {
-  const response = await fetch(`${API_BASE_URL}/user/${userId}`, { method: "DELETE" })
-  return await response.json()
-}
-

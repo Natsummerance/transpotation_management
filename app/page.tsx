@@ -62,94 +62,7 @@ export default function LoginPage() {
     phone: "",
   })
 
-  // 启动摄像头
-  const startCamera = async () => {
-    try {
-      setCameraError(null)
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-          facingMode: "user",
-        },
-      })
-
-      setStream(mediaStream)
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream
-        videoRef.current.play()
-      }
-      return true
-    } catch (error) {
-      console.error("Camera access failed:", error)
-      setCameraError("无法访问摄像头，请检查权限设置")
-      return false
-    }
-  }
-
-  // 停止摄像头
-  const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop())
-      setStream(null)
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null
-    }
-  }
-
-  // 捕获人脸图像
-  const captureFrame = () => {
-    if (videoRef.current && canvasRef.current) {
-      const canvas = canvasRef.current
-      const video = videoRef.current
-      const ctx = canvas.getContext("2d")
-
-      if (ctx) {
-        canvas.width = video.videoWidth
-        canvas.height = video.videoHeight
-        ctx.drawImage(video, 0, 0)
-
-        return canvas.toDataURL("image/jpeg", 0.8)
-      }
-    }
-    return null
-  }
-
-  // 调用人脸识别API
-  const performFaceRecognition = async (imageData: string) => {
-    try {
-      // 移除base64前缀
-      const base64Data = imageData.replace(/^data:image\/[a-z]+;base64,/, "");
-      
-      const encryptedImage = encryptAES(base64Data);
-      if (!encryptedImage) {
-        throw new Error("加密失败，请检查配置");
-      }
-
-      const response = await fetch("/api/user/login/face", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          image: base64Data,
-        }),
-      })
-
-      const result = await response.json()
-      return {
-        success: result.code === "1",
-        message: result.msg,
-        user: result.data
-      }
-    } catch (error) {
-      console.error("Face recognition failed:", error)
-      throw error
-    }
-  }
-
-const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   // 调用登录接口 POST /api/user/login
   const handleLogin = async () => {
@@ -265,52 +178,8 @@ const [loginError, setLoginError] = useState<string | null>(null);
         alert("网络错误，请稍后重试")
         setIsLoading(false)
       }
-    } else if (registerStep === "face") {
-      setIsLoading(true)
-      setTimeout(() => {
-        setIsLoading(false)
-        setRegisterStep("success")
-      }, 3000)
     }
-  }
-
-
-  // 人脸识别流程
-  const startFaceRecognition = async () => {
-    const cameraStarted = await startCamera()
-    if (!cameraStarted) return
-
-    setFaceRecognitionActive(true)
-
-    // 等待3秒让用户准备
-    setTimeout(async () => {
-      try {
-        const imageData = captureFrame()
-        if (imageData) {
-          const result = await performFaceRecognition(imageData)
-
-          if (result.success) {
-          if (isLogin) {
-            // 人脸识别登录成功
-            localStorage.setItem("token", result.user.token);
-            localStorage.setItem("user", JSON.stringify(result.user))
-            alert(result.message || "人脸识别登录成功！")
-            window.location.href = "/dashboard"
-          } else {
-            // 人脸注册成功
-            handleRegister()
-          }
-        } else {
-          setCameraError(result.message || "人脸识别失败")
-        }
-        }
-      } catch (error) {
-        setCameraError("人脸识别过程中出现错误")
-      } finally {
-        setFaceRecognitionActive(false)
-        stopCamera()
-      }
-    }, 3000)
+    // 注意：人脸录入步骤现在由单独的按钮处理，不在handleRegister中
   }
 
   // 发送验证码功能
@@ -360,12 +229,321 @@ const [loginError, setLoginError] = useState<string | null>(null);
     setCameraError(null)
   }
 
+    // 自动启动摄像头当切换到人脸识别模式时
+    useEffect(() => {
+      if (loginMode === "face" && isLogin) {
+        console.log("切换到人脸识别模式，启动摄像头...")
+        const initCamera = async () => {
+          try {
+            const success = await startCamera()
+            if (!success) {
+              console.error("摄像头启动失败，尝试重试...")
+              // 等待1秒后重试一次
+              setTimeout(async () => {
+                console.log("重试启动摄像头...")
+                const retrySuccess = await startCamera()
+                if (!retrySuccess) {
+                  console.error("摄像头重试启动也失败")
+                  setCameraError("摄像头启动失败，请检查设备权限或刷新页面重试")
+                } else {
+                  console.log("摄像头重试启动成功")
+                }
+              }, 1000)
+            } else {
+              console.log("摄像头启动成功")
+            }
+          } catch (error) {
+            console.error("摄像头初始化过程中发生错误:", error)
+            setCameraError("摄像头初始化失败")
+          }
+        }
+        // 延迟一点启动，确保UI已经渲染完成
+        setTimeout(initCamera, 500)
+      } else {
+        console.log("停止摄像头...")
+        stopCamera()
+      }
+    }, [loginMode, isLogin])
+
   // 清理摄像头资源
   useEffect(() => {
     return () => {
       stopCamera()
     }
   }, [])
+
+  // 摄像头相关函数
+  const startCamera = async () => {
+    try {
+      setCameraError(null)
+      console.log("请求摄像头权限...")
+      
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: "user",
+        },
+      })
+
+      console.log("摄像头权限获取成功，设置视频流...")
+      setStream(mediaStream)
+      
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream
+        await videoRef.current.play()
+        console.log("视频元素开始播放")
+      } else {
+        console.error("视频元素引用不存在")
+        return false
+      }
+      
+      return true
+    } catch (error) {
+      console.error("Camera access failed:", error)
+      setCameraError("无法访问摄像头，请检查权限设置")
+      return false
+    }
+  }
+
+  const stopCamera = () => {
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop())
+      setStream(null)
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
+  }
+
+  const captureFrame = () => {
+    if (videoRef.current && canvasRef.current) {
+      const canvas = canvasRef.current
+      const video = videoRef.current
+      const ctx = canvas.getContext("2d")
+
+      if (ctx) {
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+        ctx.drawImage(video, 0, 0)
+        return canvas.toDataURL("image/jpeg", 0.8)
+      }
+    }
+    return null
+  }
+
+  // 人脸识别登录流程
+  const startFaceRecognition = async () => {
+    // 如果摄像头未打开，自动打开
+    let cameraStarted = !!stream
+    if (!cameraStarted) {
+      cameraStarted = await startCamera()
+      if (!cameraStarted) return
+    }
+    setFaceRecognitionActive(true)
+    setLoginError(null)
+    
+    try {
+      // 等待摄像头准备
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      
+      const imageData = captureFrame()
+      if (imageData) {
+        // 移除base64前缀
+        const base64Data = imageData.replace(/^data:image\/[a-z]+;base64,/, "")
+        
+        console.log('开始人脸识别，发送图像数据到后端...')
+        console.log('图像数据长度:', base64Data.length)
+        
+        // 直接调用后端接口，使用 JSON 格式
+        const response = await fetch('http://localhost:5000/recognize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: base64Data })
+        })
+        
+        console.log('后端响应状态:', response.status)
+        console.log('后端响应头:', Object.fromEntries(response.headers.entries()))
+        
+        if (!response.ok) {
+          console.error('HTTP错误:', response.status, response.statusText)
+          const errorText = await response.text()
+          console.error('错误响应内容:', errorText)
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        }
+        
+        const result = await response.json()
+        console.log('后端响应数据:', result)
+        
+        if (result.success === true) {
+          // 登录成功，构建用户数据
+          const userData = {
+            uid: result.user_id,
+            uname: result.username,
+            token: `face_token_${Date.now()}`, // 生成临时token
+            loginType: 'face'
+          }
+          
+          localStorage.setItem('token', userData.token)
+          localStorage.setItem('user', JSON.stringify(userData))
+          
+          alert(`人脸识别登录成功！欢迎 ${result.username}`)
+          window.location.href = '/dashboard'
+        } else {
+          setLoginError(result.message || '人脸识别失败，未找到匹配用户')
+        }
+      } else {
+        setLoginError('无法获取摄像头图像，请确保摄像头正常工作')
+      }
+    } catch (error) {
+      console.error('Face recognition error:', error)
+      setLoginError('人脸识别过程中出现错误，请重试')
+    } finally {
+      setFaceRecognitionActive(false)
+    }
+  }
+
+  // 人脸录入流程（增强版）
+  const startFaceRegistration = async () => {
+    // 如果摄像头未打开，自动打开
+    let cameraStarted = !!stream
+    if (!cameraStarted) {
+      cameraStarted = await startCamera()
+      if (!cameraStarted) return
+    }
+    setFaceRecognitionActive(true)
+    setLoginError(null)
+    
+    try {
+      console.log('开始人脸录入会话...')
+      console.log('用户名:', registerData.username)
+      
+      // 开始录入会话
+      const startResponse = await fetch('http://localhost:5000/start_registration', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: registerData.username })
+      })
+      
+      console.log('开始录入响应状态:', startResponse.status)
+      
+      if (!startResponse.ok) {
+        console.error('开始录入HTTP错误:', startResponse.status, startResponse.statusText)
+        const errorText = await startResponse.text()
+        console.error('错误响应内容:', errorText)
+        setLoginError(`开始录入失败: HTTP ${startResponse.status}`)
+        return
+      }
+      
+      const startResult = await startResponse.json()
+      console.log('开始录入响应数据:', startResult)
+      
+      if (!startResult.success) {
+        setLoginError(startResult.message || '开始录入失败')
+        return
+      }
+      
+      const sessionId = startResult.session_id
+      let collectedImages = 0
+      const targetImages = startResult.target_images
+      
+      // 开始收集图像
+      while (collectedImages < targetImages) {
+        // 等待摄像头准备
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        const imageData = captureFrame()
+        if (!imageData) {
+          setLoginError('无法获取摄像头图像')
+          break
+        }
+        
+        // 移除base64前缀
+        const base64Data = imageData.replace(/^data:image\/[a-z]+;base64,/, "")
+        
+        console.log(`发送第 ${collectedImages + 1} 张图像...`)
+        console.log('图像数据长度:', base64Data.length)
+        
+        // 发送图像到后端
+        const collectResponse = await fetch('http://localhost:5000/collect_image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            session_id: sessionId,
+            image: base64Data 
+          })
+        })
+        
+        console.log('图像收集响应状态:', collectResponse.status)
+        
+        if (!collectResponse.ok) {
+          console.error('图像收集HTTP错误:', collectResponse.status, collectResponse.statusText)
+          const errorText = await collectResponse.text()
+          console.error('错误响应内容:', errorText)
+          setLoginError(`图像收集失败: HTTP ${collectResponse.status}`)
+          break
+        }
+        
+        const collectResult = await collectResponse.json()
+        console.log('图像收集响应数据:', collectResult)
+        
+        if (!collectResult.success) {
+          if (collectResult.duplicate) {
+            setLoginError(collectResult.message)
+            alert(collectResult.message)
+            break
+          } else {
+            setLoginError(collectResult.message)
+            continue
+          }
+        }
+        
+        collectedImages = collectResult.collected_images
+        
+        // 处理眨眼验证
+        if (collectResult.verification_mode) {
+          console.log('正在进行眨眼验证...')
+          // 可以在这里添加UI提示
+        }
+        
+        if (collectResult.verification_complete) {
+          console.log('眨眼验证通过！')
+          // 可以在这里添加UI提示
+        }
+        
+        // 显示进度
+        console.log(`录入进度: ${collectResult.progress}%`)
+        
+        if (collectResult.completed) {
+          console.log('图像收集完成，开始训练...')
+          break
+        }
+      }
+      
+      // 训练模型
+      if (collectedImages >= targetImages) {
+        const trainResponse = await fetch('http://localhost:5000/train_session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: sessionId })
+        })
+        
+        const trainResult = await trainResponse.json()
+        if (trainResult.success) {
+          alert('人脸录入成功！')
+          setRegisterStep('success')
+        } else {
+          setLoginError(trainResult.message || '训练失败')
+        }
+      }
+      
+    } catch (error) {
+      console.error('Face registration error:', error)
+      setLoginError('人脸录入过程中出现错误，请重试')
+    } finally {
+      setFaceRecognitionActive(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-2 sm:p-4 relative overflow-hidden">
@@ -615,6 +793,9 @@ const [loginError, setLoginError] = useState<string | null>(null);
                           autoPlay
                           muted
                           playsInline
+                          onLoadedMetadata={() => console.log("视频元数据加载完成")}
+                          onCanPlay={() => console.log("视频可以开始播放")}
+                          onError={(e) => console.error("视频播放错误:", e)}
                         />
                         {faceRecognitionActive && (
                           <div className="absolute inset-0 flex items-center justify-center bg-black/20">
@@ -822,6 +1003,9 @@ const [loginError, setLoginError] = useState<string | null>(null);
                             autoPlay
                             muted
                             playsInline
+                            onLoadedMetadata={() => console.log("注册视频元数据加载完成")}
+                            onCanPlay={() => console.log("注册视频可以开始播放")}
+                            onError={(e) => console.error("注册视频播放错误:", e)}
                           />
                           {faceRecognitionActive && (
                             <div className="absolute inset-0 flex items-center justify-center bg-black/20">
@@ -851,7 +1035,7 @@ const [loginError, setLoginError] = useState<string | null>(null);
                     <div className="relative">
                       <Button
                         className="w-full h-10 sm:h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white font-medium shadow-lg text-sm sm:text-base"
-                        onClick={startFaceRecognition}
+                        onClick={startFaceRegistration}
                         disabled={faceRecognitionActive || isLoading}
                       >
                         {faceRecognitionActive ? (

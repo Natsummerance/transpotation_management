@@ -4,19 +4,24 @@ import path from 'path';
 
 export async function POST(request: NextRequest) {
   try {
-    const { image } = await request.json();
-    if (!image) {
-      return NextResponse.json({ code: 0, msg: '图片数据不能为空' });
+    const { session_id, image } = await request.json();
+    
+    if (!session_id || !image) {
+      return NextResponse.json({ 
+        success: false, 
+        message: '缺少会话ID或图像数据' 
+      });
     }
     
-    // 使用RDD_yolo11虚拟环境中的Python
+    // 使用Python脚本进行图像采集
     const pythonPath = path.join(process.cwd(), 'RDD_yolo11', 'venv', 'Scripts', 'python.exe');
     const scriptPath = path.join(process.cwd(), 'face-recognition-cv2-master', 'face-recognition-cv2-master', 'face_api.py');
     
     return new Promise((resolve) => {
       const py = spawn(pythonPath, [
         scriptPath,
-        '--action', 'recognize',
+        '--action', 'collect_image',
+        '--session_id', session_id,
         '--image_base64', image
       ]);
       
@@ -35,21 +40,23 @@ export async function POST(request: NextRequest) {
       
       py.on('close', (code) => {
         console.log('Python process exited with code:', code);
-        console.log('Python output:', data);
-        console.log('Python errors:', errorData);
         
         try {
           if (data.trim()) {
             const result = JSON.parse(data.trim());
             resolve(NextResponse.json(result));
           } else {
-            resolve(NextResponse.json({ code: 0, msg: 'Python返回空结果', error: errorData }));
+            resolve(NextResponse.json({ 
+              success: false, 
+              message: 'Python返回空结果', 
+              error: errorData 
+            }));
           }
         } catch (e) {
           console.error('JSON parse error:', e);
           resolve(NextResponse.json({ 
-            code: 0, 
-            msg: 'Python返回异常', 
+            success: false, 
+            message: 'Python返回异常', 
             error: (e as Error).message,
             output: data,
             errors: errorData
@@ -59,6 +66,10 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('API error:', error);
-    return NextResponse.json({ code: 0, msg: '识别失败', error: (error as Error).message });
+    return NextResponse.json({ 
+      success: false, 
+      message: '图像采集失败', 
+      error: (error as Error).message 
+    });
   }
 } 
