@@ -334,19 +334,14 @@ export default function LoginPage() {
 
   // 人脸识别登录流程
   const startFaceRecognition = async () => {
-    // 如果摄像头未打开，自动打开
-    let cameraStarted = !!stream
-    if (!cameraStarted) {
-      cameraStarted = await startCamera()
+    if (!stream) {
+      const cameraStarted = await startCamera()
       if (!cameraStarted) return
     }
     setFaceRecognitionActive(true)
     setLoginError(null)
     
     try {
-      // 等待摄像头准备
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
       const imageData = captureFrame()
       if (imageData) {
         // 移除base64前缀
@@ -376,19 +371,29 @@ export default function LoginPage() {
         console.log('后端响应数据:', result)
         
         if (result.success === true) {
-          // 登录成功，构建用户数据
-          const userData = {
-            uid: result.user_id,
-            uname: result.username,
-            token: `face_token_${Date.now()}`, // 生成临时token
-            loginType: 'face'
+          // 识别成功，调用后端API获取用户信息和token
+          const loginResponse = await fetch('/api/user/login/face', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              user_id: result.user_id,
+              username: result.username 
+            })
+          })
+          
+          const loginResult = await loginResponse.json()
+          console.log('登录API响应:', loginResult)
+          
+          if (loginResult.code === '1') {
+            // 登录成功，保存token和用户信息
+            localStorage.setItem('token', loginResult.data.token)
+            localStorage.setItem('user', JSON.stringify(loginResult.data))
+            
+            alert(`人脸识别登录成功！欢迎 ${loginResult.data.uname}`)
+            window.location.href = '/dashboard'
+          } else {
+            setLoginError(loginResult.msg || '获取用户信息失败')
           }
-          
-          localStorage.setItem('token', userData.token)
-          localStorage.setItem('user', JSON.stringify(userData))
-          
-          alert(`人脸识别登录成功！欢迎 ${result.username}`)
-          window.location.href = '/dashboard'
         } else {
           setLoginError(result.message || '人脸识别失败，未找到匹配用户')
         }
@@ -415,126 +420,60 @@ export default function LoginPage() {
     setLoginError(null)
     
     try {
-      console.log('开始人脸录入会话...')
+      console.log('开始人脸录入...')
       console.log('用户名:', registerData.username)
       
-      // 开始录入会话
-      const startResponse = await fetch('http://localhost:5000/start_registration', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: registerData.username })
-      })
+      // 收集多张图像用于训练
+      const images = []
+      const targetImages = 10 // 收集10张图像
       
-      console.log('开始录入响应状态:', startResponse.status)
-      
-      if (!startResponse.ok) {
-        console.error('开始录入HTTP错误:', startResponse.status, startResponse.statusText)
-        const errorText = await startResponse.text()
-        console.error('错误响应内容:', errorText)
-        setLoginError(`开始录入失败: HTTP ${startResponse.status}`)
-        return
-      }
-      
-      const startResult = await startResponse.json()
-      console.log('开始录入响应数据:', startResult)
-      
-      if (!startResult.success) {
-        setLoginError(startResult.message || '开始录入失败')
-        return
-      }
-      
-      const sessionId = startResult.session_id
-      let collectedImages = 0
-      const targetImages = startResult.target_images
-      
-      // 开始收集图像
-      while (collectedImages < targetImages) {
+      for (let i = 0; i < targetImages; i++) {
         // 等待摄像头准备
-        await new Promise(resolve => setTimeout(resolve, 100))
+        await new Promise(resolve => setTimeout(resolve, 200))
         
         const imageData = captureFrame()
         if (!imageData) {
           setLoginError('无法获取摄像头图像')
-          break
+          return
         }
         
         // 移除base64前缀
         const base64Data = imageData.replace(/^data:image\/[a-z]+;base64,/, "")
+        images.push(base64Data)
         
-        console.log(`发送第 ${collectedImages + 1} 张图像...`)
-        console.log('图像数据长度:', base64Data.length)
-        
-        // 发送图像到后端
-        const collectResponse = await fetch('http://localhost:5000/collect_image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            session_id: sessionId,
-            image: base64Data 
-          })
-        })
-        
-        console.log('图像收集响应状态:', collectResponse.status)
-        
-        if (!collectResponse.ok) {
-          console.error('图像收集HTTP错误:', collectResponse.status, collectResponse.statusText)
-          const errorText = await collectResponse.text()
-          console.error('错误响应内容:', errorText)
-          setLoginError(`图像收集失败: HTTP ${collectResponse.status}`)
-          break
-        }
-        
-        const collectResult = await collectResponse.json()
-        console.log('图像收集响应数据:', collectResult)
-        
-        if (!collectResult.success) {
-          if (collectResult.duplicate) {
-            setLoginError(collectResult.message)
-            alert(collectResult.message)
-            break
-          } else {
-            setLoginError(collectResult.message)
-            continue
-          }
-        }
-        
-        collectedImages = collectResult.collected_images
-        
-        // 处理眨眼验证
-        if (collectResult.verification_mode) {
-          console.log('正在进行眨眼验证...')
-          // 可以在这里添加UI提示
-        }
-        
-        if (collectResult.verification_complete) {
-          console.log('眨眼验证通过！')
-          // 可以在这里添加UI提示
-        }
-        
-        // 显示进度
-        console.log(`录入进度: ${collectResult.progress}%`)
-        
-        if (collectResult.completed) {
-          console.log('图像收集完成，开始训练...')
-          break
-        }
+        console.log(`收集第 ${i + 1} 张图像...`)
       }
       
-      // 训练模型
-      if (collectedImages >= targetImages) {
-        const trainResponse = await fetch('http://localhost:5000/train_session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session_id: sessionId })
+      console.log('发送人脸录入请求...')
+      console.log('图像数量:', images.length)
+      
+      const trainResponse = await fetch('http://localhost:5000/train', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          username: registerData.username,
+          images: images 
         })
-        
-        const trainResult = await trainResponse.json()
-        if (trainResult.success) {
-          alert('人脸录入成功！')
-          setRegisterStep('success')
-        } else {
-          setLoginError(trainResult.message || '训练失败')
-        }
+      })
+      
+      console.log('人脸录入响应状态:', trainResponse.status)
+      
+      if (!trainResponse.ok) {
+        console.error('人脸录入HTTP错误:', trainResponse.status, trainResponse.statusText)
+        const errorText = await trainResponse.text()
+        console.error('错误响应内容:', errorText)
+        setLoginError(`人脸录入失败: HTTP ${trainResponse.status}`)
+        return
+      }
+      
+      const trainResult = await trainResponse.json()
+      console.log('人脸录入响应数据:', trainResult)
+      
+      if (trainResult.success) {
+        alert(`人脸录入成功！用户ID: ${trainResult.user_id}, 用户名: ${registerData.username}, 训练样本: ${trainResult.samples}张`)
+        setRegisterStep('success')
+      } else {
+        setLoginError(trainResult.message || '人脸录入失败')
       }
       
     } catch (error) {
@@ -864,6 +803,39 @@ export default function LoginPage() {
                       关闭摄像头
                     </Button>
                   )}
+                  {/* 新增：人脸识别错误提示 */}
+                  {loginError && (
+                    <div className="w-full flex justify-center mt-2">
+                      <div
+                        className="flex items-center bg-red-50 border border-red-200 text-red-700 rounded-md px-3 py-2 shadow-lg transition-all duration-300 ease-out animate-fade-in w-full"
+                        style={{
+                          minWidth: 0,
+                          maxWidth: "100%",
+                          opacity: 1,
+                          transform: "translateY(0)",
+                          animation: "fadeInUp 0.3s"
+                        }}
+                      >
+                        <AlertCircle className="w-4 h-4 mr-2 text-red-500" />
+                        <span className="text-sm">{loginError}</span>
+                      </div>
+                      <style>{`
+                        @keyframes fadeInUp {
+                          0% {
+                            opacity: 0;
+                            transform: translateY(10px);
+                          }
+                          100% {
+                            opacity: 1;
+                            transform: translateY(0);
+                          }
+                        }
+                        .animate-fade-in {
+                          animation: fadeInUp 0.3s;
+                        }
+                      `}</style>
+                    </div>
+                  )}
                 </div>
               </TabsContent>
             </Tabs>
@@ -1069,6 +1041,39 @@ export default function LoginPage() {
                         <VideoOff className="w-4 h-4 mr-2" />
                         关闭摄像头
                       </Button>
+                    )}
+                    {/* 新增：注册界面人脸录入错误提示 */}
+                    {loginError && (
+                      <div className="w-full flex justify-center mt-2">
+                        <div
+                          className="flex items-center bg-red-50 border border-red-200 text-red-700 rounded-md px-3 py-2 shadow-lg transition-all duration-300 ease-out animate-fade-in w-full"
+                          style={{
+                            minWidth: 0,
+                            maxWidth: "100%",
+                            opacity: 1,
+                            transform: "translateY(0)",
+                            animation: "fadeInUp 0.3s"
+                          }}
+                        >
+                          <AlertCircle className="w-4 h-4 mr-2 text-red-500" />
+                          <span className="text-sm">{loginError}</span>
+                        </div>
+                        <style>{`
+                          @keyframes fadeInUp {
+                            0% {
+                              opacity: 0;
+                              transform: translateY(10px);
+                            }
+                            100% {
+                              opacity: 1;
+                              transform: translateY(0);
+                            }
+                          }
+                          .animate-fade-in {
+                            animation: fadeInUp 0.3s;
+                          }
+                        `}</style>
+                      </div>
                     )}
                     <Button
                       variant="ghost"

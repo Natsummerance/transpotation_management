@@ -1,64 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { spawn } from 'child_process';
-import path from 'path';
+import { UserService } from '@/lib/userService';
+import { Result } from '@/lib/result';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'default_secret_key';
 
 export async function POST(request: NextRequest) {
   try {
-    const { image } = await request.json();
-    if (!image) {
-      return NextResponse.json({ code: 0, msg: '图片数据不能为空' });
+    const { user_id, username } = await request.json();
+
+    // 参数验证
+    if (!user_id || user_id === undefined) {
+      return NextResponse.json(Result.error('400', '用户ID不能为空'));
     }
-    
-    // 使用RDD_yolo11虚拟环境中的Python
-    const pythonPath = path.join(process.cwd(), 'RDD_yolo11', 'venv', 'Scripts', 'python.exe');
-    const scriptPath = path.join(process.cwd(), 'face-recognition-cv2-master', 'face-recognition-cv2-master', 'face_api.py');
-    
-    return new Promise((resolve) => {
-      const py = spawn(pythonPath, [
-        scriptPath,
-        '--action', 'recognize',
-        '--image_base64', image
-      ]);
-      
-      let data = '';
-      let errorData = '';
-      
-      py.stdout.on('data', (chunk) => { 
-        data += chunk.toString();
-        console.log('Python stdout:', chunk.toString());
-      });
-      
-      py.stderr.on('data', (err) => { 
-        errorData += err.toString();
-        console.error('Python stderr:', err.toString());
-      });
-      
-      py.on('close', (code) => {
-        console.log('Python process exited with code:', code);
-        console.log('Python output:', data);
-        console.log('Python errors:', errorData);
-        
-        try {
-          if (data.trim()) {
-            const result = JSON.parse(data.trim());
-            resolve(NextResponse.json(result));
-          } else {
-            resolve(NextResponse.json({ code: 0, msg: 'Python返回空结果', error: errorData }));
-          }
-        } catch (e) {
-          console.error('JSON parse error:', e);
-          resolve(NextResponse.json({ 
-            code: 0, 
-            msg: 'Python返回异常', 
-            error: (e as Error).message,
-            output: data,
-            errors: errorData
-          }));
-        }
-      });
-    });
+
+    // 根据用户ID获取用户信息
+    const user = await UserService.getUserById(user_id);
+    if (user) {
+      // 生成token
+      const token = jwt.sign({ uid: user.uid, uname: user.uname }, JWT_SECRET, { expiresIn: '8h' });
+      return NextResponse.json(Result.success('1', { ...user, token }, '人脸识别登录成功！'));
+    } else {
+      return NextResponse.json(Result.error('404', '用户不存在'));
+    }
   } catch (error) {
-    console.error('API error:', error);
-    return NextResponse.json({ code: 0, msg: '识别失败', error: (error as Error).message });
+    console.error('人脸识别登录失败:', error);
+    return NextResponse.json(Result.error('500', '服务器内部错误'));
   }
 } 
