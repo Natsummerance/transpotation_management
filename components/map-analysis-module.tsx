@@ -443,7 +443,7 @@ export default function MapAnalysisModule() {
                 <div className="flex flex-wrap gap-2 mb-2">
                   {Object.entries(selectedDamage.results).map(([type, data]: [string, any]) => (
                     data.count > 0 ? (
-                      <span key={type} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium" style={{background: type==='纵向裂缝'? '#fee2e2': type==='横向裂缝'? '#fef9c3': type==='龟裂'? '#cffafe': type==='坑洼'? '#f3e8ff':'#e0e7ef', color: type==='纵向裂缝'? '#b91c1c': type==='横向裂缝'? '#b45309': type==='龟裂'? '#0e7490': type==='坑洼'? '#7c3aed':'#334155'}}>
+                      <span key={type} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium" style={{background: type==='D0纵向裂缝'? '#fee2e2': type==='D1横向裂缝'? '#fef9c3': type==='D20龟裂'? '#cffafe': type==='D40坑洼'? '#f3e8ff':'#e0e7ef', color: type==='D0纵向裂缝'? '#b91c1c': type==='D1横向裂缝'? '#b45309': type==='D20龟裂'? '#0e7490': type==='D40坑洼'? '#7c3aed':'#334155'}}>
                         {type} <b className="ml-1 text-base">{data.count}</b>
                       </span>
                     ) : null
