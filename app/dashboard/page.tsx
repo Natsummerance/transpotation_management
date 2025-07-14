@@ -52,6 +52,77 @@ import DataVisualizationModule from "@/components/data-visualization-module"
 import SettingsModule from "@/components/settings-module"
 import { useUser } from '@/components/user-context';
 
+// 定义数据类型
+interface DashboardStats {
+  roadDamage: {
+    title: string;
+    total: number;
+    today: number;
+    yesterday: number;
+    roadDamages: number;
+    detectedDamages: number;
+    change: string;
+    icon: string;
+    color: string;
+    bgColor: string;
+    textColor: string;
+  };
+  taxiAnalysis: {
+    title: string;
+    activeTaxis: number;
+    totalRecords: number;
+    occupiedTrips: number;
+    todayRecords: number;
+    yesterdayRecords: number;
+    avgSpeed: number;
+    totalTrips: number;
+    change: string;
+    icon: string;
+    color: string;
+    bgColor: string;
+    textColor: string;
+  };
+  mapAnalysis: {
+    title: string;
+    vehiclesTracked: number;
+    locationPoints: number;
+    speedViolations: number;
+    eventsDetected: number;
+    todayCount: number;
+    yesterdayCount: number;
+    change: string;
+    icon: string;
+    color: string;
+    bgColor: string;
+    textColor: string;
+  };
+  logs: {
+    title: string;
+    totalLogs: number;
+    todayLogs: number;
+    yesterdayLogs: number;
+    errorLogs: number;
+    warningLogs: number;
+    infoLogs: number;
+    change: string;
+    icon: string;
+    color: string;
+    bgColor: string;
+    textColor: string;
+  };
+}
+
+interface Alert {
+  id: number;
+  type: string;
+  title: string;
+  description: string;
+  severity: string;
+  location: string;
+  timeAgo: string;
+  status: string;
+}
+
 export default function Dashboard() {
   const [activeModule, setActiveModule] = useState("overview")
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -59,6 +130,14 @@ export default function Dashboard() {
   const [currentTime, setCurrentTime] = useState(new Date())
   const { user, setUser } = useUser();
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  
+  // 新增状态管理
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null)
+  const [alerts, setAlerts] = useState<Alert[]>([])
+  const [statsLoading, setStatsLoading] = useState(true)
+  const [alertsLoading, setAlertsLoading] = useState(true)
+  const [statsError, setStatsError] = useState<string | null>(null)
+  const [alertsError, setAlertsError] = useState<string | null>(null)
 
   // 登录控制 - 在渲染前检查
   useEffect(() => {
@@ -86,23 +165,66 @@ export default function Dashboard() {
     return () => clearInterval(timer)
   }, [])
 
-  // 调用系统状态接口 GET /api/system/status
-  useEffect(() => {
-    const fetchSystemStatus = async () => {
-      try {
-        const response = await fetch("/api/system/status")
-        if (response.ok) {
-          const data = await response.json()
-          console.log("System status:", data)
+  // 获取仪表板统计数据
+  const fetchDashboardStats = async () => {
+    try {
+      setStatsLoading(true)
+      setStatsError(null)
+      const response = await fetch("/api/dashboard/stats")
+      if (response.ok) {
+        const result = await response.json()
+        if (result.success) {
+          setDashboardStats(result.data)
+        } else {
+          setStatsError(result.error || '获取统计数据失败')
         }
-      } catch (error) {
-        console.error("Failed to fetch system status:", error)
+      } else {
+        setStatsError('网络请求失败')
       }
+    } catch (error) {
+      console.error("Failed to fetch dashboard stats:", error)
+      setStatsError('连接数据库失败，请检查网络连接')
+    } finally {
+      setStatsLoading(false)
     }
+  }
 
-    fetchSystemStatus()
-    const interval = setInterval(fetchSystemStatus, 30000) // 每30秒更新一次
-    return () => clearInterval(interval)
+  // 获取警报数据
+  const fetchAlerts = async () => {
+    try {
+      setAlertsLoading(true)
+      setAlertsError(null)
+      const response = await fetch("/api/dashboard/alerts")
+      if (response.ok) {
+        const result = await response.json()
+        if (result.success) {
+          setAlerts(result.data.alerts)
+        } else {
+          setAlertsError(result.error || '获取警报数据失败')
+        }
+      } else {
+        setAlertsError('网络请求失败')
+      }
+    } catch (error) {
+      console.error("Failed to fetch alerts:", error)
+      setAlertsError('连接数据库失败，请检查网络连接')
+    } finally {
+      setAlertsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchDashboardStats()
+    fetchAlerts()
+    
+    // 每120秒更新一次数据，进一步减少数据库连接压力
+    const statsInterval = setInterval(fetchDashboardStats, 120000)
+    const alertsInterval = setInterval(fetchAlerts, 120000)
+    
+    return () => {
+      clearInterval(statsInterval)
+      clearInterval(alertsInterval)
+    }
   }, [])
 
   // 退出登录
@@ -126,48 +248,88 @@ export default function Dashboard() {
     }
   }
 
-  const stats = [
-    {
-      title: "今日道路危害",
-      value: "23",
-      change: "+12%",
-      icon: AlertTriangle,
-      color: "from-red-500 to-pink-500",
-      bgColor: "bg-red-50",
-      textColor: "text-red-600",
-      api: "/api/hazards/count",
-    },
-    {
-      title: "实时车流量",
-      value: "1,247",
-      change: "+5%",
-      icon: Car,
-      color: "from-blue-500 to-cyan-500",
-      bgColor: "bg-blue-50",
-      textColor: "text-blue-600",
-      api: "/api/traffic/current",
-    },
-    {
-      title: "违章检测",
-      value: "89",
-      change: "-8%",
-      icon: Camera,
-      color: "from-orange-500 to-yellow-500",
-      bgColor: "bg-orange-50",
-      textColor: "text-orange-600",
-      api: "/api/violations/count",
-    },
-    {
-      title: "在线用户",
-      value: "156",
-      change: "+3%",
-      icon: Users,
-      color: "from-green-500 to-emerald-500",
-      bgColor: "bg-green-50",
-      textColor: "text-green-600",
-      api: "/api/users/online",
-    },
-  ]
+  // 动态生成统计卡片数据
+  const getStatsCards = () => {
+    if (!dashboardStats) return []
+    
+    const iconMap: { [key: string]: any } = {
+      AlertTriangle,
+      Car,
+      MapPin,
+      Activity
+    }
+    
+    return [
+      {
+        title: dashboardStats.roadDamage.title,
+        value: dashboardStats.roadDamage.total.toString(),
+        change: dashboardStats.roadDamage.change,
+        icon: iconMap[dashboardStats.roadDamage.icon],
+        color: dashboardStats.roadDamage.color,
+        bgColor: dashboardStats.roadDamage.bgColor,
+        textColor: dashboardStats.roadDamage.textColor,
+         
+        details: {
+          total: dashboardStats.roadDamage.total,
+          today: dashboardStats.roadDamage.today,
+          yesterday: dashboardStats.roadDamage.yesterday,
+          roadDamages: dashboardStats.roadDamage.roadDamages,
+          detectedDamages: dashboardStats.roadDamage.detectedDamages
+        }
+      },
+      {
+        title: dashboardStats.taxiAnalysis.title,
+        value: dashboardStats.taxiAnalysis.totalRecords.toString(),
+        change: dashboardStats.taxiAnalysis.change,
+        icon: iconMap[dashboardStats.taxiAnalysis.icon],
+        color: dashboardStats.taxiAnalysis.color,
+        bgColor: dashboardStats.taxiAnalysis.bgColor,
+        textColor: dashboardStats.taxiAnalysis.textColor,
+         
+        details: {
+          totalRecords: dashboardStats.taxiAnalysis.totalRecords,
+          todayRecords: dashboardStats.taxiAnalysis.todayRecords,
+          yesterdayRecords: dashboardStats.taxiAnalysis.yesterdayRecords,
+          occupiedTrips: dashboardStats.taxiAnalysis.occupiedTrips,
+          avgSpeed: dashboardStats.taxiAnalysis.avgSpeed
+        }
+      },
+      {
+        title: dashboardStats.mapAnalysis.title,
+        value: dashboardStats.mapAnalysis.locationPoints.toString(),
+        change: dashboardStats.mapAnalysis.change,
+        icon: iconMap[dashboardStats.mapAnalysis.icon],
+        color: dashboardStats.mapAnalysis.color,
+        bgColor: dashboardStats.mapAnalysis.bgColor,
+        textColor: dashboardStats.mapAnalysis.textColor,
+         
+        details: {
+          locationPoints: dashboardStats.mapAnalysis.locationPoints,
+          todayCount: dashboardStats.mapAnalysis.todayCount,
+          yesterdayCount: dashboardStats.mapAnalysis.yesterdayCount,
+          speedViolations: dashboardStats.mapAnalysis.speedViolations,
+          eventsDetected: dashboardStats.mapAnalysis.eventsDetected
+        }
+      },
+      {
+        title: dashboardStats.logs.title,
+        value: dashboardStats.logs.totalLogs.toString(),
+        change: dashboardStats.logs.change,
+        icon: iconMap[dashboardStats.logs.icon],
+        color: dashboardStats.logs.color,
+        bgColor: dashboardStats.logs.bgColor,
+        textColor: dashboardStats.logs.textColor,
+         
+        details: {
+          totalLogs: dashboardStats.logs.totalLogs,
+          todayLogs: dashboardStats.logs.todayLogs,
+          yesterdayLogs: dashboardStats.logs.yesterdayLogs,
+          errorLogs: dashboardStats.logs.errorLogs,
+          warningLogs: dashboardStats.logs.warningLogs
+        }
+      }
+    ]
+  }
 
   // 导航项目
   const navigationItems = [
@@ -460,34 +622,84 @@ export default function Dashboard() {
 
               {/* 统计卡片 - 移动端优化 */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
-                {stats.map((stat, index) => (
-                  <Card
-                    key={index}
-                    className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group relative"
-                  >
-                    <CardContent className="p-3 sm:p-0">
-                      <div className={`${stat.bgColor} p-3 sm:p-6 relative`}>
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between">
-                          <div className="mb-2 sm:mb-0">
-                            <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">{stat.title}</p>
-                            <p className="text-xl sm:text-3xl font-bold text-gray-900">{stat.value}</p>
-                            <div className="flex items-center mt-1 sm:mt-2">
-                              <TrendingUp className="w-2 sm:w-3 h-2 sm:h-3 mr-1 text-green-600" />
-                              <span className="text-xs sm:text-sm text-green-600 font-medium">{stat.change}</span>
+                {statsLoading ? (
+                  // 加载状态
+                  Array.from({ length: 4 }).map((_, index) => (
+                    <Card key={index} className="border-0 shadow-lg">
+                      <CardContent className="p-3 sm:p-6">
+                        <div className="animate-pulse">
+                          <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                          <div className="h-8 bg-gray-200 rounded w-1/2 mb-2"></div>
+                          <div className="h-3 bg-gray-200 rounded w-1/4"></div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                ) : statsError ? (
+                  // 错误状态
+                  <div className="col-span-full">
+                    <Card className="border-0 shadow-lg">
+                      <CardContent className="p-6 text-center">
+                        <AlertTriangle className="w-12 h-12 mx-auto mb-4 text-red-500" />
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">数据加载失败</h3>
+                        <p className="text-gray-600 mb-4">{statsError}</p>
+                        <Button 
+                          onClick={() => {
+                            setStatsLoading(true)
+                            fetchDashboardStats()
+                          }}
+                          variant="outline"
+                        >
+                          重试
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </div>
+                ) : (
+                  getStatsCards().map((stat, index) => (
+                    <Card
+                      key={index}
+                      className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group relative"
+                    >
+                      <CardContent className="p-3 sm:p-0">
+                        <div className={`${stat.bgColor} p-3 sm:p-6 relative`}>
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between">
+                            <div className="mb-2 sm:mb-0">
+                              <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">{stat.title}</p>
+                              <p className="text-xl sm:text-3xl font-bold text-gray-900">{stat.value}</p>
+                                                          <div className="flex items-center mt-1 sm:mt-2">
+                              {stat.change.startsWith('+') ? (
+                                <TrendingUp className="w-2 sm:w-3 h-2 sm:h-3 mr-1 text-green-600" />
+                              ) : stat.change.startsWith('-') ? (
+                                <TrendingUp className="w-2 sm:w-3 h-2 sm:h-3 mr-1 text-red-600 rotate-180" />
+                              ) : (
+                                <TrendingUp className="w-2 sm:w-3 h-2 sm:h-3 mr-1 text-gray-600" />
+                              )}
+                              <span className={`text-xs sm:text-sm font-medium ${
+                                stat.change.startsWith('+') ? 'text-green-600' : 
+                                stat.change.startsWith('-') ? 'text-red-600' : 
+                                'text-gray-600'
+                              }`}>
+                                {stat.change}
+                              </span>
+                            </div>
+                            <div className="absolute bottom-1 right-1 text-xs text-gray-500 mt-1">
+                              今日: {stat.details.today || stat.details.todayRecords || stat.details.todayCount || stat.details.todayLogs || 0} | 
+                              昨日: {stat.details.yesterday || stat.details.yesterdayRecords || stat.details.yesterdayCount || stat.details.yesterdayLogs || 0}
+                            </div>
+                            </div>
+                            <div
+                              className={`w-10 sm:w-16 h-10 sm:h-16 bg-gradient-to-r ${stat.color} rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300 self-end sm:self-auto`}
+                            >
+                              <stat.icon className="w-5 sm:w-8 h-5 sm:h-8 text-white" />
                             </div>
                           </div>
-                          <div
-                            className={`w-10 sm:w-16 h-10 sm:h-16 bg-gradient-to-r ${stat.color} rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300 self-end sm:self-auto`}
-                          >
-                            <stat.icon className="w-5 sm:w-8 h-5 sm:h-8 text-white" />
-                          </div>
+                          <div className="absolute top-0 right-0 w-16 sm:w-32 h-16 sm:h-32 bg-white/10 rounded-full -mr-8 sm:-mr-16 -mt-8 sm:-mt-16"></div>
                         </div>
-                        <div className="absolute top-0 right-0 w-16 sm:w-32 h-16 sm:h-32 bg-white/10 rounded-full -mr-8 sm:-mr-16 -mt-8 sm:-mt-16"></div>
-                      </div>
-                    </CardContent>
-                    <div className="absolute bottom-1 right-1 text-xs text-gray-400">{stat.api}</div>
-                  </Card>
-                ))}
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
               </div>
 
               {/* 实时警报和快速操作 - 移动端优化 */}
@@ -499,51 +711,92 @@ export default function Dashboard() {
                         <CardTitle className="text-lg sm:text-xl font-bold">实时警报</CardTitle>
                         <CardDescription className="text-sm">最新的交通事件和警报信息</CardDescription>
                       </div>
-                      <Badge variant="destructive" className="animate-pulse text-xs">
-                        3 新警报
-                      </Badge>
+                      {!alertsLoading && (
+                        <Badge variant="destructive" className="animate-pulse text-xs">
+                          {alerts.length} 新警报
+                        </Badge>
+                      )}
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3 sm:space-y-4">
-                    <div className="flex items-start space-x-3 p-3 sm:p-4 bg-gradient-to-r from-red-50 to-pink-50 rounded-xl border border-red-100">
-                      <div className="w-8 sm:w-10 h-8 sm:h-10 bg-gradient-to-r from-red-500 to-pink-500 rounded-lg sm:rounded-xl flex items-center justify-center">
-                        <AlertTriangle className="w-4 sm:w-5 h-4 sm:h-5 text-white" />
+                    {alertsLoading ? (
+                      // 加载状态
+                      Array.from({ length: 3 }).map((_, index) => (
+                        <div key={index} className="flex items-start space-x-3 p-3 sm:p-4 bg-gray-50 rounded-xl">
+                          <div className="w-8 sm:w-10 h-8 sm:h-10 bg-gray-200 rounded-lg sm:rounded-xl animate-pulse"></div>
+                          <div className="flex-1 min-w-0">
+                            <div className="h-4 bg-gray-200 rounded w-3/4 mb-2 animate-pulse"></div>
+                            <div className="h-3 bg-gray-200 rounded w-full mb-1 animate-pulse"></div>
+                            <div className="h-3 bg-gray-200 rounded w-1/4 animate-pulse"></div>
+                          </div>
+                        </div>
+                      ))
+                    ) : alerts.length > 0 ? (
+                      alerts.map((alert, index) => {
+                        const getAlertIcon = (type: string) => {
+                          switch (type) {
+                            case 'road_damage':
+                              return AlertTriangle;
+                            case 'traffic_congestion':
+                              return Car;
+                            default:
+                              return Activity;
+                          }
+                        }
+                        
+                        const getAlertColors = (severity: string) => {
+                          switch (severity) {
+                            case 'high':
+                              return {
+                                bg: 'from-red-50 to-pink-50',
+                                border: 'border-red-100',
+                                icon: 'from-red-500 to-pink-500',
+                                badge: 'destructive'
+                              };
+                            case 'medium':
+                              return {
+                                bg: 'from-orange-50 to-yellow-50',
+                                border: 'border-orange-100',
+                                icon: 'from-orange-500 to-yellow-500',
+                                badge: 'secondary'
+                              };
+                            default:
+                              return {
+                                bg: 'from-blue-50 to-cyan-50',
+                                border: 'border-blue-100',
+                                icon: 'from-blue-500 to-cyan-500',
+                                badge: 'default'
+                              };
+                          }
+                        }
+                        
+                        const colors = getAlertColors(alert.severity);
+                        const IconComponent = getAlertIcon(alert.type);
+                        
+                        return (
+                          <div key={alert.id} className={`flex items-start space-x-3 p-3 sm:p-4 bg-gradient-to-r ${colors.bg} rounded-xl border ${colors.border}`}>
+                            <div className={`w-8 sm:w-10 h-8 sm:h-10 bg-gradient-to-r ${colors.icon} rounded-lg sm:rounded-xl flex items-center justify-center`}>
+                              <IconComponent className="w-4 sm:w-5 h-4 sm:h-5 text-white" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-gray-900 text-sm sm:text-base">{alert.title}</p>
+                              <p className="text-xs sm:text-sm text-gray-600 mt-1 truncate">
+                                {alert.description}
+                              </p>
+                              <p className="text-xs text-gray-500 mt-1 sm:mt-2">{alert.timeAgo}</p>
+                            </div>
+                            <Badge variant={colors.badge as any} className="text-xs">
+                              {alert.severity === 'high' ? '紧急' : alert.severity === 'medium' ? '中等' : '一般'}
+                            </Badge>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        <Activity className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                        <p>暂无警报信息</p>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-gray-900 text-sm sm:text-base">道路危害警报</p>
-                        <p className="text-xs sm:text-sm text-gray-600 mt-1 truncate">
-                          中山路与解放路交叉口发现路面坑洞
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1 sm:mt-2">2分钟前</p>
-                      </div>
-                      <Badge variant="destructive" className="text-xs">
-                        紧急
-                      </Badge>
-                    </div>
-                    <div className="flex items-start space-x-3 p-3 sm:p-4 bg-gradient-to-r from-orange-50 to-yellow-50 rounded-xl border border-orange-100">
-                      <div className="w-8 sm:w-10 h-8 sm:h-10 bg-gradient-to-r from-orange-500 to-yellow-500 rounded-lg sm:rounded-xl flex items-center justify-center">
-                        <Car className="w-4 sm:w-5 h-4 sm:h-5 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-gray-900 text-sm sm:text-base">交通拥堵</p>
-                        <p className="text-xs sm:text-sm text-gray-600 mt-1 truncate">人民大道车流量异常，建议分流</p>
-                        <p className="text-xs text-gray-500 mt-1 sm:mt-2">5分钟前</p>
-                      </div>
-                      <Badge variant="secondary" className="text-xs">
-                        中等
-                      </Badge>
-                    </div>
-                    <div className="flex items-start space-x-3 p-3 sm:p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-100">
-                      <div className="w-8 sm:w-10 h-8 sm:h-10 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-lg sm:rounded-xl flex items-center justify-center">
-                        <Camera className="w-4 sm:w-5 h-4 sm:h-5 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold text-gray-900 text-sm sm:text-base">违章检测</p>
-                        <p className="text-xs sm:text-sm text-gray-600 mt-1 truncate">建设路监控点检测到闯红灯行为</p>
-                        <p className="text-xs text-gray-500 mt-1 sm:mt-2">8分钟前</p>
-                      </div>
-                      <Badge className="text-xs">一般</Badge>
-                    </div>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -565,18 +818,18 @@ export default function Dashboard() {
                       <Button
                         variant="outline"
                         className="h-16 sm:h-20 flex-col space-y-1 sm:space-y-2 border-green-200 hover:bg-green-50 hover:border-green-300 bg-transparent text-xs sm:text-sm"
-                        onClick={() => setActiveModule("traffic-monitor")}
+                        onClick={() => setActiveModule("taxi-analysis")}
                       >
                         <Car className="w-5 sm:w-6 h-5 sm:h-6 text-green-600" />
-                        <span className="font-medium">车流监控</span>
+                        <span className="font-medium">出租车</span>
                       </Button>
                       <Button
                         variant="outline"
                         className="h-16 sm:h-20 flex-col space-y-1 sm:space-y-2 border-purple-200 hover:bg-purple-50 hover:border-purple-300 bg-transparent text-xs sm:text-sm"
-                        onClick={() => setActiveModule("violation")}
+                        onClick={() => setActiveModule("data-visualization")}
                       >
-                        <Camera className="w-5 sm:w-6 h-5 sm:h-6 text-purple-600" />
-                        <span className="font-medium">违章识别</span>
+                        <BarChart3 className="w-5 sm:w-6 h-5 sm:h-6 text-purple-600" />
+                        <span className="font-medium">统计图表</span>
                       </Button>
                       <Button
                         variant="outline"
