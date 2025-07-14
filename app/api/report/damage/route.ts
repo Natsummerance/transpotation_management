@@ -90,14 +90,14 @@ export async function GET(request: NextRequest) {
     // 基于检测结果进行筛选
     if (type && type !== 'all') {
       // 根据病害类型筛选，使用JSON_EXTRACT函数
-      // 支持的病害类型：D0纵向裂缝、D1横向裂缝、D20龟裂、D40坑洼
-      const validTypes = ['D0纵向裂缝', 'D1横向裂缝', 'D20龟裂', 'D40坑洼'];
+      // 支持的病害类型：纵向裂缝、横向裂缝、龟裂、坑洼
+      const validTypes = ['纵向裂缝', '横向裂缝', '龟裂', '坑洼'];
       // 字段名映射，防止前端传参有空格或别名
       const typeMap: Record<string, string> = {
-        'D0纵向裂缝': 'D0纵向裂缝',
-        'D1横向裂缝': 'D1横向裂缝',
-        'D20龟裂': 'D20龟裂',
-        'D40坑洼': 'D40坑洼',
+        '纵向裂缝': '纵向裂缝',
+        '横向裂缝': '横向裂缝',
+        '龟裂': '龟裂',
+        '坑洼': '坑洼',
         // 可扩展别名
       };
       const cleanType = (type + '').replace(/\s/g, '').trim();
@@ -198,7 +198,7 @@ export async function GET(request: NextRequest) {
             parsedResults = typeof row.results === 'string' ? JSON.parse(row.results) : row.results;
             
             // 计算主要类型、总数量和平均置信度
-            const damageTypes = ['D0纵向裂缝', 'D1横向裂缝', 'D20龟裂', 'D40坑洼'];
+            const damageTypes = ['纵向裂缝', '横向裂缝', '龟裂', '坑洼'];
             let maxCount = 0;
             let totalConfidence = 0;
             let confidenceCount = 0;

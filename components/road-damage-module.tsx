@@ -11,19 +11,19 @@ import { Upload, MapPin, Clock, FileText, Download, AlertTriangle, Camera, Eye, 
 import { toast } from "sonner";
 
 interface DamageResults {
-  'D0纵向裂缝': {
+  '纵向裂缝': {
     count: number
     confidence: number
   }
-  'D1横向裂缝': {
+  '横向裂缝': {
     count: number
     confidence: number
   }
-  'D20龟裂': {
+  '龟裂': {
     count: number
     confidence: number
   }
-  'D40坑洼': {
+  '坑洼': {
     count: number
     confidence: number
   }
@@ -36,10 +36,10 @@ interface DamageStats {
 
 interface DetectionResponse {
   results: {
-    'D0纵向裂缝': DamageStats;
-    'D1横向裂缝': DamageStats;
-    'D20龟裂': DamageStats;
-    'D40坑洼': DamageStats;
+    '纵向裂缝': DamageStats;
+    '横向裂缝': DamageStats;
+    '龟裂': DamageStats;
+    '坑洼': DamageStats;
   };
   resultImage?: string;
 }
@@ -75,8 +75,8 @@ interface DetectionHistoryResponse {
 
 const damageTypes = [
   {
-    key: 'D0纵向裂缝',
-    label: 'D0纵向裂缝',
+    key: '纵向裂缝',
+    label: '纵向裂缝',
     bgFrom: 'from-red-500',
     bgTo: 'to-orange-500',
     textColor: 'text-white',
@@ -94,8 +94,8 @@ const damageTypes = [
     badgeStyle: 'bg-gradient-to-r from-red-500 via-orange-500 to-yellow-500 text-white border-0 animate-pulse'
   },
   {
-    key: 'D1横向裂缝',
-    label: 'D1横向裂缝',
+    key: '横向裂缝',
+    label: '横向裂缝',
     bgFrom: 'from-yellow-500',
     bgTo: 'to-green-500',
     textColor: 'text-white',
@@ -113,8 +113,8 @@ const damageTypes = [
     badgeStyle: 'bg-gradient-to-r from-yellow-500 via-green-500 to-emerald-500 text-white border-0 animate-pulse'
   },
   {
-    key: 'D20龟裂',
-    label: 'D20龟裂',
+    key: '龟裂',
+    label: '龟裂',
     bgFrom: 'from-blue-500',
     bgTo: 'to-cyan-500',
     textColor: 'text-white',
@@ -132,8 +132,8 @@ const damageTypes = [
     badgeStyle: 'bg-gradient-to-r from-blue-500 via-cyan-500 to-teal-500 text-white border-0 animate-pulse'
   },
   {
-    key: 'D40坑洼',
-    label: 'D40坑洼',
+    key: '坑洼',
+    label: '坑洼',
     bgFrom: 'from-purple-500',
     bgTo: 'to-pink-500',
     textColor: 'text-white',
@@ -424,10 +424,10 @@ export default function RoadDamageModule() {
     } catch (error) {
       console.error('解析检测结果失败:', error, resultsJson);
       return {
-        'D0纵向裂缝': { count: 0, confidence: 0 },
-        'D1横向裂缝': { count: 0, confidence: 0 },
-        'D20龟裂': { count: 0, confidence: 0 },
-        'D40坑洼': { count: 0, confidence: 0 },
+        '纵向裂缝': { count: 0, confidence: 0 },
+        '横向裂缝': { count: 0, confidence: 0 },
+        '龟裂': { count: 0, confidence: 0 },
+        '坑洼': { count: 0, confidence: 0 },
       };
     }
   };
@@ -737,25 +737,25 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 
   // 统计卡片鲜艳背景映射
   const cardBgMap: Record<string, string> = {
-    'D0纵向裂缝': 'bg-red-600',
-    'D1横向裂缝': 'bg-orange-600',
-    'D20龟裂': 'bg-blue-600',
-    'D40坑洼': 'bg-green-600',
+    '纵向裂缝': 'bg-red-600',
+    '横向裂缝': 'bg-orange-600',
+    '龟裂': 'bg-blue-600',
+    '坑洼': 'bg-green-600',
   };
   // 图标主色
   const iconColorMap: Record<string, string> = {
-    'D0纵向裂缝': 'text-red-100',
-    'D1横向裂缝': 'text-orange-100',
-    'D20龟裂': 'text-blue-100',
-    'D40坑洼': 'text-green-100',
+    '纵向裂缝': 'text-red-100',
+    '横向裂缝': 'text-orange-100',
+    '龟裂': 'text-blue-100',
+    '坑洼': 'text-green-100',
   };
 
   // 柔和渐变背景和主色配色方案
   const cardGradientMap: Record<string, { bgFrom: string; bgTo: string; mainText: string; icon: string }> = {
-    'D0纵向裂缝': { bgFrom: 'from-red-50', bgTo: 'to-pink-50', mainText: 'text-red-600', icon: 'text-red-600' },
-    'D1横向裂缝': { bgFrom: 'from-orange-50', bgTo: 'to-yellow-50', mainText: 'text-orange-600', icon: 'text-orange-600' },
-    'D20龟裂': { bgFrom: 'from-blue-50', bgTo: 'to-cyan-50', mainText: 'text-blue-600', icon: 'text-blue-600' },
-    'D40坑洼': { bgFrom: 'from-green-50', bgTo: 'to-emerald-50', mainText: 'text-green-600', icon: 'text-green-600' },
+    '纵向裂缝': { bgFrom: 'from-red-50', bgTo: 'to-pink-50', mainText: 'text-red-600', icon: 'text-red-600' },
+    '横向裂缝': { bgFrom: 'from-orange-50', bgTo: 'to-yellow-50', mainText: 'text-orange-600', icon: 'text-orange-600' },
+    '龟裂': { bgFrom: 'from-blue-50', bgTo: 'to-cyan-50', mainText: 'text-blue-600', icon: 'text-blue-600' },
+    '坑洼': { bgFrom: 'from-green-50', bgTo: 'to-emerald-50', mainText: 'text-green-600', icon: 'text-green-600' },
   };
 
   return (
@@ -1017,10 +1017,10 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">全部类型</SelectItem>
-                  <SelectItem value="D0纵向裂缝">D0纵向裂缝</SelectItem>
-                  <SelectItem value="D1横向裂缝">D1横向裂缝</SelectItem>
-                  <SelectItem value="D20龟裂">D20龟裂</SelectItem>
-                  <SelectItem value="D40坑洼">D40坑洼</SelectItem>
+                  <SelectItem value="纵向裂缝">纵向裂缝</SelectItem>
+                  <SelectItem value="横向裂缝">横向裂缝</SelectItem>
+                  <SelectItem value="龟裂">龟裂</SelectItem>
+                  <SelectItem value="坑洼">坑洼</SelectItem>
                 </SelectContent>
               </Select>
               <Button 
@@ -1292,11 +1292,11 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                                 </Badge>
                               </div>
                               <div className="flex items-center space-x-2">
-                                {type === 'D40坑洼' ? (
+                                {type === '坑洼' ? (
                                   <Zap className={`h-4 w-4 ${damageType?.iconColor} animate-pulse`} />
-                                ) : type === 'D0纵向裂缝' ? (
+                                ) : type === '纵向裂缝' ? (
                                   <Flame className={`h-4 w-4 ${damageType?.iconColor} animate-pulse`} />
-                                ) : type === 'D1横向裂缝' ? (
+                                ) : type === '横向裂缝' ? (
                                   <Waves className={`h-4 w-4 ${damageType?.iconColor}`} />
                                 ) : (
                                   <AlertTriangle className={`h-4 w-4 ${damageType?.iconColor}`} />

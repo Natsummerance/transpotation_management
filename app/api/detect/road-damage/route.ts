@@ -6,17 +6,17 @@ import { v4 as uuidv4 } from 'uuid';
 
 // 定义YOLO标签到病害类型的映射
 const damageMapping: { [key: string]: string } = {
-  'longitudinal_crack': 'D0纵向裂缝',
-  'transverse_crack': 'D1横向裂缝',
-  'alligator_crack': 'D20龟裂',
-  'pothole': 'D40坑洼',
+  'longitudinal_crack': '纵向裂缝',
+  'transverse_crack': '横向裂缝',
+  'alligator_crack': '龟裂',
+  'pothole': '坑洼',
   // 兼容旧的标签格式
-  'D00': 'D0纵向裂缝',
-  'D01': 'D0纵向裂缝',
-  'D10': 'D1横向裂缝',
-  'D11': 'D1横向裂缝',
-  'D20': 'D20龟裂',
-  'D40': 'D40坑洼',
+  'D00': '纵向裂缝',
+  'D01': '纵向裂缝',
+  'D10': '横向裂缝',
+  'D11': '横向裂缝',
+  'D20': '龟裂',
+  'D40': '坑洼',
 };
 
 export async function POST(req: NextRequest) {
@@ -114,10 +114,10 @@ export async function POST(req: NextRequest) {
       
       // 返回模拟结果，避免前端报错
       const mockResults = {
-        'D0纵向裂缝': { count: 2, confidence: 0.85 },
-        'D1横向裂缝': { count: 1, confidence: 0.78 },
-        'D20龟裂': { count: 0, confidence: 0 },
-        'D40坑洼': { count: 1, confidence: 0.92 },
+        '纵向裂缝': { count: 2, confidence: 0.85 },
+        '横向裂缝': { count: 1, confidence: 0.78 },
+        '龟裂': { count: 0, confidence: 0 },
+        '坑洼': { count: 1, confidence: 0.92 },
       };
 
       return NextResponse.json({ 
@@ -138,10 +138,10 @@ export async function POST(req: NextRequest) {
       
       // 返回模拟结果
       const mockResults = {
-        'D0纵向裂缝': { count: 2, confidence: 0.85 },
-        'D1横向裂缝': { count: 1, confidence: 0.78 },
-        'D20龟裂': { count: 0, confidence: 0 },
-        'D40坑洼': { count: 1, confidence: 0.92 },
+        '纵向裂缝': { count: 2, confidence: 0.85 },
+        '横向裂缝': { count: 1, confidence: 0.78 },
+        '龟裂': { count: 0, confidence: 0 },
+        '坑洼': { count: 1, confidence: 0.92 },
       };
 
       return NextResponse.json({ 
@@ -154,10 +154,10 @@ export async function POST(req: NextRequest) {
 
     // 初始化结果结构
     const results: Record<string, { count: number; confidence: number }> = {
-      'D0纵向裂缝': { count: 0, confidence: 0 },
-      'D1横向裂缝': { count: 0, confidence: 0 },
-      'D20龟裂': { count: 0, confidence: 0 },
-      'D40坑洼': { count: 0, confidence: 0 },
+      '纵向裂缝': { count: 0, confidence: 0 },
+      '横向裂缝': { count: 0, confidence: 0 },
+      '龟裂': { count: 0, confidence: 0 },
+      '坑洼': { count: 0, confidence: 0 },
     };
 
     const countConfidenceMap: Record<string, { totalConf: number; count: number }> = {};
