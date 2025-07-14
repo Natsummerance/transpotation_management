@@ -337,7 +337,6 @@ export default function Dashboard() {
     { id: "road-damage", label: "路面病害检测", icon: AlertTriangle, shortLabel: "病害" },
     { id: "map-analysis", label: "地图时空分析", icon: MapPin, shortLabel: "地图" },
     { id: "taxi-analysis", label: "出租车数据分析", icon: Car, shortLabel: "出租" },
-    { id: "data-visualization", label: "统计图表分析", icon: BarChart3, shortLabel: "图表" },
     { id: "logs", label: "日志与事件回放", icon: Activity, shortLabel: "日志" },
   ]
   
@@ -345,6 +344,7 @@ export default function Dashboard() {
     { id: "traffic-monitor", label: "实时交通监控", icon: Camera, shortLabel: "监控" },
     { id: "violation", label: "交通违章识别", icon: Shield, shortLabel: "违章" },
     { id: "suspect-alert", label: "嫌疑人识别告警", icon: Eye, shortLabel: "告警" },
+     { id: "data-visualization", label: "统计图表分析", icon: BarChart3, shortLabel: "图表" },
     id: "settings", label: "系统设置", icon: Settings, shortLabel: "设置" */
   }
 
@@ -480,11 +480,6 @@ export default function Dashboard() {
           </div>
 
           <div className="flex items-center space-x-2 sm:space-x-4">
-            {/* 搜索框 - 移动端隐藏 */}
-            <div className="relative hidden lg:block">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input placeholder="搜索..." className="pl-10 w-64 bg-gray-50 border-0" />
-            </div>
 
             {/* 通知按钮 */}
             <Button variant="ghost" size="sm" className="relative">
