@@ -13,6 +13,8 @@ import time
 import sys
 import argparse
 import json
+import atexit
+import signal
 
 app = Flask(__name__)
 CORS(app)  # 允许跨域请求
@@ -35,6 +37,46 @@ DB_CONFIG = {
     'database': 'tm',
     'charset': 'utf8mb4'
 }
+
+def reset_system_lock():
+    """重置系统锁"""
+    global system_state_lock
+    system_state_lock = 0
+    print("系统锁已重置为0")
+
+def acquire_system_lock(lock_type):
+    """获取系统锁
+    lock_type: 1表示识别状态，2表示录入状态
+    """
+    global system_state_lock
+    if system_state_lock != 0:
+        return False
+    system_state_lock = lock_type
+    print(f"系统锁已设置为: {lock_type}")
+    return True
+
+def release_system_lock():
+    """释放系统锁"""
+    global system_state_lock
+    system_state_lock = 0
+    print("系统锁已释放")
+
+def cleanup_on_exit():
+    """程序退出时的清理函数"""
+    print("正在清理系统资源...")
+    reset_system_lock()
+
+# 注册退出时的清理函数
+atexit.register(cleanup_on_exit)
+
+# 信号处理
+def signal_handler(signum, frame):
+    print(f"收到信号 {signum}，正在清理...")
+    cleanup_on_exit()
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
 
 def init_face_recognition():
     """初始化人脸识别系统"""
@@ -634,9 +676,10 @@ def train_session():
 @app.route('/train', methods=['POST'])
 def train_face():
     """训练人脸模型（兼容旧接口）"""
-    global system_state_lock, Total_face_num
+    global Total_face_num
     
-    if system_state_lock != 0:
+    # 尝试获取系统锁
+    if not acquire_system_lock(2):
         return jsonify({
             'success': False,
             'message': '系统正忙，请稍后重试'
@@ -644,92 +687,159 @@ def train_face():
     
     try:
         data = request.get_json()
-        user_id = data.get('user_id')
+        if not data:
+            release_system_lock()
+            return jsonify({
+                'success': False,
+                'message': '请求数据格式错误'
+            }), 400
+        
         username = data.get('username')
         images = data.get('images', [])
         
         if not username or not images:
+            release_system_lock()
             return jsonify({
                 'success': False,
-                'message': '缺少必要参数'
+                'message': '缺少必要参数：用户名或图像数据'
             }), 400
         
-        system_state_lock = 2  # 设置为录入状态
+        if not isinstance(images, list) or len(images) == 0:
+            release_system_lock()
+            return jsonify({
+                'success': False,
+                'message': '图像数据格式错误或为空'
+            }), 400
+        
+        print(f"开始训练用户 {username} 的人脸模型，图像数量: {len(images)}")
         
         # 创建数据目录
         data_dir = 'data'
         facedata_dir = 'Facedata'
         
-        if os.path.exists(data_dir):
-            shutil.rmtree(data_dir)
-        os.makedirs(data_dir, exist_ok=True)
-        os.makedirs(facedata_dir, exist_ok=True)
+        try:
+            if os.path.exists(data_dir):
+                shutil.rmtree(data_dir)
+            os.makedirs(data_dir, exist_ok=True)
+            os.makedirs(facedata_dir, exist_ok=True)
+        except Exception as e:
+            release_system_lock()
+            print(f"创建目录失败: {e}")
+            return jsonify({
+                'success': False,
+                'message': f'创建数据目录失败: {str(e)}'
+            }), 500
         
         # 处理图像数据
         sample_num = 0
+        valid_images = 0
+        
         for i, image_data in enumerate(images):
-            cv_image = base64_to_image(image_data)
-            if cv_image is None:
-                continue
+            try:
+                cv_image = base64_to_image(image_data)
+                if cv_image is None:
+                    print(f"图像 {i+1} 转换失败")
+                    continue
                 
-            # 转换为灰度图
-            gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
-            
-            # 检测人脸
-            faces = face_cascade.detectMultiScale(gray, 1.3, 5)
-            
-            for (x, y, w, h) in faces:
-                sample_num += 1
-                # 保存人脸图像
-                face_image = gray[y:y + h, x:x + w]
-                filename = f"User.{Total_face_num}.{sample_num}.jpg"
-                cv2.imwrite(os.path.join(data_dir, filename), face_image)
+                valid_images += 1
+                
+                # 转换为灰度图
+                gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+                
+                # 检测人脸
+                faces = face_cascade.detectMultiScale(gray, 1.3, 5)
+                
+                for (x, y, w, h) in faces:
+                    sample_num += 1
+                    # 保存人脸图像
+                    face_image = gray[y:y + h, x:x + w]
+                    filename = f"User.{Total_face_num}.{sample_num}.jpg"
+                    cv2.imwrite(os.path.join(data_dir, filename), face_image)
+                    
+            except Exception as e:
+                print(f"处理图像 {i+1} 时出错: {e}")
+                continue
+        
+        print(f"有效图像: {valid_images}/{len(images)}, 检测到人脸样本: {sample_num}")
         
         if sample_num == 0:
-            system_state_lock = 0
+            release_system_lock()
             return jsonify({
                 'success': False,
-                'message': '未检测到人脸，请重新上传图像'
+                'message': '未检测到人脸，请重新上传图像或调整拍摄角度'
             }), 400
         
         # 移动图像到Facedata目录
-        for filename in os.listdir(data_dir):
-            shutil.move(os.path.join(data_dir, filename), os.path.join(facedata_dir, filename))
-        
-        # 训练模型
-        faces, ids = get_images_and_labels(facedata_dir, Total_face_num)
-        if len(faces) == 0:
-            system_state_lock = 0
+        try:
+            for filename in os.listdir(data_dir):
+                shutil.move(os.path.join(data_dir, filename), 
+                           os.path.join(facedata_dir, filename))
+        except Exception as e:
+            release_system_lock()
+            print(f"移动图像文件失败: {e}")
             return jsonify({
                 'success': False,
-                'message': '没有检测到有效的人脸数据'
-            }), 400
+                'message': f'保存图像文件失败: {str(e)}'
+            }), 500
         
-        # 训练识别器
-        recognizer.train(faces, np.array(ids))
-        
-        # 保存模型
-        trainer_dir = 'traindata'
-        os.makedirs(trainer_dir, exist_ok=True)
-        model_path = os.path.join(trainer_dir, f'{Total_face_num}_train.yml')
-        recognizer.save(model_path)
+        # 训练模型
+        try:
+            faces, ids = get_images_and_labels(facedata_dir, Total_face_num)
+            if len(faces) == 0:
+                release_system_lock()
+                return jsonify({
+                    'success': False,
+                    'message': '没有检测到有效的人脸数据用于训练'
+                }), 400
+            
+            # 训练识别器
+            recognizer.train(faces, np.array(ids))
+            
+            # 保存模型
+            trainer_dir = 'traindata'
+            os.makedirs(trainer_dir, exist_ok=True)
+            model_path = os.path.join(trainer_dir, f'{Total_face_num}_train.yml')
+            recognizer.save(model_path)
+            
+            print(f"模型训练完成，保存到: {model_path}")
+            
+        except Exception as e:
+            release_system_lock()
+            print(f"模型训练失败: {e}")
+            return jsonify({
+                'success': False,
+                'message': f'模型训练失败: {str(e)}'
+            }), 500
         
         # 更新配置
-        write_config(username)
-        Total_face_num += 1
+        try:
+            write_config(username)
+            Total_face_num += 1
+            print(f"配置更新完成，用户ID: {Total_face_num - 1}")
+        except Exception as e:
+            release_system_lock()
+            print(f"更新配置失败: {e}")
+            return jsonify({
+                'success': False,
+                'message': f'更新用户配置失败: {str(e)}'
+            }), 500
         
-        system_state_lock = 0
+        # 释放系统锁
+        release_system_lock()
         
         return jsonify({
             'success': True,
             'message': f'人脸训练完成，共训练 {len(np.unique(ids))} 张人脸',
             'user_id': Total_face_num - 1,
-            'samples': sample_num
+            'username': username,
+            'samples': sample_num,
+            'valid_images': valid_images
         })
         
     except Exception as e:
-        system_state_lock = 0
-        print(f"训练错误: {e}")
+        # 确保在任何异常情况下都释放系统锁
+        release_system_lock()
+        print(f"训练过程出现未预期错误: {e}")
         return jsonify({
             'success': False,
             'message': f'训练失败: {str(e)}'
@@ -738,8 +848,8 @@ def train_face():
 @app.route('/recognize', methods=['POST'])
 def recognize_face():
     """人脸识别 - 与main.py的scan_face逻辑一致"""
-    global system_state_lock
     
+    # 检查系统锁状态
     if system_state_lock == 2:
         return jsonify({
             'success': False,
@@ -748,6 +858,12 @@ def recognize_face():
     
     try:
         data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': '请求数据格式错误'
+            }), 400
+        
         image_data = data.get('image')
         client_ip = request.remote_addr
         
@@ -757,84 +873,126 @@ def recognize_face():
                 'message': '缺少图像数据'
             }), 400
         
+        print(f"开始人脸识别，客户端IP: {client_ip}")
+        
         # 转换图像
-        cv_image = base64_to_image(image_data)
-        if cv_image is None:
+        try:
+            cv_image = base64_to_image(image_data)
+            if cv_image is None:
+                return jsonify({
+                    'success': False,
+                    'message': '图像格式错误或转换失败'
+                }), 400
+        except Exception as e:
+            print(f"图像转换失败: {e}")
             return jsonify({
                 'success': False,
-                'message': '图像格式错误'
+                'message': f'图像处理失败: {str(e)}'
             }), 400
         
         # 保存识别图像（用于失败记录）
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        image_filename = f'recognize_{timestamp}.jpg'
-        image_path = save_face_image(cv_image, image_filename)
+        try:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            image_filename = f'recognize_{timestamp}.jpg'
+            image_path = save_face_image(cv_image, image_filename)
+        except Exception as e:
+            print(f"保存识别图像失败: {e}")
+            image_path = None
         
         # 转换为灰度图
-        gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+        try:
+            gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+        except Exception as e:
+            print(f"图像灰度转换失败: {e}")
+            return jsonify({
+                'success': False,
+                'message': f'图像处理失败: {str(e)}'
+            }), 400
         
         # 检测人脸 - 调整参数以提高检测率
-        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=3)
-        
-        print(f"识别检测到 {len(faces)} 个人脸")
-        
-        if len(faces) == 0:
-            # 尝试更宽松的参数
-            faces = face_cascade.detectMultiScale(gray, scaleFactor=1.05, minNeighbors=2)
-            print(f"识别使用宽松参数检测到 {len(faces)} 个人脸")
+        try:
+            faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=3)
+            print(f"识别检测到 {len(faces)} 个人脸")
             
             if len(faces) == 0:
+                # 尝试更宽松的参数
+                faces = face_cascade.detectMultiScale(gray, scaleFactor=1.05, minNeighbors=2)
+                print(f"识别使用宽松参数检测到 {len(faces)} 个人脸")
+                
+                if len(faces) == 0:
+                    # 暂时跳过数据库日志记录，避免连接错误
+                    # log_login_attempt(None, '人脸识别', 0, client_ip, image_path)
+                    return jsonify({
+                        'success': False,
+                        'message': '未检测到人脸，请确保人脸清晰可见'
+                    }), 400
+        except Exception as e:
+            print(f"人脸检测失败: {e}")
+            return jsonify({
+                'success': False,
+                'message': f'人脸检测失败: {str(e)}'
+            }), 400
+        
+        # 加载所有训练模型 - 与main.py的scan_face逻辑一致
+        try:
+            trainer_dir = 'traindata'
+            if not os.path.exists(trainer_dir) or not os.listdir(trainer_dir):
                 # 暂时跳过数据库日志记录，避免连接错误
                 # log_login_attempt(None, '人脸识别', 0, client_ip, image_path)
                 return jsonify({
                     'success': False,
-                    'message': '未检测到人脸，请确保人脸清晰可见'
+                    'message': '没有训练数据，请先录入人脸'
                 }), 400
-        
-        # 加载所有训练模型 - 与main.py的scan_face逻辑一致
-        trainer_dir = 'traindata'
-        if not os.path.exists(trainer_dir) or not os.listdir(trainer_dir):
-            # 暂时跳过数据库日志记录，避免连接错误
-            # log_login_attempt(None, '人脸识别', 0, client_ip, image_path)
+            
+            models = {}
+            for file_name in os.listdir(trainer_dir):
+                if file_name.endswith("_train.yml"):
+                    try:
+                        user_id = int(file_name.split('_')[0])
+                        recog = cv2.face.LBPHFaceRecognizer_create()
+                        recog.read(os.path.join(trainer_dir, file_name))
+                        models[user_id] = recog
+                    except Exception as e:
+                        print(f"加载模型 {file_name} 失败: {e}")
+                        continue
+            
+            if not models:
+                # 暂时跳过数据库日志记录，避免连接错误
+                # log_login_attempt(None, '人脸识别', 0, client_ip, image_path)
+                return jsonify({
+                    'success': False,
+                    'message': '没有找到有效的模型文件'
+                }), 400
+        except Exception as e:
+            print(f"加载训练模型失败: {e}")
             return jsonify({
                 'success': False,
-                'message': '没有训练数据，请先录入人脸'
-            }), 400
-        
-        models = {}
-        for file_name in os.listdir(trainer_dir):
-            if file_name.endswith("_train.yml"):
-                try:
-                    user_id = int(file_name.split('_')[0])
-                    recog = cv2.face.LBPHFaceRecognizer_create()
-                    recog.read(os.path.join(trainer_dir, file_name))
-                    models[user_id] = recog
-                except:
-                    continue
-        
-        if not models:
-            # 暂时跳过数据库日志记录，避免连接错误
-            # log_login_attempt(None, '人脸识别', 0, client_ip, image_path)
-            return jsonify({
-                'success': False,
-                'message': '没有找到有效的模型文件'
+                'message': f'加载识别模型失败: {str(e)}'
             }), 400
         
         # 识别人脸 - 与main.py的scan_face逻辑一致
-        best_match_id = -1
-        lowest_confidence = 100
-        
-        for (x, y, w, h) in faces:
-            face_roi = gray[y:y + h, x:x + w]
+        try:
+            best_match_id = -1
+            lowest_confidence = 100
             
-            for user_id, model in models.items():
-                try:
-                    idnum, confidence = model.predict(face_roi)
-                    if confidence < lowest_confidence:
-                        lowest_confidence = confidence
-                        best_match_id = user_id
-                except:
-                    continue
+            for (x, y, w, h) in faces:
+                face_roi = gray[y:y + h, x:x + w]
+                
+                for user_id, model in models.items():
+                    try:
+                        idnum, confidence = model.predict(face_roi)
+                        if confidence < lowest_confidence:
+                            lowest_confidence = confidence
+                            best_match_id = user_id
+                    except Exception as e:
+                        print(f"模型 {user_id} 预测失败: {e}")
+                        continue
+        except Exception as e:
+            print(f"人脸识别过程失败: {e}")
+            return jsonify({
+                'success': False,
+                'message': f'人脸识别过程失败: {str(e)}'
+            }), 400
         
         # 判断识别结果 - 与main.py的置信度阈值一致
         confidence_threshold = 50
@@ -842,6 +1000,8 @@ def recognize_face():
             # 识别成功
             user_name = id_dict[best_match_id]
             confidence_percent = round(100 - lowest_confidence, 2)
+            
+            print(f"识别成功: 用户ID {best_match_id}, 用户名 {user_name}, 置信度 {confidence_percent}%")
             
             # 暂时跳过数据库日志记录，避免连接错误
             # log_login_attempt(best_match_id, '人脸识别', 1, client_ip)
@@ -855,16 +1015,19 @@ def recognize_face():
             })
         else:
             # 识别失败
+            confidence_percent = round(100 - lowest_confidence, 2) if lowest_confidence < 100 else 0
+            print(f"识别失败: 最佳匹配ID {best_match_id}, 置信度 {confidence_percent}%")
+            
             # 暂时跳过数据库日志记录，避免连接错误
             # log_login_attempt(None, '人脸识别', 0, client_ip, image_path)
             return jsonify({
                 'success': False,
                 'message': '人脸识别失败，未找到匹配的用户',
-                'confidence': round(100 - lowest_confidence, 2) if lowest_confidence < 100 else 0
+                'confidence': confidence_percent
             })
             
     except Exception as e:
-        print(f"识别错误: {e}")
+        print(f"识别过程出现未预期错误: {e}")
         return jsonify({
             'success': False,
             'message': f'识别过程出错: {str(e)}'
@@ -983,6 +1146,28 @@ def get_status():
         'face_cascade_loaded': face_cascade is not None,
         'recognizer_loaded': recognizer is not None
     })
+
+
+@app.route('/reset_lock', methods=['POST'])
+def reset_system_lock_endpoint():
+    """手动重置系统锁（用于调试和紧急情况）"""
+    try:
+        global system_state_lock
+        old_lock = system_state_lock
+        system_state_lock = 0
+        print(f"系统锁已手动重置: {old_lock} -> 0")
+        return jsonify({
+            'success': True,
+            'message': f'系统锁已重置: {old_lock} -> 0',
+            'previous_lock': old_lock,
+            'current_lock': system_state_lock
+        })
+    except Exception as e:
+        print(f"重置系统锁失败: {e}")
+        return jsonify({
+            'success': False,
+            'message': f'重置系统锁失败: {str(e)}'
+        }), 500
 
 if __name__ == '__main__':
     # 初始化人脸识别系统
