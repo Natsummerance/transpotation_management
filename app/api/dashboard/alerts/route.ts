@@ -17,8 +17,8 @@ export async function GET(request: NextRequest) {
         create_time,
         'active' as status
       FROM face_store
-      WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
-      ORDER BY created_at DESC 
+      WHERE create_time >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+      ORDER BY create_time DESC 
       LIMIT 3
     `;
     

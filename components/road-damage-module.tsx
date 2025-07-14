@@ -865,16 +865,22 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
           <CardContent className="space-y-4">
             {uploadedFile && !isAnalyzing ? (
               <>
-                <div className="space-y-2">
-                  {resultImage ? (
-                    <div className="aspect-video bg-muted rounded-md overflow-hidden">
-                      <img src={resultImage} alt="Detection Result" className="w-full h-full object-cover" />
-                    </div>
+                <div className="w-full flex justify-center items-center bg-muted rounded-md overflow-hidden" style={{ minHeight: 180, maxHeight: 400 }}>
+                  {resultImage && (/\.(mp4|avi|webm)$/i.test(resultImage) ? (
+                    <video
+                      src={resultImage}
+                      controls
+                      className="max-w-full max-h-[400px] rounded-lg"
+                      style={{ display: 'block', margin: '0 auto', background: '#000' }}
+                    />
                   ) : (
-                    <div className="aspect-video bg-muted rounded-md flex items-center justify-center">
-                      <p className="text-sm text-muted-foreground">检测结果图片将在此处显示</p>
-                    </div>
-                  )}
+                    <img
+                      src={resultImage}
+                      alt="Detection Result"
+                      className="max-w-full max-h-[400px] rounded-lg transition-transform duration-300 hover:scale-110 object-contain"
+                      style={{ display: 'block', margin: '0 auto' }}
+                    />
+                  ))}
                 </div>
 
                 {/* 导出模块 */}
@@ -1246,6 +1252,7 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = "/placeholder.svg";
                       }}
+                      style={{ display: 'block', margin: '0 auto' }}
                     />
                   </div>
                 </div>
