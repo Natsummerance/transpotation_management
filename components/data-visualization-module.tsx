@@ -40,53 +40,190 @@ export default function DataVisualizationModule() {
     }).finally(() => setLoading(false))
   }, [start, end])
 
-  // 图表option生成函数（仅举例，实际可更炫酷美化）
-  const getBarOption = (title: string, x: string[], y: number[], color = '#5470c6') => ({
-    title: { text: title, left: 'center' },
-    tooltip: {},
-    xAxis: { type: 'category', data: x },
-    yAxis: { type: 'value' },
-    series: [{ data: y, type: 'bar', itemStyle: { color } }],
-    grid: { left: 40, right: 20, bottom: 40, top: 60 }
-  })
-  const getPieOption = (title: string, data: { name: string, value: number }[]) => ({
-    title: { text: title, left: 'center' },
-    tooltip: { trigger: 'item' },
-    legend: { bottom: 0 },
-    series: [{ type: 'pie', radius: ['40%', '70%'], data, label: { show: true, formatter: '{b}: {d}%'} }]
-  })
-  const getLineOption = (title: string, x: string[], y: number[], color = '#91cc75') => ({
-    title: { text: title, left: 'center' },
-    tooltip: { trigger: 'axis' },
-    xAxis: { type: 'category', data: x },
-    yAxis: { type: 'value' },
-    series: [{ data: y, type: 'line', smooth: true, areaStyle: {}, itemStyle: { color } }],
-    grid: { left: 40, right: 20, bottom: 40, top: 60 }
-  })
+  // 统一色板
+  const colorPalette = [
+    '#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de', '#3ba272', '#fc8452', '#9a60b4', '#ea7ccc'
+  ];
+  // 判断深色模式
+  const isDark = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+  // 饼图中心统计
+  const getPieTotal = (data: { value: number }[] = []) => data.reduce((sum, d) => sum + (d.value || 0), 0);
+
+  // 饼图美化
+  const getPieOption = (title: string, data: { name: string, value: number }[] = [], colorList = colorPalette) => ({
+    title: {
+      text: title,
+      left: 'center',
+      top: 20,
+      textStyle: { fontWeight: 'bold', fontSize: 20, color: isDark ? '#fff' : '#222' }
+    },
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: isDark ? '#222' : '#fff',
+      borderRadius: 10,
+      textStyle: { color: isDark ? '#fff' : '#222', fontSize: 15 },
+      formatter: '{b}: {c} ({d}%)'
+    },
+    legend: {
+      type: 'scroll',
+      bottom: 10,
+      left: 'center',
+      textStyle: { fontSize: 15, color: isDark ? '#fff' : '#333' },
+      itemWidth: 18,
+      itemHeight: 12
+    },
+    color: colorList,
+    series: [{
+      type: 'pie',
+      radius: ['45%', '70%'],
+      center: ['50%', '55%'],
+      avoidLabelOverlap: false,
+      label: {
+        show: true,
+        position: 'outside',
+        formatter: '{b}: {d}%'
+      },
+      labelLine: { show: true, length: 20, length2: 10 },
+      data,
+      emphasis: {
+        scale: true,
+        itemStyle: { shadowBlur: 30, shadowColor: 'rgba(0,0,0,0.5)' }
+      },
+      animationType: 'scale',
+      animationEasing: 'elasticOut',
+      animationDelay: (idx: number) => idx * 80
+    }],
+    graphic: [{
+      type: 'text',
+      left: 'center',
+      top: 'center',
+      style: {
+        text: getPieTotal(data) + '\n总数',
+        fontSize: 22,
+        fontWeight: 'bold',
+        fill: isDark ? '#fff' : '#222'
+      }
+    }]
+  });
+
+  // 柱状图美化
+  const getBarOption = (title: string, x: string[], y: number[], color = colorPalette[0]) => ({
+    title: { text: title, left: 'center', textStyle: { fontWeight: 'bold', fontSize: 20, color: isDark ? '#fff' : '#222' } },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, backgroundColor: isDark ? '#222' : '#fff', borderRadius: 10, textStyle: { color: isDark ? '#fff' : '#222', fontSize: 15 } },
+    legend: { show: false },
+    xAxis: { type: 'category', data: x, axisLabel: { rotate: 30, color: isDark ? '#fff' : '#666', fontSize: 13 } },
+    yAxis: { type: 'value', axisLabel: { color: isDark ? '#fff' : '#666', fontSize: 13 } },
+    dataZoom: [{ type: 'slider', start: 0, end: 100 }],
+    series: [{
+      data: y,
+      type: 'bar',
+      itemStyle: {
+        color: {
+          type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+          colorStops: [
+            { offset: 0, color },
+            { offset: 1, color: '#fff' }
+          ]
+        },
+        borderRadius: [10, 10, 0, 0],
+        shadowBlur: 12,
+        shadowColor: color
+      },
+      label: {
+        show: true,
+        position: 'top',
+        color: isDark ? '#fff' : color,
+        fontWeight: 'bold',
+        fontSize: 14,
+        backgroundColor: 'rgba(255,255,255,0.7)',
+        borderRadius: 4,
+        padding: [2, 4]
+      },
+      emphasis: { itemStyle: { shadowBlur: 24, shadowColor: color } },
+      markPoint: { data: [{ type: 'max', name: '最大值' }, { type: 'min', name: '最小值' }] },
+      markLine: { data: [{ type: 'average', name: '平均值' }] },
+      animationEasing: 'elasticOut',
+      animationDuration: 1200,
+      animationDelay: (idx: number) => idx * 80
+    }],
+    grid: { left: 40, right: 20, bottom: 70, top: 90 }
+  });
+
+  // 折线图美化
+  const getLineOption = (title: string, x: string[], y: number[], color = colorPalette[1]) => ({
+    title: { text: title, left: 'center', textStyle: { fontWeight: 'bold', fontSize: 20, color: isDark ? '#fff' : '#222' } },
+    tooltip: { trigger: 'axis', backgroundColor: isDark ? '#222' : '#fff', borderRadius: 10, textStyle: { color: isDark ? '#fff' : '#222', fontSize: 15 } },
+    legend: { show: false },
+    xAxis: {
+      type: 'category',
+      data: x,
+      axisLabel: { rotate: 45, color: isDark ? '#fff' : '#666', fontSize: 13 }
+    },
+    yAxis: {
+      type: 'value',
+      axisLabel: { color: isDark ? '#fff' : '#666', fontSize: 13 }
+    },
+    dataZoom: [{ type: 'slider', start: 0, end: 100 }],
+    series: [{
+      data: y,
+      type: 'line',
+      smooth: true,
+      symbol: 'circle',
+      symbolSize: 10,
+      areaStyle: {
+        color: {
+          type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+          colorStops: [
+            { offset: 0, color },
+            { offset: 1, color: '#fff' }
+          ]
+        }
+      },
+      itemStyle: { color, shadowBlur: 12, shadowColor: color },
+      lineStyle: { width: 4 },
+      markPoint: { data: [{ type: 'max', name: '最大值' }, { type: 'min', name: '最小值' }] },
+      markLine: { data: [{ type: 'average', name: '平均值' }] },
+      label: {
+        show: true,
+        position: 'top',
+        color: isDark ? '#fff' : color,
+        fontWeight: 'bold',
+        fontSize: 14,
+        backgroundColor: 'rgba(255,255,255,0.7)',
+        borderRadius: 4,
+        padding: [2, 4]
+      },
+      animationEasing: 'elasticOut',
+      animationDuration: 1200,
+      animationDelay: (idx: number) => idx * 80
+    }],
+    grid: { left: 40, right: 20, bottom: 70, top: 90 }
+  });
 
   // 1. 路面损坏
-  const damageTypePie = damage && getPieOption('损坏类型分布', damage.typeStats?.map((d: any) => ({ name: d.type, value: d.count })) || [])
+  const damageTypePie = damage && getPieOption('损坏类型分布', damage.typeStats?.map((d: any) => ({ name: d.type, value: d.count })))
   const damageTrendLine = damage && getLineOption('损坏上报趋势', damage.timeTrend?.map((d: any) => d.date), damage.timeTrend?.map((d: any) => d.count))
 
   // 2. 人脸与登录
-  const loginTypePie = faceLogin && getPieOption('登录方式分布', faceLogin.loginTypeStats?.map((d: any) => ({ name: d.type, value: d.count })) || [])
+  const loginTypePie = faceLogin && getPieOption('登录方式分布', faceLogin.loginTypeStats?.map((d: any) => ({ name: d.type, value: d.count })))
   const loginTrendLine = faceLogin && getLineOption('登录趋势', faceLogin.loginStatusTrend?.map((d: any) => d.date), faceLogin.loginStatusTrend?.map((d: any) => d.success))
   const faceFailLine = faceLogin && getLineOption('人脸识别失败趋势', faceLogin.faceFailTrend?.map((d: any) => d.date), faceLogin.faceFailTrend?.map((d: any) => d.count), '#ee6666')
 
   // 3. 系统日志
-  const logTypePie = systemLogs && getPieOption('日志类型分布', systemLogs.typeStats?.map((d: any) => ({ name: d.type, value: d.count })) || [])
-  const logLevelPie = systemLogs && getPieOption('日志级别分布', systemLogs.levelStats?.map((d: any) => ({ name: d.level, value: d.count })) || [])
+  const logTypePie = systemLogs && getPieOption('日志类型分布', systemLogs.typeStats?.map((d: any) => ({ name: d.type, value: d.count })))
+  const logLevelPie = systemLogs && getPieOption('日志级别分布', systemLogs.levelStats?.map((d: any) => ({ name: d.level, value: d.count })))
   const logTrendLine = systemLogs && getLineOption('日志趋势', systemLogs.timeTrend?.map((d: any) => d.date), systemLogs.timeTrend?.map((d: any) => d.count))
 
   // 4. 出租车
-  const taxiStatusPie = taxi && getPieOption('载客状态分布', taxi.occupiedStats?.map((d: any) => ({ name: d.status, value: d.count })) || [])
+  const taxiStatusPie = taxi && getPieOption('载客状态分布', taxi.occupiedStats?.map((d: any) => ({ name: d.status, value: d.count })))
   const taxiEventBar = taxi && getBarOption('事件分布', taxi.eventStats?.map((d: any) => d.event), taxi.eventStats?.map((d: any) => d.count), '#fac858')
   const taxiPeakLine = taxi && getLineOption('运营高峰', taxi.peakStats?.map((d: any) => d.hour + '时'), taxi.peakStats?.map((d: any) => d.count), '#73c0de')
 
   // 5. 用户
   const userRegLine = user && getLineOption('用户注册趋势', user.regTrend?.map((d: any) => d.date), user.regTrend?.map((d: any) => d.count))
-  const userRolePie = user && getPieOption('用户角色分布', user.roleStats?.map((d: any) => ({ name: d.role, value: d.count })) || [])
-  const userStatusPie = user && getPieOption('用户状态分布', user.statusStats?.map((d: any) => ({ name: d.status, value: d.count })) || [])
+  const userRolePie = user && getPieOption('用户角色分布', user.roleStats?.map((d: any) => ({ name: d.role, value: d.count })))
+  const userStatusPie = user && getPieOption('用户状态分布', user.statusStats?.map((d: any) => ({ name: d.status, value: d.count })))
 
   return (
     <div className="space-y-8">
@@ -108,8 +245,8 @@ export default function DataVisualizationModule() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <EChartPanel option={damageTypePie} loading={loading} height={350} />
-            <EChartPanel option={damageTrendLine} loading={loading} height={350} />
+            <EChartPanel option={damageTypePie || {}} loading={loading} height={350} />
+            <EChartPanel option={damageTrendLine || {}} loading={loading} height={350} />
           </div>
         </CardContent>
       </Card>
@@ -122,9 +259,9 @@ export default function DataVisualizationModule() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <EChartPanel option={loginTypePie} loading={loading} height={350} />
-            <EChartPanel option={loginTrendLine} loading={loading} height={350} />
-            <EChartPanel option={faceFailLine} loading={loading} height={350} />
+            <EChartPanel option={loginTypePie || {}} loading={loading} height={350} />
+            <EChartPanel option={loginTrendLine || {}} loading={loading} height={350} />
+            <EChartPanel option={faceFailLine || {}} loading={loading} height={350} />
           </div>
         </CardContent>
       </Card>
@@ -137,9 +274,9 @@ export default function DataVisualizationModule() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <EChartPanel option={logTypePie} loading={loading} height={350} />
-            <EChartPanel option={logLevelPie} loading={loading} height={350} />
-            <EChartPanel option={logTrendLine} loading={loading} height={350} />
+            <EChartPanel option={logTypePie || {}} loading={loading} height={350} />
+            <EChartPanel option={logLevelPie || {}} loading={loading} height={350} />
+            <EChartPanel option={logTrendLine || {}} loading={loading} height={350} />
           </div>
         </CardContent>
       </Card>
@@ -152,9 +289,9 @@ export default function DataVisualizationModule() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <EChartPanel option={taxiStatusPie} loading={loading} height={350} />
-            <EChartPanel option={taxiEventBar} loading={loading} height={350} />
-            <EChartPanel option={taxiPeakLine} loading={loading} height={350} />
+            <EChartPanel option={taxiStatusPie || {}} loading={loading} height={350} />
+            <EChartPanel option={taxiEventBar || {}} loading={loading} height={350} />
+            <EChartPanel option={taxiPeakLine || {}} loading={loading} height={350} />
           </div>
         </CardContent>
       </Card>
@@ -167,9 +304,9 @@ export default function DataVisualizationModule() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <EChartPanel option={userRegLine} loading={loading} height={350} />
-            <EChartPanel option={userRolePie} loading={loading} height={350} />
-            <EChartPanel option={userStatusPie} loading={loading} height={350} />
+            <EChartPanel option={userRegLine || {}} loading={loading} height={350} />
+            <EChartPanel option={userRolePie || {}} loading={loading} height={350} />
+            <EChartPanel option={userStatusPie || {}} loading={loading} height={350} />
           </div>
         </CardContent>
       </Card>

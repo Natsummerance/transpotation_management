@@ -5,9 +5,10 @@ interface EChartPanelProps {
   option: any;
   loading?: boolean;
   height?: number | string;
+  theme?: string;
 }
 
-export default function EChartPanel({ option, loading = false, height = 400 }: EChartPanelProps) {
+export default function EChartPanel({ option, loading = false, height = 400, theme = "macarons" }: EChartPanelProps) {
   return (
     <div style={{ height }}>
       <ReactECharts
@@ -16,7 +17,7 @@ export default function EChartPanel({ option, loading = false, height = 400 }: E
         showLoading={loading}
         notMerge
         lazyUpdate
-        theme="shine"
+        theme={theme}
       />
     </div>
   );
