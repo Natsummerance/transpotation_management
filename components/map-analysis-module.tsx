@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Download, Eye, Layers, Filter, Calendar, Loader2 } from "lucide-react"
+import { Download, Eye, Layers, Filter, Calendar, Loader2, Play, Pause, SkipBack, SkipForward } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Slider } from "@/components/ui/slider"
 
 // 声明高德地图全局变量
 declare global {
@@ -18,7 +19,13 @@ declare global {
 
 export default function MapAnalysisModule() {
   const [selectedTimeRange, setSelectedTimeRange] = useState("today")
-  const [selectedLayer, setSelectedLayer] = useState("heatmap")
+  const [selectedLayer, setSelectedLayer] = useState("none")  // 默认无图层
+  const [currentTime, setCurrentTime] = useState("2013-09-12 00:00:00")  // 时间轴当前时间，初始为0点
+  const [isPlaying, setIsPlaying] = useState(false)  // 时间轴播放状态
+  // 10分钟一格的时间点
+  const tenMinuteSteps = Array.from({ length: 144 }, (_, i) => i);
+  const [timeSliderValue, setTimeSliderValue] = useState([0])  // 默认0点
+  const [availableHours, setAvailableHours] = useState<number[]>([])  // 可用的时间点
   const [isLoading, setIsLoading] = useState(true)
   const [mapInstance, setMapInstance] = useState<any>(null)
   const [analysisData, setAnalysisData] = useState<any>(null)
@@ -27,6 +34,16 @@ export default function MapAnalysisModule() {
   // 新增：道路病害点数据和弹窗状态
   const [damagePoints, setDamagePoints] = useState<any[]>([]);
   const [selectedDamage, setSelectedDamage] = useState<any | null>(null);
+
+  // 新增：车辆位置热力图实例引用
+  const vehicleHeatmapRef = useRef<any>(null)
+
+  // 秒级时间轴（轨迹图专用）
+  const secondSteps = Array.from({ length: 86400 }, (_, i) => i);
+  const [secondSliderValue, setSecondSliderValue] = useState([0]); // 轨迹图秒级滑块
+  const [trajectoryPoints, setTrajectoryPoints] = useState<any[]>([]); // 当前秒所有车辆点
+  const trajectoryMarkersRef = useRef<any[]>([]); // 轨迹点Marker引用
+  const [selectedCarPlate, setSelectedCarPlate] = useState<string | null>(null); // 当前选中车牌
 
   // 加载高德地图和数据
   useEffect(() => {
@@ -71,11 +88,22 @@ export default function MapAnalysisModule() {
   // 获取时空分析数据
   const fetchAnalysisData = async () => {
     try {
-      const response = await fetch(`/api/analysis/spatiotemporal?timeRange=${selectedTimeRange}&layer=${selectedLayer}`)
+      const params = new URLSearchParams({
+        timeRange: selectedTimeRange,
+        layer: selectedLayer
+      });
+      
+      if (selectedLayer === "vehicle_heatmap") {
+        params.append('current_time', currentTime);
+      }
+      
+      const response = await fetch(`/api/analysis/spatiotemporal?${params.toString()}`)
       if (response.ok) {
         const data = await response.json()
         setAnalysisData(data)
         updateMapVisualization(data)
+      } else {
+        console.error("API response not ok:", response.status)
       }
     } catch (error) {
       console.error("Failed to fetch analysis data:", error)
@@ -106,6 +134,12 @@ export default function MapAnalysisModule() {
   const updateMapVisualization = (data: any) => {
     if (!mapInstance) return;
     mapInstance.clearMap();
+    
+    // 无图层类型，只显示基础地图
+    if (selectedLayer === "none") {
+      return;
+    }
+    
     if (selectedLayer === "damage") {
       // 绘制道路病害点
       damagePoints.forEach((point) => {
@@ -176,6 +210,45 @@ export default function MapAnalysisModule() {
           max: 100,
         })
       }
+    } else if (selectedLayer === "vehicle_heatmap") {
+      // 车辆位置热力图
+      // 1. 清理上一个实例
+      if (vehicleHeatmapRef.current) {
+        vehicleHeatmapRef.current.setMap(null);
+        vehicleHeatmapRef.current = null;
+      }
+      const vehicleHeatmapData =
+        data.layerData?.vehicleHeatmapPoints?.map((point: any) => ({
+          lng: point.longitude,
+          lat: point.latitude,
+          count: point.intensity,
+        })) || []
+
+      console.log("车辆热力图数据:", vehicleHeatmapData.length, "个点");
+      if (vehicleHeatmapData.length > 0) {
+        console.log("示例热力图点:", vehicleHeatmapData[0]);
+        
+        const heatmap = new window.AMap.HeatMap(mapInstance, {
+          radius: 20,
+          opacity: [0, 0.9],
+          gradient: {
+            0.4: "blue",
+            0.6: "cyan",
+            0.7: "lime",
+            0.8: "yellow",
+            1.0: "red",
+          },
+        })
+
+        heatmap.setDataSet({
+          data: vehicleHeatmapData,
+          max: 50,
+        })
+        // 2. 保存实例
+        vehicleHeatmapRef.current = heatmap;
+      } else {
+        console.log("没有车辆热力图数据");
+      }
     } else if (selectedLayer === "trajectory") {
       // 轨迹图
       data.trajectories?.forEach((trajectory: any) => {
@@ -224,16 +297,155 @@ export default function MapAnalysisModule() {
     return canvas.toDataURL()
   }
 
+  // 时间轴播放功能
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    
+    if (isPlaying && selectedLayer === "vehicle_heatmap") {
+      interval = setInterval(() => {
+        setTimeSliderValue(prev => {
+          const nextIdx = (prev[0] + 1) % 144;
+          const hour = Math.floor(nextIdx / 6);
+          const minute = (nextIdx % 6) * 10;
+          const newTime = `2013-09-12 ${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}:00`;
+          setCurrentTime(newTime);
+          return [nextIdx];
+        });
+      }, 2000); // 每2秒更新一次
+    }
+    
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [isPlaying, selectedLayer]);
+
+  // 时间滑块变化时更新当前时间
+  useEffect(() => {
+    if (selectedLayer === "vehicle_heatmap") {
+      const idx = timeSliderValue[0];
+      const hour = Math.floor(idx / 6);
+      const minute = (idx % 6) * 10;
+      const newTime = `2013-09-12 ${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}:00`;
+      setCurrentTime(newTime);
+    }
+  }, [timeSliderValue, selectedLayer]);
+
+  // 获取可用时间点
+  const fetchAvailableHours = async () => {
+    try {
+      const response = await fetch('/api/analysis/spatiotemporal?timeRange=today&layer=vehicle_heatmap&current_time=2013-09-12 12:00:00');
+      if (response.ok) {
+        const data = await response.json();
+        // 生成0-23小时的时间点
+        const hours = Array.from({length: 24}, (_, i) => i);
+        setAvailableHours(hours);
+      }
+    } catch (error) {
+      console.error("Failed to fetch available hours:", error);
+    }
+  };
+
   // 重新获取数据
   useEffect(() => {
     if (mapInstance) {
-      if (selectedLayer === "damage") {
+      if (selectedLayer === "none") {
+        updateMapVisualization({});
+      } else if (selectedLayer === "damage") {
         updateMapVisualization({});
       } else {
         fetchAnalysisData();
       }
     }
-  }, [selectedLayer, mapInstance, damagePoints]);
+  }, [selectedLayer, mapInstance, damagePoints, currentTime]);
+
+  // 秒转时间字符串
+  function secondToTimeStr(sec: number) {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    return `2013-09-12 ${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
+
+  // 轨迹图：请求所有车辆当前秒的点
+  useEffect(() => {
+    if (selectedLayer === 'trajectory' && mapInstance) {
+      const sec = secondSliderValue[0];
+      const timeStr = secondToTimeStr(sec);
+      fetch(`/api/analysis/spatiotemporal?layer=trajectory_points&current_time=${encodeURIComponent(timeStr)}`)
+        .then(res => res.json())
+        .then(data => {
+          setTrajectoryPoints(data.layerData?.trajectoryPoints || []);
+        });
+    }
+  }, [selectedLayer, secondSliderValue, mapInstance]);
+
+  // 轨迹图：渲染所有车辆点（小箭头+方向+悬停显示车牌+点击高亮）
+  useEffect(() => {
+    if (selectedLayer === 'trajectory' && mapInstance) {
+      // 清除旧点
+      trajectoryMarkersRef.current.forEach(marker => marker.setMap(null));
+      trajectoryMarkersRef.current = [];
+      // 添加新点
+      trajectoryPoints.forEach((pt, idx) => {
+        // 箭头SVG，选中高亮变红色
+        const isSelected = selectedCarPlate === pt.car_plate;
+        const arrowIconUrl =
+          'data:image/svg+xml;utf8,' +
+          encodeURIComponent(`
+            <svg width=\"32\" height=\"32\" viewBox=\"0 0 32 32\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">
+              <g transform=\"rotate(${pt.heading || 0},16,16)\">
+                <polygon points=\"16,4 28,28 16,22 4,28\" fill=\"${isSelected ? '#ef4444' : '#2563eb'}\" stroke=\"#fff\" stroke-width=\"2\"/>
+              </g>
+            </svg>
+          `);
+        const marker = new window.AMap.Marker({
+          position: [pt.lng, pt.lat],
+          title: pt.car_plate,
+          icon: new window.AMap.Icon({
+            image: arrowIconUrl,
+            size: new window.AMap.Size(32, 32),
+            imageSize: new window.AMap.Size(32, 32),
+          }),
+          offset: new window.AMap.Pixel(-16, -16),
+        });
+        // 鼠标悬停显示气泡
+        marker.on('mouseover', () => {
+          marker.setLabel({
+            direction: 'top',
+            offset: new window.AMap.Pixel(0, -20),
+            content: `<div style=\"background:#fff;border-radius:4px;padding:2px 8px;font-size:13px;border:1px solid #2563eb;color:#2563eb;box-shadow:0 2px 8px #0001;\">${pt.car_plate}</div>`
+          });
+        });
+        marker.on('mouseout', () => {
+          marker.setLabel(null);
+        });
+        // 点击高亮/取消高亮
+        marker.on('click', () => {
+          setSelectedCarPlate(prev => prev === pt.car_plate ? null : pt.car_plate);
+        });
+        marker.setMap(mapInstance);
+        trajectoryMarkersRef.current.push(marker);
+      });
+    }
+  }, [trajectoryPoints, selectedLayer, mapInstance, selectedCarPlate]);
+
+  // 图层切换时清除所有地图元素，只显示当前图层内容
+  useEffect(() => {
+    if (!mapInstance) return;
+    // 清除所有Marker和热力图
+    if (vehicleHeatmapRef.current) {
+      vehicleHeatmapRef.current.setMap(null);
+      vehicleHeatmapRef.current = null;
+    }
+    trajectoryMarkersRef.current.forEach(marker => marker.setMap(null));
+    trajectoryMarkersRef.current = [];
+    // 只保留底图
+    if (selectedLayer === 'none') {
+      mapInstance.clearMap();
+    }
+  }, [selectedLayer, mapInstance]);
 
   return (
     <div className="space-y-8">
@@ -279,7 +491,9 @@ export default function MapAnalysisModule() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="none">无</SelectItem>
                   <SelectItem value="heatmap">热力图</SelectItem>
+                  <SelectItem value="vehicle_heatmap">车辆位置热力图</SelectItem>
                   <SelectItem value="trajectory">轨迹图</SelectItem>
                   <SelectItem value="hotspots">热门上客点</SelectItem>
                   <SelectItem value="flow">客流分析</SelectItem>
@@ -305,10 +519,118 @@ export default function MapAnalysisModule() {
               <Layers className="w-4 h-4 mr-2" />
               图层管理
             </Button>
-            <Button variant="outline" className="bg-transparent">
-              <Calendar className="w-4 h-4 mr-2" />
-              时间轴播放
-            </Button>
+            {selectedLayer === "vehicle_heatmap" && (
+              <div className="flex items-center space-x-4 w-full">
+                <div className="flex items-center space-x-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      setTimeSliderValue([Math.max(0, timeSliderValue[0] - 1)]);
+                    }}
+                  >
+                    <SkipBack className="w-4 h-4" />
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setIsPlaying(!isPlaying)}
+                  >
+                    {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      setTimeSliderValue([Math.min(143, timeSliderValue[0] + 1)]);
+                    }}
+                  >
+                    <SkipForward className="w-4 h-4" />
+                  </Button>
+                </div>
+                
+                <div className="flex-1 flex items-center space-x-4">
+                  <span className="text-sm text-gray-600 whitespace-nowrap">00:00</span>
+                  <div className="flex-1">
+                    <Slider
+                      value={timeSliderValue}
+                      onValueChange={setTimeSliderValue}
+                      max={143}
+                      min={0}
+                      step={1}
+                      className="w-full"
+                    />
+                  </div>
+                  <span className="text-sm text-gray-600 whitespace-nowrap">23:50</span>
+                </div>
+                
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm font-medium">
+                    {(() => {
+                      const idx = timeSliderValue[0];
+                      const hour = Math.floor(idx / 6);
+                      const minute = (idx % 6) * 10;
+                      return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+                    })()}
+                  </span>
+                  <Input
+                    type="datetime-local"
+                    value={currentTime.replace(' ', 'T')}
+                    onChange={(e) => {
+                      const newTime = e.target.value.replace('T', ' ');
+                      setCurrentTime(newTime);
+                      const [h, m] = newTime.split(' ')[1].split(':');
+                      const idx = parseInt(h) * 6 + Math.floor(parseInt(m) / 10);
+                      setTimeSliderValue([idx]);
+                    }}
+                    className="w-48"
+                  />
+                </div>
+              </div>
+            )}
+            {selectedLayer === "trajectory" && (
+              <div className="flex items-center space-x-4 w-full">
+                <span className="text-sm text-gray-600 whitespace-nowrap">00:00:00</span>
+                <div className="flex-1">
+                  <Slider
+                    value={secondSliderValue}
+                    onValueChange={setSecondSliderValue}
+                    max={86399}
+                    min={0}
+                    step={1}
+                    className="w-full"
+                  />
+                </div>
+                <span className="text-sm text-gray-600 whitespace-nowrap">23:59:59</span>
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm font-medium">
+                    {(() => {
+                      const sec = secondSliderValue[0];
+                      const h = Math.floor(sec / 3600);
+                      const m = Math.floor((sec % 3600) / 60);
+                      const s = sec % 60;
+                      return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                    })()}
+                  </span>
+                  <Input
+                    type="time"
+                    step="1"
+                    value={(() => {
+                      const sec = secondSliderValue[0];
+                      const h = Math.floor(sec / 3600);
+                      const m = Math.floor((sec % 3600) / 60);
+                      const s = sec % 60;
+                      return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                    })()}
+                    onChange={e => {
+                      const [h, m, s] = e.target.value.split(":").map(Number);
+                      setSecondSliderValue([h * 3600 + m * 60 + s]);
+                    }}
+                    className="w-28"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -319,13 +641,19 @@ export default function MapAnalysisModule() {
           <CardTitle className="text-xl font-bold">济南市交通时空分析地图</CardTitle>
           <CardDescription>
             当前显示:{" "}
-            {selectedLayer === "heatmap"
-              ? "出租车热力图"
-              : selectedLayer === "trajectory"
-                ? "乘客轨迹分析"
-                : selectedLayer === "hotspots"
-                  ? "热门上客点分布"
-                  : "客流分析"}
+            {selectedLayer === "none"
+              ? "基础地图"
+              : selectedLayer === "heatmap"
+                ? "出租车热力图"
+                : selectedLayer === "vehicle_heatmap"
+                  ? `车辆位置热力图 (${currentTime})`
+                  : selectedLayer === "trajectory"
+                    ? "乘客轨迹分析"
+                    : selectedLayer === "hotspots"
+                      ? "热门上客点分布"
+                      : selectedLayer === "damage"
+                        ? "道路病害分布"
+                        : "客流分析"}
           </CardDescription>
         </CardHeader>
         <CardContent>
