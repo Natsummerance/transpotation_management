@@ -494,10 +494,11 @@ export default function MapAnalysisModule() {
                   <SelectItem value="none">无</SelectItem>
                   <SelectItem value="vehicle_heatmap">热力图</SelectItem>
                   <SelectItem value="trajectory">轨迹图</SelectItem>
-                  {/*<SelectItem value="heatmap">热力图</SelectItem>
-                  <SelectItem value="hotspots">热门上客点</SelectItem>
-                  <SelectItem value="flow">客流分析</SelectItem> */}
                   <SelectItem value="damage">道路病害</SelectItem>
+                  {/*
+                  <SelectItem value="heatmap">车辆位置热力图</SelectItem>
+                  <SelectItem value="hotspots">热门上客点</SelectItem>
+                  <SelectItem value="flow">客流分析</SelectItem>*/}
                 </SelectContent>
               </Select>
             </div>
