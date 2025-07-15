@@ -700,189 +700,7 @@ class SpatiotemporalAnalysisView(APIView):
         参数:
         - start_time: 开始时间
         - end_time: 结束时间
-        - layer_type: 图层类型 (heatmap, trajectory, hotspots, flow, trajectory_points)
-        - current_time: 当前时间（秒级）
-        """
-        
-        start_time = request.GET.get('start_time')
-        end_time = request.GET.get('end_time')
-        layer_type = request.GET.get('layer_type', 'heatmap')
-        current_time = request.GET.get('current_time')
-        
-        # 默认查询2013-09-12的数据
-        if not start_time:
-            start_time = "2013-09-12 00:00:00"
-            end_time = "2013-09-12 23:59:59"
-        else:
-            start_time = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
-            if end_time:
-                end_time = datetime.strptime(end_time, '%Y-%m-%d %H:%M:%S')
-            else:
-                end_time = start_time + timedelta(days=1)
-        
-        try:
-            with connection.cursor() as cursor:
-                # 基础统计数据
-                stats_sql = """
-                SELECT 
-                    event_tag,
-                    COUNT(*) as count,
-                    COUNT(DISTINCT taxi_id) as unique_taxis
-                FROM taxi_gps_log 
-                WHERE event_tag IN (1, 2)
-                AND beijing_time BETWEEN %s AND %s
-                GROUP BY event_tag
-                """
-                cursor.execute(stats_sql, [start_time, end_time])
-                stats_results = cursor.fetchall()
-                
-                # 按小时统计
-                hourly_sql = """
-                SELECT 
-                    HOUR(beijing_time) as hour,
-                    event_tag,
-                    COUNT(*) as count
-                FROM taxi_gps_log 
-                WHERE event_tag IN (1, 2)
-                AND beijing_time BETWEEN %s AND %s
-                GROUP BY HOUR(beijing_time), event_tag
-                ORDER BY hour
-                """
-                cursor.execute(hourly_sql, [start_time, end_time])
-                hourly_results = cursor.fetchall()
-                
-                # 热门上客点
-                hotspots_sql = """
-                SELECT 
-                    ROUND(gcj02_lat / 0.001) * 0.001 as lat,
-                    ROUND(gcj02_lon / 0.001) * 0.001 as lng,
-                    COUNT(*) as count
-                FROM taxi_gps_log 
-                WHERE event_tag = 1
-                AND beijing_time BETWEEN %s AND %s
-                GROUP BY lat, lng
-                ORDER BY count DESC
-                LIMIT 10
-                """
-                cursor.execute(hotspots_sql, [start_time, end_time])
-                hotspots_results = cursor.fetchall()
-                
-                # 处理统计数据
-                stats = {
-                    'totalOrders': 0,
-                    'avgDistance': 8.5,
-                    'peakHour': '18:00',
-                    'activeArea': '历下区'
-                }
-                
-                for event_tag, count, unique_count in stats_results:
-                    if event_tag == 1:  # 上客
-                        stats['totalOrders'] = count
-                
-                # 处理小时数据
-                hourly_data = {i: 0 for i in range(24)}
-                for hour, event_tag, count in hourly_results:
-                    if event_tag == 1:  # 只统计上客
-                        hourly_data[hour] = count
-                
-                # 找到高峰时段
-                peak_hour = max(hourly_data.items(), key=lambda x: x[1])[0]
-                stats['peakHour'] = f"{peak_hour:02d}:00"
-                
-                # 处理热点数据
-                top_pickup_points = []
-                for i, (lat, lng, count) in enumerate(hotspots_results, 1):
-                    # 根据坐标判断区域（简化处理）
-                    area_names = ['历下区', '市中区', '槐荫区', '天桥区', '历城区']
-                    area_index = int(abs(lat - 36.6758) * 100) % len(area_names)
-                    
-                    top_pickup_points.append({
-                        'rank': i,
-                        'name': f"{area_names[area_index]}热点{i}",
-                        'count': count,
-                        'lat': float(lat),
-                        'lng': float(lng)
-                    })
-                
-                # ========== 合并轨迹点接口 ==========
-                layer_data = {}
-                if layer_type == 'trajectory_points' and current_time:
-                    current_dt = datetime.strptime(current_time, '%Y-%m-%d %H:%M:%S')
-                    start_sec = current_dt - timedelta(seconds=0.5)
-                    end_sec = current_dt + timedelta(seconds=0.5)
-                    cursor.execute('''
-                        SELECT car_plate, gcj02_lat, gcj02_lon, speed, event_tag, beijing_time, heading
-                        FROM (
-                            SELECT *, ROW_NUMBER() OVER (PARTITION BY car_plate ORDER BY ABS(TIMESTAMPDIFF(SECOND, beijing_time, %s))) as rn
-                            FROM taxi_gps_log
-                            WHERE beijing_time BETWEEN %s AND %s
-                        ) t
-                        WHERE rn = 1
-                    ''', [current_dt, start_sec, end_sec])
-                    results = cursor.fetchall()
-                    trajectory_points = []
-                    for row in results:
-                        car_plate, lat, lng, speed, event_tag, beijing_time, heading = row
-                        trajectory_points.append({
-                            'car_plate': car_plate,
-                            'lat': float(lat),
-                            'lng': float(lng),
-                            'speed': float(speed) if speed else 0,
-                            'event_tag': event_tag,
-                            'time': beijing_time.strftime('%Y-%m-%d %H:%M:%S'),
-                            'heading': int(heading) if heading is not None else 0
-                        })
-                    layer_data['trajectoryPoints'] = trajectory_points
-                # ========== END 合并轨迹点接口 ==========
-                # 构建响应数据
-                response_data = {
-                    'totalOrders': stats['totalOrders'],
-                    'avgDistance': stats['avgDistance'],
-                    'peakHour': stats['peakHour'],
-                    'activeArea': stats['activeArea'],
-                    'hourlyData': hourly_data,
-                    'topPickupPoints': top_pickup_points,
-                    'layerType': layer_type,
-                    'layerData': layer_data,
-                    'currentTime': current_time,
-                    'timeRange': {
-                        'start': start_time.strftime('%Y-%m-%d %H:%M:%S') if isinstance(start_time, datetime) else start_time,
-                        'end': end_time.strftime('%Y-%m-%d %H:%M:%S') if isinstance(end_time, datetime) else end_time
-                    }
-                }
-                
-                return Response(response_data, status=status.HTTP_200_OK)
-                
-        except Exception as e:
-            return Response({
-                'error': str(e),
-                'message': '查询时空分析时发生错误'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-class DistanceDistributionView(APIView):
-    """路程分布分析API视图"""
-    def get(self, request):
-        start_time = request.GET.get('start_time')
-        end_time = request.GET.get('end_time')
-        # 默认时间范围
-        if not start_time:
-            start_time = "2013-09-12 00:00:00"
-            end_time = "2013-09-12 23:59:59"
-        result = analyze_distance_distribution(start_time, end_time)
-        return Response(result, status=status.HTTP_200_OK)
-
-class SpatiotemporalAnalysisView(APIView):
-    """时空分析API视图 - 综合数据"""
-    
-    def get(self, request):
-        """
-        获取时空分析综合数据
-        
-        参数:
-        - start_time: 开始时间
-        - end_time: 结束时间
-        - layer_type: 图层类型 (heatmap, trajectory, hotspots, flow, trajectory_points)
+        - layer_type: 图层类型 (heatmap, trajectory, hotspots, flow, trajectory_points, vehicle_heatmap)
         - current_time: 当前时间（秒级）
         """
         
@@ -1019,13 +837,8 @@ class SpatiotemporalAnalysisView(APIView):
                         }
                         for lat, lng, count in vehicle_heatmap_results
                     ]
-                    
-                    # 添加调试信息
-                    print(f"车辆热力图数据: {len(vehicle_heatmap_results)} 个点")
-                    if vehicle_heatmap_results:
-                        print(f"示例数据: {vehicle_heatmap_results[0]}")
                 
-                # 新增：轨迹点（所有车辆当前时刻位置，按秒）
+                # 轨迹点（所有车辆当前时刻位置，按秒）
                 if layer_type == 'trajectory_points' and current_time:
                     # 取当前时间前后0.5秒的点，每车取最新一条
                     current_dt = datetime.strptime(current_time, '%Y-%m-%d %H:%M:%S')
@@ -1081,6 +894,18 @@ class SpatiotemporalAnalysisView(APIView):
                 'message': '查询时空分析时发生错误'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+class DistanceDistributionView(APIView):
+    """路程分布分析API视图"""
+    def get(self, request):
+        start_time = request.GET.get('start_time')
+        end_time = request.GET.get('end_time')
+        # 默认时间范围
+        if not start_time:
+            start_time = "2013-09-12 00:00:00"
+            end_time = "2013-09-12 23:59:59"
+        result = analyze_distance_distribution(start_time, end_time)
+        return Response(result, status=status.HTTP_200_OK)
 
 class VehicleIdListView(APIView):
     """车辆ID列表API视图"""
