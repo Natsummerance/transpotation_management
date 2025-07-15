@@ -64,106 +64,82 @@ export default function TaxiAnalysisModule() {
   const [customStart, setCustomStart] = useState("")
   const [customEnd, setCustomEnd] = useState("")
   const [isLoading, setIsLoading] = useState(true)
+  const [isHeatmapLoading, setIsHeatmapLoading] = useState(true)
+  const [isTrajectoryLoading, setIsTrajectoryLoading] = useState(false)
   const [mapInstance, setMapInstance] = useState<any>(null)
   const [heatmapInstance, setHeatmapInstance] = useState<any>(null)
-  const [trajectoryMapInstance, setTrajectoryMapInstance] = useState<any>(null) // 新增
   const [taxiData, setTaxiData] = useState<any>(null)
   const [dashboardData, setDashboardData] = useState<any>(null)
   const [hotspotsData, setHotspotsData] = useState<any>(null)
   const mapRef = useRef<HTMLDivElement>(null)
   const trajectoryMapRef = useRef<HTMLDivElement>(null)
+  const hotspotsMapRef = useRef<HTMLDivElement>(null)
+  const vehicleHeatmapRef = useRef<any>(null)
   const [vehicleIds, setVehicleIds] = useState<string[]>([])
   const [selectedVehicle, setSelectedVehicle] = useState<string>("all")
   const [trajectories, setTrajectories] = useState<any[]>([])
+  const [eventType, setEventType] = useState<'pickup' | 'dropoff'>('pickup')
+  // 移除amapReady状态，简化地图加载逻辑
+  // const [amapReady, setAmapReady] = useState(false) // 删除这行
 
 
   const [activeView, setActiveView] = useState("heatmap") // heatmap, trajectory, hotspots
 
   // 新增：路程分布分析数据
   const [distanceDistribution, setDistanceDistribution] = useState<any[]>([])
+  const [hotspotsMapData, setHotspotsMapData] = useState<any[]>([])
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
 
-  // 模拟数据
-  const mockData = {
-    totalOrders: 12456,
-    activeVehicles: 2847,
-    avgDistance: 8.5,
-    totalRevenue: 892000,
-    hotspots: [
-      { rank: 1, name: "济南火车站", orders: 2345, growth: "+15.3%", lat: 36.6758, lng: 117.0009 },
-      { rank: 2, name: "泉城广场", orders: 1876, growth: "+8.7%", lat: 36.6658, lng: 116.9909 },
-      { rank: 3, name: "济南机场", orders: 1234, growth: "+12.1%", lat: 36.6858, lng: 117.0109 },
-      { rank: 4, name: "山东大学", orders: 987, growth: "+5.4%", lat: 36.6558, lng: 116.9809 },
-      { rank: 5, name: "趵突泉", orders: 756, growth: "+3.2%", lat: 36.6458, lng: 116.9709 },
-      { rank: 6, name: "大明湖", orders: 654, growth: "+7.8%", lat: 36.6358, lng: 116.9609 },
-    ],
-    hourlyData: Array.from({ length: 24 }, (_, i) => {
-      let base = 20 + Math.random() * 30
-      if (i >= 7 && i <= 9) base += 30 // 早高峰
-      if (i >= 17 && i <= 19) base += 40 // 晚高峰
-      if (i >= 0 && i <= 5) base = 10 + Math.random() * 10 // 深夜
-      return base
-    }),
-    weeklyData: [
-      { day: "周一", orders: 1200, revenue: 85000 },
-      { day: "周二", orders: 1350, revenue: 92000 },
-      { day: "周三", orders: 1100, revenue: 78000 },
-      { day: "周四", orders: 1400, revenue: 95000 },
-      { day: "周五", orders: 1600, revenue: 110000 },
-      { day: "周六", orders: 1800, revenue: 125000 },
-      { day: "周日", orders: 1500, revenue: 105000 },
-    ],
-    distanceDistribution: [
-      { range: "0-5km", percentage: 25, count: 3114 },
-      { range: "5-10km", percentage: 20, count: 2491 },
-      { range: "10-20km", percentage: 15, count: 1868 },
-      { range: "20km+", percentage: 10, count: 1246 },
-    ]
-  }
+  // 新增：依次初始化三张地图底图，全部ready后再渲染业务层
+  const [mapReadyStep, setMapReadyStep] = useState(0); // 0: none, 1: heatmap ready, 2: trajectory ready, 3: hotspots ready
+  const [heatmapMapInstance, setHeatmapMapInstance] = useState<any>(null);
+  const [trajectoryMapInstance, setTrajectoryMapInstance] = useState<any>(null);
+  const [hotspotsMapInstance, setHotspotsMapInstance] = useState<any>(null);
 
   // 加载高德地图和出租车数据
   useEffect(() => {
     const loadMapAndData = async () => {
       try {
-        console.log("🚀 开始加载高德地图...")
-        
         // 加载高德地图API
         if (!window.AMap) {
-          console.log("📡 加载高德地图API...")
           const script = document.createElement("script")
-          script.src = `https://webapi.amap.com/maps?v=2.0&key=72ea028abc28fc7412f92d884311e74a&plugin=AMap.HeatMap,AMap.MarkerCluster,AMap.Polyline`
+          script.src = `https://webapi.amap.com/maps?v=2.0&key=c6115796bfbad53bd639041995b5b123&plugin=AMap.HeatMap,AMap.MarkerCluster,AMap.Polyline`
           script.async = true
           document.head.appendChild(script)
 
           await new Promise((resolve, reject) => {
-            script.onload = () => {
-              console.log("✅ 高德地图API加载成功")
-              resolve(true)
-            }
+            script.onload = resolve
             script.onerror = reject
           })
         }
 
-        // 初始化热力图地图
+        // 初始化地图
         if (mapRef.current && window.AMap) {
-          console.log("🗺️ 初始化地图...")
           const heatMap = new window.AMap.Map(mapRef.current, {
             zoom: 11,
-            center: [117.0009, 36.6758], // 济南市中心
+            center: [117.0009, 36.6758],
             mapStyle: "amap://styles/normal",
           })
-          
-          console.log("✅ 地图初始化成功")
+
           setMapInstance(heatMap)
+          
+          // 直接获取数据，不等待complete事件
+          fetchTaxiHeatmapData()
+          fetchDashboardData()
+          fetchHotspotsData()
+          fetchDistanceDistribution()
+          fetchHotspotsMapData()
+          
           setIsLoading(false)
         } else {
-          console.error("❌ 地图容器或API未准备好")
-        setIsLoading(false)
+          setIsLoading(false)
         }
       } catch (error) {
-        console.error("❌ 地图加载失败:", error)
+        console.error("Failed to load map:", error)
         setIsLoading(false)
       }
     }
+
     loadMapAndData()
   }, [])
 
@@ -198,12 +174,23 @@ export default function TaxiAnalysisModule() {
 
   // 获取出租车热力图数据（调用Django后端）
   const fetchTaxiHeatmapData = async () => {
-    setIsLoading(true)
+    setIsHeatmapLoading(true)
+    // 先清除所有热力图图层
+    if (heatmapMapInstance && heatmapMapInstance.getAllOverlays) {
+      const overlays1 = heatmapMapInstance.getAllOverlays('AMap.HeatMap') || []
+      overlays1.forEach((overlay: any) => heatmapMapInstance.remove(overlay))
+      const overlays2 = heatmapMapInstance.getAllOverlays('heatmap') || []
+      overlays2.forEach((overlay: any) => heatmapMapInstance.remove(overlay))
+    }
+    if (heatmapInstance && heatmapMapInstance) {
+      heatmapMapInstance.remove(heatmapInstance)
+      setHeatmapInstance(null)
+    }
     try {
       const { start, end } = getTimeRange(timeRange, customStart, customEnd)
-      const url = `http://localhost:8000/api/heatmap/?event_type=pickup&start_time=${encodeURIComponent(start)}&end_time=${encodeURIComponent(end)}&limit=1000`
+      const url = `http://localhost:8000/api/heatmap/?event_type=${eventType}&start_time=${encodeURIComponent(start)}&end_time=${encodeURIComponent(end)}&limit=1000`
       
-      console.log("🔍 请求热力图数据:", {
+      console.log("请求热力图数据:", {
         url,
         timeRange,
         start,
@@ -211,11 +198,11 @@ export default function TaxiAnalysisModule() {
       })
       
       const response = await fetch(url)
-      console.log("📡 API响应状态:", response.status)
+      console.log("API响应状态:", response.status)
       
       if (response.ok) {
         const data = await response.json()
-        console.log("📊 接收到的数据:", {
+        console.log("接收到的数据:", {
           pointsCount: data.points?.length || 0,
           totalCount: data.total_count,
           timeRange: data.time_range
@@ -231,61 +218,54 @@ export default function TaxiAnalysisModule() {
           heatmapData, 
           total_count: data.total_count, 
           time_range: data.time_range,
-          ...mockData // 合并模拟数据
         })
         updateHeatmap({ heatmapData })
       } else {
         const errorText = await response.text()
-        console.error("❌ API请求失败:", response.status, errorText)
-        setTaxiData(mockData) // 使用模拟数据
+        console.error("API请求失败:", response.status, errorText)
         updateHeatmap({ heatmapData: [] })
       }
     } catch (error) {
-      console.error("❌ 请求异常:", error)
-      setTaxiData(mockData) // 使用模拟数据
+      console.error("请求异常:", error)
       updateHeatmap({ heatmapData: [] })
     }
-    setIsLoading(false)
+    setIsHeatmapLoading(false)
   }
 
   // 获取仪表板综合数据
   const fetchDashboardData = async () => {
-    console.log("📊 开始获取仪表板数据...")
-    
+    console.log("开始获取仪表板数据...")
     const { start, end } = getTimeRange(timeRange, customStart, customEnd)
-    
     try {
-      const response = await fetch(`http://localhost:8000/api/dashboard/?start_time=${encodeURIComponent(start)}&end_time=${encodeURIComponent(end)}`)
-      
+      const url = `http://localhost:8000/api/dashboard/?event_type=${eventType}&start_time=${encodeURIComponent(start)}&end_time=${encodeURIComponent(end)}`
+      console.log("dashboard url", url)
+      const response = await fetch(url)
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
-      
       const data = await response.json()
-      console.log("📈 仪表板数据:", data)
-      
+      console.log("仪表板数据:", data)
       setDashboardData(data)
-      
     } catch (error) {
-      console.error("❌ 获取仪表板数据失败:", error)
+      console.error("获取仪表板数据失败:", error)
     }
   }
 
   // 获取热点分析数据
   const fetchHotspotsData = async () => {
-    console.log("🔥 开始获取热点分析数据...")
+    console.log("开始获取热点分析数据...")
     const { start, end } = getTimeRange(timeRange, customStart, customEnd)
     try {
       // 调用后端新API
-      const response = await fetch(`http://localhost:8000/api/hotspots/?start_time=${encodeURIComponent(start)}&end_time=${encodeURIComponent(end)}`)
+      const response = await fetch(`http://localhost:8000/api/hotspots/?event_type=${eventType}&start_time=${encodeURIComponent(start)}&end_time=${encodeURIComponent(end)}`)
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
       const data = await response.json()
-      console.log("📍 热门区域分析数据:", data)
+      console.log("热门区域分析数据:", data)
       setHotspotsData(data)
     } catch (error) {
-      console.error("❌ 获取热门区域数据失败:", error)
+      console.error("获取热门区域数据失败:", error)
     }
   }
 
@@ -298,8 +278,22 @@ export default function TaxiAnalysisModule() {
       const data = await response.json()
       setDistanceDistribution(data)
     } catch (error) {
-      console.error("❌ 获取路程分布分析数据失败:", error)
+      console.error("获取路程分布分析数据失败:", error)
       setDistanceDistribution([])
+    }
+  }
+
+  // 获取热门上客点聚类地图数据（前50个）
+  const fetchHotspotsMapData = async () => {
+    const { start, end } = getTimeRange(timeRange, customStart, customEnd)
+    try {
+      const response = await fetch(`http://localhost:8000/api/hotspots/?event_type=${eventType}&start_time=${encodeURIComponent(start)}&end_time=${encodeURIComponent(end)}&n_cluster=50`)
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+      const data = await response.json()
+      setHotspotsMapData(data.hotspots || [])
+    } catch (error) {
+      console.error("获取热门上客点聚类地图数据失败:", error)
+      setHotspotsMapData([])
     }
   }
 
@@ -314,7 +308,7 @@ export default function TaxiAnalysisModule() {
   // 获取轨迹数据
   const fetchTrajectories = async () => {
     if (!trajectoryMapInstance) return // 修改为轨迹地图实例
-    setIsLoading(true)
+    setIsTrajectoryLoading(true)
     setTrajectories([])
     if (selectedVehicle === "all") {
       // 全部车辆（只取前10辆，防止卡死）
@@ -341,7 +335,7 @@ export default function TaxiAnalysisModule() {
         drawTrajectories([{ id: selectedVehicle, trajectory: data.trajectory }])
       }
     }
-    setIsLoading(false)
+    setIsTrajectoryLoading(false)
   }
 
   // 绘制轨迹
@@ -370,61 +364,146 @@ export default function TaxiAnalysisModule() {
     // eslint-disable-next-line
   }, [activeView, selectedVehicle, trajectoryMapInstance, timeRange, customStart, customEnd])
 
+  // 切换eventType、时间等时，彻底清理热力图
+  useEffect(() => {
+    if (vehicleHeatmapRef.current) {
+      vehicleHeatmapRef.current.setMap(null)
+      vehicleHeatmapRef.current = null
+    }
+  }, [eventType, timeRange, customStart, customEnd])
+
   // 更新热力图
   const updateHeatmap = (data: any) => {
-    if (!mapInstance) {
-      console.log("❌ 地图实例未准备好")
+    if (!heatmapMapInstance) {
+      console.log("地图实例未准备好")
       return
     }
-    
-    console.log("🔄 更新热力图...")
-
-    // 清除现有热力图
-    if (heatmapInstance) {
-      mapInstance.remove(heatmapInstance)
-      setHeatmapInstance(null)
+    // 彻底清理旧热力图
+    if (vehicleHeatmapRef.current) {
+      vehicleHeatmapRef.current.setMap(null)
+      vehicleHeatmapRef.current = null
     }
-
     // 创建新的热力图
     if (data.heatmapData && data.heatmapData.length > 0) {
-      console.log("🔥 创建热力图，数据点数:", data.heatmapData.length)
-    const heatmap = new window.AMap.HeatMap(mapInstance, {
-      radius: 25,
-      opacity: [0, 0.8],
-      gradient: {
-        0.4: "blue",
-        0.6: "cyan",
-        0.7: "lime",
-        0.8: "yellow",
-        1.0: "red",
-      },
-    })
-    heatmap.setDataSet({
-      data: data.heatmapData,
-      max: 100,
-    })
-    setHeatmapInstance(heatmap)
-      console.log("✅ 热力图创建成功")
+      console.log("创建热力图，数据点数:", data.heatmapData.length)
+      const heatmap = new window.AMap.HeatMap(heatmapMapInstance, {
+        radius: 25,
+        opacity: [0, 0.8],
+        gradient: {
+          0.4: "blue",
+          0.6: "cyan",
+          0.7: "lime",
+          0.8: "yellow",
+          1.0: "red",
+        },
+      })
+      heatmap.setDataSet({
+        data: data.heatmapData,
+        max: 100,
+      })
+      vehicleHeatmapRef.current = heatmap
+      console.log("热力图创建成功")
     } else {
-      console.log("⚠️ 无热力图数据")
+      console.log("无热力图数据")
     }
   }
 
-  // 地图加载后和时间范围变化时自动请求数据
+  // 添加简化的useEffect处理mapInstance变化
   useEffect(() => {
-    if (mapInstance) {
-      console.log("🗺️ 地图已加载，开始获取数据...")
+    if (heatmapMapInstance) {
       fetchTaxiHeatmapData()
       fetchDashboardData()
       fetchHotspotsData()
-      fetchDistanceDistribution() // 新增
+      fetchDistanceDistribution()
+      fetchHotspotsMapData()
     }
     // eslint-disable-next-line
-  }, [mapInstance, timeRange, customStart, customEnd])
+  }, [heatmapMapInstance, timeRange, customStart, customEnd, eventType])
 
+  // 在eventType变化时，清除热力图和相关地图的图层
+  useEffect(() => {
+    // 清除热力图
+    if (heatmapMapInstance && heatmapInstance) {
+      heatmapMapInstance.remove(heatmapInstance)
+      setHeatmapInstance(null)
+    }
+    // 清除轨迹地图
+    if (trajectoryMapInstance) {
+      trajectoryMapInstance.clearMap()
+    }
+    // 清除热门点地图（如果有单独实例）
+    // 这里假设HotspotsMap内部已处理自己的清理逻辑
+  }, [eventType])
 
+  // 动态加载高德地图API（只加载一次）
+  useEffect(() => {
+    if (!window.AMap) {
+      const script = document.createElement("script");
+      script.src = `https://webapi.amap.com/maps?v=2.0&key=c6115796bfbad53bd639041995b5b123&plugin=AMap.HeatMap,AMap.MarkerCluster,AMap.Polyline`;
+      script.async = true;
+      document.head.appendChild(script);
+      script.onload = () => setMapReadyStep(0); // 触发后续地图初始化
+      script.onerror = () => setMapReadyStep(-1);
+    }
+  }, []);
 
-  // 自定义时间选择
+  // 依次初始化底图
+  useEffect(() => {
+    if (mapReadyStep === 0 && mapRef.current && window.AMap) {
+      // 初始化热力图底图
+      const map = new window.AMap.Map(mapRef.current, {
+        zoom: 11,
+        center: [117.0009, 36.6758],
+        mapStyle: "amap://styles/normal",
+      });
+      setHeatmapMapInstance(map);
+      map.on('complete', () => setMapReadyStep(1));
+    }
+  }, [mapReadyStep, mapRef.current, window.AMap]);
+
+  useEffect(() => {
+    if (mapReadyStep === 1 && trajectoryMapRef.current && window.AMap) {
+      // 初始化轨迹图底图
+      const map = new window.AMap.Map(trajectoryMapRef.current, {
+        zoom: 11,
+        center: [117.0009, 36.6758],
+        mapStyle: "amap://styles/normal",
+      });
+      setTrajectoryMapInstance(map);
+      map.on('complete', () => setMapReadyStep(2));
+    }
+  }, [mapReadyStep, trajectoryMapRef.current, window.AMap]);
+
+  useEffect(() => {
+    if (mapReadyStep === 2 && hotspotsMapRef.current && window.AMap) {
+      // 初始化热点图底图
+      const map = new window.AMap.Map(hotspotsMapRef.current, {
+        zoom: 11,
+        center: [117.0009, 36.6758],
+        mapStyle: "amap://styles/normal",
+      });
+      setHotspotsMapInstance(map);
+      map.on('complete', () => setMapReadyStep(3));
+    }
+  }, [mapReadyStep, hotspotsMapRef.current, window.AMap]);
+
+  // 三张底图都ready后，同时渲染业务层
+  useEffect(() => {
+    if (mapReadyStep === 3) {
+      // 热力图业务层
+      fetchTaxiHeatmapData();
+      // 轨迹业务层
+      fetchTrajectories();
+      // 热点业务层
+      fetchHotspotsMapData();
+      fetchDashboardData();
+      fetchDistanceDistribution();
+      fetchHotspotsData();
+      setIsLoading(false);
+    }
+  }, [mapReadyStep, eventType, timeRange, customStart, customEnd]);
+
+  // 简化地图容器，移除minHeight和背景色
   const renderCustomTimeInputs = () => (
     <div className="flex space-x-2 items-center">
       <input
@@ -458,9 +537,6 @@ export default function TaxiAnalysisModule() {
           <Button className="bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg">
             <Download className="w-4 h-4 mr-2" />导出分析报告
           </Button>
-          <Button variant="secondary" onClick={fetchTaxiHeatmapData} className="ml-2">
-            刷新数据
-          </Button>
         </div>
       </div>
 
@@ -483,12 +559,38 @@ export default function TaxiAnalysisModule() {
               </SelectContent>
             </Select>
             </div>
+            {/* 新增：上客/下客切换按钮 */}
+            <div className="space-y-2 flex flex-col">
+              <label className="text-sm font-medium text-gray-700">类型</label>
+              <div className="flex rounded-lg border border-gray-200 overflow-hidden w-fit">
+                <button
+                  className={`px-4 py-2 text-sm font-semibold transition-colors ${eventType === 'pickup' ? 'bg-blue-600 text-white' : 'bg-white text-blue-600 hover:bg-blue-50'}`}
+                  onClick={() => setEventType('pickup')}
+                  type="button"
+                >上客</button>
+                <button
+                  className={`px-4 py-2 text-sm font-semibold transition-colors border-l border-gray-200 ${eventType === 'dropoff' ? 'bg-green-600 text-white' : 'bg-white text-green-600 hover:bg-green-50'}`}
+                  onClick={() => setEventType('dropoff')}
+                  type="button"
+                >下客</button>
+              </div>
+            </div>
             {timeRange === "custom" && (
               <div className="col-span-2">{renderCustomTimeInputs()}</div>
             )}
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700">数据总量</label>
               <div className="text-lg font-bold text-blue-600">{taxiData?.total_count ?? "-"}</div>
+            </div>
+            {/* 刷新按钮移动到最右侧，风格统一 */}
+            <div className="flex items-end justify-end md:col-span-1">
+              <Button
+                variant="outline"
+                className="border-blue-200 text-blue-600 hover:bg-blue-50 bg-white rounded-lg shadow-sm"
+                onClick={fetchTaxiHeatmapData}
+              >
+                <Loader2 className="w-4 h-4 mr-2" />刷新数据
+              </Button>
             </div>
           </div>
         </CardContent>
@@ -500,13 +602,13 @@ export default function TaxiAnalysisModule() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">总订单数</p>
+                <p className="text-sm font-medium text-gray-600">数据总量</p>
                 <p className="text-3xl font-bold text-blue-600">
-                  {dashboardData?.stats?.totalOrders?.toLocaleString() || taxiData?.totalOrders?.toLocaleString() || "12,456"}
+                  {dashboardData?.stats?.total_count?.toLocaleString() ?? "-"}
                 </p>
                 <div className="flex items-center mt-1">
                   <TrendingUp className="w-3 h-3 mr-1 text-green-600" />
-                  <span className="text-sm text-green-600">+15.3%</span>
+                  <span className="text-sm text-green-600"></span>
                 </div>
               </div>
               <Car className="w-8 h-8 text-blue-600" />
@@ -519,11 +621,11 @@ export default function TaxiAnalysisModule() {
               <div>
                 <p className="text-sm font-medium text-gray-600">活跃车辆</p>
                 <p className="text-3xl font-bold text-green-600">
-                  {dashboardData?.stats?.activeVehicles?.toLocaleString() || taxiData?.activeVehicles?.toLocaleString() || "2,847"}
+                  {dashboardData?.stats?.active_vehicles?.toLocaleString() ?? "-"}
                 </p>
                 <div className="flex items-center mt-1">
                   <TrendingUp className="w-3 h-3 mr-1 text-green-600" />
-                  <span className="text-sm text-green-600">+8.7%</span>
+                  <span className="text-sm text-green-600"></span>
                 </div>
               </div>
               <Users className="w-8 h-8 text-green-600" />
@@ -534,11 +636,13 @@ export default function TaxiAnalysisModule() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">平均距离</p>
-                <p className="text-3xl font-bold text-orange-600">{dashboardData?.stats?.avgDistance || taxiData?.avgDistance || "8.5"}</p>
+                <p className="text-sm font-medium text-gray-600">平均距离 (km)</p>
+                <p className="text-3xl font-bold text-orange-600">
+                  {dashboardData?.stats?.avg_distance ?? "-"}
+                </p>
                 <div className="flex items-center mt-1">
                   <TrendingUp className="w-3 h-3 mr-1 text-red-600 rotate-180" />
-                  <span className="text-sm text-red-600">-2.1%</span>
+                  <span className="text-sm text-red-600"></span>
                 </div>
               </div>
               <MapPin className="w-8 h-8 text-orange-600" />
@@ -549,13 +653,13 @@ export default function TaxiAnalysisModule() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">总收入</p>
+                <p className="text-sm font-medium text-gray-600">平均速度 (km/h)</p>
                 <p className="text-3xl font-bold text-purple-600">
-                  ¥{((dashboardData?.stats?.totalRevenue || taxiData?.totalRevenue || 892000) / 10000).toFixed(1)}万
+                  {dashboardData?.stats?.avg_speed ?? "-"}
                 </p>
                 <div className="flex items-center mt-1">
                   <TrendingUp className="w-3 h-3 mr-1 text-green-600" />
-                  <span className="text-sm text-green-600">+12.4%</span>
+                  <span className="text-sm text-green-600"></span>
                 </div>
               </div>
               <BarChart3 className="w-8 h-8 text-purple-600" />
@@ -568,12 +672,16 @@ export default function TaxiAnalysisModule() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Card className="border-0 shadow-lg">
           <CardHeader>
-            <CardTitle className="text-xl font-bold">出租车上客热力图</CardTitle>
-            <CardDescription>上客点密度分布</CardDescription>
+            <CardTitle className="text-xl font-bold">
+              出租车{eventType === 'pickup' ? '上客' : '下客'}热力图
+            </CardTitle>
+            <CardDescription>
+              {eventType === 'pickup' ? '上客点密度分布' : '下客点密度分布'}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="relative">
-              {isLoading && (
+              {isHeatmapLoading && (
                 <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10 rounded-xl">
                   <div className="text-center">
                     <Loader2 className="w-6 h-6 mx-auto mb-2 animate-spin text-blue-600" />
@@ -582,7 +690,7 @@ export default function TaxiAnalysisModule() {
                   </div>
                 </div>
               )}
-              <div ref={mapRef} className="w-full h-80 rounded-xl border" />
+              <div ref={mapRef} className="w-full h-96 rounded-xl border" />
               <div className="absolute bottom-2 left-2 text-xs text-gray-400">© 高德地图</div>
             </div>
           </CardContent>
@@ -601,7 +709,7 @@ export default function TaxiAnalysisModule() {
                   <SelectValue placeholder="全部车辆" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">全部车辆（前10）</SelectItem>
+                  <SelectItem value="all">无</SelectItem>
                   {vehicleIds.map(id => (
                     <SelectItem key={id} value={id}>{id}</SelectItem>
                   ))}
@@ -610,6 +718,14 @@ export default function TaxiAnalysisModule() {
               <Button size="sm" variant="outline" onClick={fetchTrajectories}>刷新轨迹</Button>
             </div>
             <div className="relative">
+              {isTrajectoryLoading && (
+                <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10 rounded-xl">
+                  <div className="text-center">
+                    <Loader2 className="w-6 h-6 mx-auto mb-2 animate-spin text-blue-600" />
+                    <p className="text-xs text-gray-600">加载轨迹中...</p>
+                  </div>
+                </div>
+              )}
               <div ref={trajectoryMapRef} className="w-full h-80 rounded-xl border bg-gradient-to-br from-blue-50 to-cyan-50" />
               <div className="absolute bottom-2 left-2 text-xs text-gray-400">© 高德地图</div>
             </div>
@@ -648,17 +764,23 @@ export default function TaxiAnalysisModule() {
             <CardDescription>不同距离区间的订单占比</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-64 flex items-center justify-center">
+            <div className="h-64 flex items-center justify-center relative">
               <div className="relative w-48 h-48">
                 <svg className="w-full h-full transform -rotate-90">
                   <circle cx="96" cy="96" r="80" fill="none" stroke="#e5e7eb" strokeWidth="16" />
-                  {/* 动态渲染各区间的环形进度 */}
+                  {/* 动态渲染各区间的环形进度，支持悬浮高亮 */}
                   {distanceDistribution.map((item, i) => {
-                    // 计算每段的strokeDasharray
                     const total = distanceDistribution.reduce((sum, d) => sum + d.count, 0) || 1
                     const percent = item.count / total
                     const circumference = 2 * Math.PI * 80
                     let prevPercent = distanceDistribution.slice(0, i).reduce((sum, d) => sum + d.count, 0) / total
+                    const color =
+                      i === 0 ? '#3b82f6' :
+                      i === 1 ? '#10b981' :
+                      i === 2 ? '#f59e0b' :
+                      i === 3 ? '#ef4444' :
+                      i === 4 ? '#a21caf' :
+                      i === 5 ? '#6366f1' : '#14b8a6'
                     return (
                       <circle
                         key={i}
@@ -666,19 +788,45 @@ export default function TaxiAnalysisModule() {
                         cy="96"
                         r="80"
                         fill="none"
-                        stroke={
-                          i === 0 ? '#3b82f6' :
-                          i === 1 ? '#10b981' :
-                          i === 2 ? '#f59e0b' : '#ef4444'
-                        }
-                        strokeWidth="16"
+                        stroke={color}
+                        strokeWidth={hoveredIndex === i ? 24 : 16}
                         strokeDasharray={`${percent * circumference} ${circumference}`}
                         strokeDashoffset={`-${prevPercent * circumference}`}
+                        style={{
+                          filter: hoveredIndex === i ? 'drop-shadow(0 0 8px #8888)' : undefined,
+                          cursor: 'pointer',
+                          transition: 'stroke-width 0.2s, filter 0.2s',
+                        }}
+                        onMouseEnter={() => setHoveredIndex(i)}
+                        onMouseLeave={() => setHoveredIndex(null)}
                       />
                     )
                   })}
                 </svg>
-                <div className="absolute inset-0 flex items-center justify-center">
+                {/* 悬浮气泡 */}
+                {hoveredIndex !== null && distanceDistribution[hoveredIndex] && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: '50%',
+                      top: '50%',
+                      transform: 'translate(-50%, -120%)',
+                      background: '#fff',
+                      borderRadius: 12,
+                      boxShadow: '0 4px 24px #0002',
+                      padding: '16px 22px',
+                      zIndex: 10,
+                      pointerEvents: 'none',
+                      minWidth: 120,
+                      textAlign: 'center',
+                    }}
+                  >
+                    <div className="text-base font-bold mb-1 text-blue-700">{distanceDistribution[hoveredIndex].range}</div>
+                    <div className="text-sm text-gray-700">订单数：{distanceDistribution[hoveredIndex].count}</div>
+                    <div className="text-xs text-gray-500">占比：{distanceDistribution[hoveredIndex].percentage}%</div>
+                  </div>
+                )}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <div className="text-center">
                     <p className="text-2xl font-bold">{distanceDistribution.reduce((sum, d) => sum + d.count, 0)}</p>
                     <p className="text-sm text-gray-600">总订单</p>
@@ -688,11 +836,20 @@ export default function TaxiAnalysisModule() {
             </div>
             <div className="grid grid-cols-2 gap-4 mt-4">
               {distanceDistribution.map((item, i) => (
-                <div key={i} className="flex items-center space-x-2">
+                <div
+                  key={i}
+                  className="flex items-center space-x-2"
+                  onMouseEnter={() => setHoveredIndex(i)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                  style={{ cursor: 'pointer', fontWeight: hoveredIndex === i ? 'bold' : undefined }}
+                >
                   <div className={`w-3 h-3 rounded-full ${
                     i === 0 ? 'bg-blue-500' : 
                     i === 1 ? 'bg-green-500' : 
-                    i === 2 ? 'bg-yellow-500' : 'bg-red-500'
+                    i === 2 ? 'bg-yellow-500' :
+                    i === 3 ? 'bg-red-500' :
+                    i === 4 ? 'bg-purple-700' :
+                    i === 5 ? 'bg-indigo-500' : 'bg-teal-500'
                   }`}></div>
                   <span className="text-sm">{item.range} ({item.count}单, {item.percentage}%)</span>
                 </div>
@@ -705,8 +862,12 @@ export default function TaxiAnalysisModule() {
       {/* 热门上客点排行 */}
       <Card className="border-0 shadow-lg">
         <CardHeader>
-          <CardTitle className="text-xl font-bold">热门区域排行</CardTitle>
-          <CardDescription>基于GPS记录密度的热门区域统计</CardDescription>
+          <CardTitle className="text-xl font-bold">
+            {eventType === 'pickup' ? '热门上客区域排行' : '热门下客区域排行'}
+          </CardTitle>
+          <CardDescription>
+            基于GPS记录密度的{eventType === 'pickup' ? '热门上客区域' : '热门下客区域'}统计
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -743,12 +904,222 @@ export default function TaxiAnalysisModule() {
             {(!hotspotsData?.hotspots || hotspotsData.hotspots.length === 0) && (
               <div className="col-span-full text-center py-8 text-gray-500">
                 <MapPin className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-                <p>暂无热门区域数据</p>
+                <p>暂无{eventType === 'pickup' ? '热门上客区域' : '热门下客区域'}数据</p>
               </div>
             )}
           </div>
         </CardContent>
       </Card>
+      {/* 热门上客点聚类地图展示 */}
+      <Card className="border-0 shadow-lg mt-8">
+        <CardHeader>
+          <CardTitle className="text-xl font-bold">
+            {eventType === 'pickup' ? '热门上客点分布图' : '热门下客点分布图'}
+          </CardTitle>
+          <CardDescription>
+            基于聚类分析的前50个{eventType === 'pickup' ? '热门上客点' : '热门下客点'}，点击标记查看详情
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <HotspotsMap data={hotspotsMapData} eventType={eventType} />
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
+
+// 新增：热门上客点聚类地图组件
+function HotspotsMap({ data, eventType }: { data: any[], eventType: 'pickup' | 'dropoff' }) {
+  const mapRef = useRef<HTMLDivElement>(null)
+  const infoWindowRef = useRef<any>(null)
+  const [mapInstance, setMapInstance] = useState<any>(null)
+  const [amapReady, setAmapReady] = useState(false)
+
+  // 动态加载高德地图API
+  useEffect(() => {
+    if (window.AMap) {
+      setAmapReady(true)
+      return
+    }
+    const script = document.createElement("script")
+    script.src = `https://webapi.amap.com/maps?v=2.0&key=72ea028abc28fc7412f92d884311e74a&plugin=AMap.HeatMap,AMap.MarkerCluster,AMap.Polyline`
+    script.async = true
+    document.head.appendChild(script)
+    script.onload = () => setAmapReady(true)
+    script.onerror = () => setAmapReady(false)
+  }, [])
+
+  useEffect(() => {
+    if (!amapReady || !mapRef.current) return
+    let map: any
+    map = new window.AMap.Map(mapRef.current, {
+      zoom: 11,
+      center: [117.0009, 36.6758],
+      mapStyle: "amap://styles/normal",
+    })
+    setMapInstance(map)
+    return () => { if (map) map.destroy && map.destroy() }
+  }, [amapReady])
+
+  // 修复：将colorList提升到函数顶部
+  const colorList = [
+    '#d32f2f', '#fbc02d', '#388e3c', '#1976d2', '#7b1fa2', '#f57c00', '#0288d1', '#c2185b', '#388e3c', '#512da8',
+    '#303f9f', '#00796b', '#689f38', '#ffa000', '#cddc39', '#0097a7', '#e64a19', '#5d4037', '#455a64', '#0288d1',
+  ]
+
+  // 获取最大orders用于数据环比例
+  const maxOrders = data.length > 0 ? Math.max(...data.map(d => d.orders || 1)) : 1
+
+  // 严格分组风格
+  function getMarkerStyle(rank: number) {
+    if (rank >= 1 && rank <= 5) {
+      return {
+        group: 'king',
+        main1: '#FFD700',
+        main2: '#FFA500',
+        glow: '#FFFACD',
+        base: 48,
+        max: 72,
+        height: 1.6,
+        sides: 5,
+        icon: 'crown',
+        font: 22,
+      }
+    } else if (rank >= 6 && rank <= 15) {
+      return {
+        group: 'hot',
+        main1: '#FF4500',
+        main2: '#FF6347',
+        glow: '#FFA07A',
+        base: 36,
+        max: 54,
+        height: 1.4,
+        sides: 4,
+        icon: 'flame',
+        font: 16,
+      }
+    } else if (rank >= 16 && rank <= 30) {
+      return {
+        group: 'potential',
+        main1: '#FFA500',
+        main2: '#FFD700',
+        glow: '#FFE4B5',
+        base: 24,
+        max: 24,
+        height: 1.2,
+        sides: 3,
+        icon: 'ring',
+        font: 12,
+      }
+    } else {
+      return {
+        group: 'normal',
+        main1: '#1E90FF',
+        main2: '#87CEFA',
+        glow: '#E6F7FF',
+        base: 16,
+        max: 16,
+        height: 1.0,
+        sides: 0,
+        icon: 'dot',
+        font: 9,
+      }
+    }
+  }
+
+  // 极简美观红旗+数字SVG（旗杆更细，颜色#8B1818）
+  function flagSVGWithRankSimple(size: number, rank: number) {
+    const flagW = Math.round(size * 0.65)
+    const flagH = Math.round(size * 0.45)
+    const poleW = Math.max(1, Math.round(size * 0.06))
+    const poleH = size * 0.8
+    const fontSize = Math.round(flagH * 0.7)
+    return `
+      <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="${size * 0.13}" y="${size * 0.15}" width="${poleW}" height="${poleH}" rx="${poleW/2}" fill="#8B1818"/>
+        <rect x="${size * 0.13 + poleW}" y="${size * 0.15}" width="${flagW}" height="${flagH}" rx="${flagH * 0.18}" fill="#e53935"/>
+        <text x="${size * 0.13 + poleW + flagW/2}" y="${size * 0.15 + flagH/2 + fontSize/2.8}" text-anchor="middle" font-size="${fontSize}" font-weight="bold" fill="#fff" style="font-family:inherit;">${rank}</text>
+      </svg>
+    `
+  }
+
+  // 仅大小分组
+  function getFlagSize(rank: number) {
+    if (rank >= 1 && rank <= 5) return 48
+    if (rank >= 6 && rank <= 15) return 36
+    if (rank >= 16 && rank <= 30) return 24
+    return 16
+  }
+
+  // 纯红旗Marker，无动画、无光晕、无数据环
+  const markerIcon = (spot: any) => {
+    const rank = spot.rank
+    const size = getFlagSize(rank)
+    return flagSVGWithRankSimple(size, rank)
+  }
+
+  useEffect(() => {
+    if (!mapInstance || !window.AMap) return
+    mapInstance.clearMap()
+    data.forEach((spot, idx) => {
+      const size = getFlagSize(spot.rank)
+      const marker = new window.AMap.Marker({
+        position: [spot.lng, spot.lat],
+        title: spot.name || `${eventType === 'pickup' ? '热门上客点' : '热门下客点'}#${spot.rank}`,
+        content: `<div style='width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;'>${markerIcon(spot)}</div>`,
+        offset: new window.AMap.Pixel(-size / 2, -size),
+        zIndex: 100 + (50 - spot.rank),
+      })
+      // 移除setLabel调用，不显示Marker上方悬浮标签
+      marker.on('click', () => {
+        if (infoWindowRef.current) infoWindowRef.current.close()
+        const info = `
+          <div style="min-width:220px;max-width:300px;background:#fff;border-radius:14px;box-shadow:0 4px 24px #0002;padding:18px 20px 14px 20px;font-family:inherit;">
+            <div style="font-size:18px;font-weight:bold;color:${colorList[idx % colorList.length]};margin-bottom:6px;display:flex;align-items:center;">
+              <span style="margin-right:8px;">#${spot.rank}</span> ${spot.name || '未知地点'}
+            </div>
+            <div style="border-top:1px solid #eee;margin:8px 0 10px 0;"></div>
+            <div style="font-size:15px;margin-bottom:4px;"><b>订单数：</b>${spot.orders}</div>
+            <div style="font-size:14px;color:#666;margin-bottom:2px;">
+              <span style="margin-right:12px;">🚕 <b>平均速度：</b>${spot.avgSpeed} km/h</span>
+              <span>🧑‍💼 <b>载客率：</b>${spot.occupancyRate}%</span>
+            </div>
+            <div style="font-size:13px;color:#aaa;margin-top:6px;">📍 ${spot.lat.toFixed(5)}, ${spot.lng.toFixed(5)}</div>
+            <div style="font-size:13px;color:#888;margin-top:6px;">${eventType === 'pickup' ? '上客点' : '下客点'}</div>
+          </div>
+        `
+        const infoWindow = new window.AMap.InfoWindow({
+          content: info,
+          offset: new window.AMap.Pixel(0, -38)
+        })
+        infoWindow.open(mapInstance, [spot.lng, spot.lat])
+        infoWindowRef.current = infoWindow
+      })
+      mapInstance.add(marker)
+    })
+  }, [mapInstance, data, eventType])
+
+  // 图例
+  const legend = (
+    <div style={{ position: 'absolute', right: 16, bottom: 16, background: '#fff', borderRadius: 8, boxShadow: '0 2px 8px #0001', padding: 12, zIndex: 999 }}>
+      <div style={{ fontWeight: 'bold', marginBottom: 4 }}>图例</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {[1, 10, 20, 30, 40, 50].map((rank, i) => (
+          <div key={rank} style={{ display: 'flex', alignItems: 'center', marginRight: 8 }}>
+            <span style={{ width: 16, height: 16, borderRadius: 8, background: colorList[i], display: 'inline-block', marginRight: 4, boxShadow: '0 2px 8px #0002' }}></span>
+            <span style={{ fontSize: 12 }}>#{rank}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>颜色区分排名，点击Marker查看{eventType === 'pickup' ? '上客点' : '下客点'}详情</div>
+    </div>
+  )
+
+  return (
+    <div style={{ position: 'relative', width: '100%', height: 400, borderRadius: 16, overflow: 'hidden', border: '1px solid #e5e7eb', marginTop: 32 }}>
+      <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
+      {legend}
+      <div style={{ position: 'absolute', bottom: 8, left: 12, fontSize: 12, color: '#888' }}>© 高德地图</div>
     </div>
   )
 }

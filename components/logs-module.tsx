@@ -180,6 +180,171 @@ export default function LogsModule() {
     return "详情图片"
   }
 
+  // 获取详情内容
+  const getDetailContent = (log: LogEntry) => {
+    switch (log.type) {
+      case "系统登录":
+      case "人脸识别":
+        return {
+          title: "登录详情",
+          content: (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div><span className="font-medium">登录方式:</span> {log.type}</div>
+                <div><span className="font-medium">用户:</span> {log.user}</div>
+                <div><span className="font-medium">IP地址:</span> {log.ip}</div>
+                <div><span className="font-medium">时间:</span> {new Date(log.time).toLocaleString('zh-CN')}</div>
+              </div>
+              {log.face_image && (
+                <div className="text-center">
+                  <p className="text-sm text-gray-600 mb-2">登录尝试照片:</p>
+                  <Image
+                    src={log.face_image}
+                    alt="登录照片"
+                    width={300}
+                    height={200}
+                    className="rounded-lg border mx-auto"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = '/placeholder-face.png';
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          )
+        }
+      
+      case "路面病害":
+        return {
+          title: "路面病害检测详情",
+          content: (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div><span className="font-medium">检测时间:</span> {new Date(log.time).toLocaleString('zh-CN')}</div>
+                <div><span className="font-medium">检测位置:</span> {log.ip}</div>
+                <div><span className="font-medium">检测结果:</span> {log.message.replace('路面病害检测 - ', '')}</div>
+                <div><span className="font-medium">处理状态:</span> 已记录</div>
+              </div>
+              {log.result_image && (
+                <div className="text-center">
+                  <p className="text-sm text-gray-600 mb-2">检测结果图片:</p>
+                  <Image
+                    src={log.result_image}
+                    alt="路面病害检测结果"
+                    width={400}
+                    height={300}
+                    className="rounded-lg border mx-auto"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      // 或者使用一个存在的默认图片
+                      // target.src = '/images/no-image-available.png';
+                    }}
+                  />
+                </div>
+              )}
+              <div className="bg-blue-50 p-3 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  <strong>处理建议:</strong> 请相关部门及时处理该路面病害，确保道路安全。
+                </p>
+              </div>
+            </div>
+          )
+        }
+      
+      case "违章检测":
+        return {
+          title: "违章检测详情",
+          content: (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div><span className="font-medium">检测时间:</span> {new Date(log.time).toLocaleString('zh-CN')}</div>
+                <div><span className="font-medium">违章类型:</span> {log.message}</div>
+                <div><span className="font-medium">检测位置:</span> {log.ip}</div>
+                <div><span className="font-medium">处理状态:</span> 待处理</div>
+              </div>
+              <div className="bg-red-50 p-3 rounded-lg">
+                <p className="text-sm text-red-800">
+                  <strong>违章详情:</strong> {log.message}
+                </p>
+              </div>
+              {log.hasVideo && (
+                <div className="bg-green-50 p-3 rounded-lg">
+                  <p className="text-sm text-green-800">
+                    <Camera className="w-4 h-4 inline mr-1" />
+                    该事件包含视频记录，可进行回放查看
+                  </p>
+                </div>
+              )}
+            </div>
+          )
+        }
+      
+      case "嫌疑人告警":
+        return {
+          title: "嫌疑人告警详情",
+          content: (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div><span className="font-medium">告警时间:</span> {new Date(log.time).toLocaleString('zh-CN')}</div>
+                <div><span className="font-medium">告警级别:</span> <Badge variant="destructive">{log.level}</Badge></div>
+                <div><span className="font-medium">检测位置:</span> {log.ip}</div>
+                <div><span className="font-medium">处理状态:</span> 紧急处理中</div>
+              </div>
+              <div className="bg-red-50 p-3 rounded-lg border-l-4 border-red-500">
+                <p className="text-sm text-red-800">
+                  <Shield className="w-4 h-4 inline mr-1" />
+                  <strong>告警信息:</strong> {log.message}
+                </p>
+              </div>
+              {log.face_image && (
+                <div className="text-center">
+                  <p className="text-sm text-gray-600 mb-2">嫌疑人照片:</p>
+                  <Image
+                    src={log.face_image}
+                    alt="嫌疑人照片"
+                    width={300}
+                    height={200}
+                    className="rounded-lg border mx-auto"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = '/placeholder-suspect.png';
+                    }}
+                  />
+                </div>
+              )}
+              <div className="bg-orange-50 p-3 rounded-lg">
+                <p className="text-sm text-orange-800">
+                  <strong>处理建议:</strong> 立即通知相关执法部门，加强现场监控。
+                </p>
+              </div>
+            </div>
+          )
+        }
+      
+      default:
+        return {
+          title: "系统日志详情",
+          content: (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div><span className="font-medium">时间:</span> {new Date(log.time).toLocaleString('zh-CN')}</div>
+                <div><span className="font-medium">类型:</span> {log.type}</div>
+                <div><span className="font-medium">级别:</span> <Badge variant={getLevelColor(log.level)}>{log.level}</Badge></div>
+                <div><span className="font-medium">用户:</span> {log.user}</div>
+              </div>
+              <div className="bg-gray-50 p-3 rounded-lg">
+                <p className="text-sm text-gray-800">
+                  <strong>详细信息:</strong> {log.message}
+                </p>
+              </div>
+            </div>
+          )
+        }
+    }
+  }
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -271,11 +436,9 @@ export default function LogsModule() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部类型</SelectItem>
-                <SelectItem value="违章检测">违章检测</SelectItem>
                 <SelectItem value="人脸识别">人脸识别</SelectItem>
-                <SelectItem value="嫌疑人告警">嫌疑人告警</SelectItem>
                 <SelectItem value="路面病害">路面病害</SelectItem>
-                <SelectItem value="系统登录">系统登录</SelectItem>
+                <SelectItem value="系统">系统</SelectItem>
               </SelectContent>
             </Select>
             <Button variant="outline" className="h-12 px-6 border-gray-200 hover:bg-gray-50 bg-transparent">
@@ -308,7 +471,7 @@ export default function LogsModule() {
                   <TableHead>级别</TableHead>
                   <TableHead>消息</TableHead>
                   <TableHead>用户</TableHead>
-                  <TableHead>IP地址</TableHead>
+                  <TableHead>操作地址</TableHead>
                   <TableHead>操作</TableHead>
                 </TableRow>
               </TableHeader>
@@ -332,47 +495,51 @@ export default function LogsModule() {
                     <TableCell className="font-mono text-sm">{log.ip}</TableCell>
                     <TableCell>
                       <div className="flex space-x-2">
-                        {/* 只保留详情按钮 */}
-                        {getDetailImage(log) ? (
+                        {/* 只为特定类型的日志显示详情按钮，系统日志不显示 */}
+                        {log.type !== "系统" && (
                           <Dialog>
                             <DialogTrigger asChild>
                               <Button 
                                 size="sm" 
                                 variant="outline" 
-                                className="bg-transparent"
-                                onClick={() => handleImageView(getDetailImage(log)!)}
+                                className="bg-transparent hover:bg-blue-50 border-blue-200 text-blue-600"
                               >
                                 <Eye className="w-3 h-3 mr-1" />
                                 详情
                               </Button>
                             </DialogTrigger>
-                            <DialogContent className="max-w-2xl">
+                            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
                               <DialogHeader>
-                                <DialogTitle>{getDetailTitle(log)}</DialogTitle>
+                                <DialogTitle className="flex items-center space-x-2">
+                                  {getTypeIcon(log.type)}
+                                  <span>{getDetailContent(log).title}</span>
+                                </DialogTitle>
                                 <DialogDescription>
-                                  时间: {new Date(log.time).toLocaleString('zh-CN')}
+                                  事件ID: {log.source}-{log.id} | 级别: {log.level}
                                 </DialogDescription>
                               </DialogHeader>
-                              <div className="flex justify-center">
-                                <Image
-                                  src={getDetailImage(log)!}
-                                  alt={getDetailTitle(log)}
-                                  width={400}
-                                  height={300}
-                                  className="rounded-lg border"
-                                  onError={(e) => {
-                                    const target = e.target as HTMLImageElement;
-                                    target.src = '/placeholder-face.png';
-                                  }}
-                                />
+                              <div className="mt-4">
+                                {getDetailContent(log).content}
                               </div>
                             </DialogContent>
                           </Dialog>
-                        ) : (
-                          <Button size="sm" variant="outline" className="bg-transparent">
-                            <Eye className="w-3 h-3 mr-1" />
-                            详情
+                        )}
+                        
+                        {/* 视频回放按钮 - 仅在有视频时显示 */}
+                        {Boolean(log.hasVideo) && (
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            className="bg-transparent hover:bg-green-50 border-green-200 text-green-600"
+                          >
+                            <Camera className="w-3 h-3 mr-1" />
+                            回放
                           </Button>
+                        )}
+                        
+                        {/* 如果系统日志没有任何操作按钮，显示占位符 */}
+                        {log.type === "系统" && !log.hasVideo && (
+                          <span className="text-sm text-gray-400">-</span>
                         )}
                       </div>
                     </TableCell>
