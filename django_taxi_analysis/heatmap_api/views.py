@@ -8,6 +8,7 @@ from sklearn.cluster import KMeans
 import numpy as np
 import requests
 from .distance_distribution import analyze_distance_distribution
+import math
 
 class HeatmapDataView(APIView):
     """热力图数据API视图"""
@@ -229,127 +230,87 @@ class DashboardDataView(APIView):
         start_time = request.GET.get('start_time')
         end_time = request.GET.get('end_time')
         event_type = request.GET.get('event_type', 'pickup')
-        # 默认查询2013-09-12的数据
-        if not start_time:
-            start_time = "2013-09-12 00:00:00"
-            end_time = "2013-09-12 23:59:59"
-        else:
-            start_time = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
-            if end_time:
-                end_time = datetime.strptime(end_time, '%Y-%m-%d %H:%M:%S')
-            else:
-                end_time = start_time + timedelta(days=1)
-        # event_tag 1=pickup, 2=dropoff, None=all
         if event_type == 'pickup':
             event_tag = 1
         elif event_type == 'dropoff':
             event_tag = 2
         else:
-            event_tag = None
+            return Response({'error': 'event_type must be pickup or dropoff'}, status=400)
+
+        def haversine(lat1, lon1, lat2, lon2):
+            R = 6371.0
+            phi1 = math.radians(lat1)
+            phi2 = math.radians(lat2)
+            dphi = math.radians(lat2 - lat1)
+            dlambda = math.radians(lon2 - lon1)
+            a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
+            c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+            return R * c
         try:
             with connection.cursor() as cursor:
-                # 1. 数据总量 total_count
-                if event_tag is not None:
-                    cursor.execute(
-                        """
-                        SELECT COUNT(*) FROM taxi_gps_log
-                        WHERE event_tag=%s AND beijing_time BETWEEN %s AND %s
-                        """,
-                        [event_tag, start_time, end_time]
-                    )
-                    total_count = cursor.fetchone()[0]
-                else:
-                    cursor.execute(
-                        """
-                        SELECT COUNT(*) FROM taxi_gps_log
-                        WHERE beijing_time BETWEEN %s AND %s
-                        """,
-                        [start_time, end_time]
-                    )
-                    total_count = cursor.fetchone()[0]
-                # 2. 活跃车辆数 active_vehicles
-                if event_tag is not None:
-                    cursor.execute(
-                        """
-                        SELECT COUNT(DISTINCT taxi_id) FROM taxi_gps_log
-                        WHERE event_tag=%s AND beijing_time BETWEEN %s AND %s
-                        """,
-                        [event_tag, start_time, end_time]
-                    )
-                    active_vehicles = cursor.fetchone()[0]
-                else:
-                    cursor.execute(
-                        """
-                        SELECT COUNT(DISTINCT taxi_id) FROM taxi_gps_log
-                        WHERE beijing_time BETWEEN %s AND %s
-                        """,
-                        [start_time, end_time]
-                    )
-                    active_vehicles = cursor.fetchone()[0]
-                # 3. 平均距离 avg_distance
-                try:
-                    if event_tag is not None:
-                        cursor.execute(
-                            """
-                            SELECT AVG(distance) FROM taxi_gps_log
-                            WHERE event_tag=%s AND beijing_time BETWEEN %s AND %s
-                            AND distance IS NOT NULL
-                            """,
-                            [event_tag, start_time, end_time]
-                        )
-                        avg_distance = cursor.fetchone()[0] or 8.5
-                    else:
-                        cursor.execute(
-                            """
-                            SELECT AVG(distance) FROM taxi_gps_log
-                            WHERE beijing_time BETWEEN %s AND %s
-                            AND distance IS NOT NULL
-                            """,
-                            [start_time, end_time]
-                        )
-                        avg_distance = cursor.fetchone()[0] or 8.5
-                except Exception:
-                    avg_distance = 8.5
-                # 4. 平均速度 avg_speed
-                try:
-                    if event_tag is not None:
-                        cursor.execute(
-                            """
-                            SELECT AVG(speed) FROM taxi_gps_log
-                            WHERE event_tag=%s AND beijing_time BETWEEN %s AND %s
-                            AND speed IS NOT NULL
-                            """,
-                            [event_tag, start_time, end_time]
-                        )
-                        avg_speed = cursor.fetchone()[0] or 22.0
-                    else:
-                        cursor.execute(
-                            """
-                            SELECT AVG(speed) FROM taxi_gps_log
-                            WHERE beijing_time BETWEEN %s AND %s
-                            AND speed IS NOT NULL
-                            """,
-                            [start_time, end_time]
-                        )
-                        avg_speed = cursor.fetchone()[0] or 22.0
-                except Exception:
-                    avg_speed = 22.0
+                params = [event_tag, start_time, end_time]
+                # 1. 数据总量
+                cursor.execute(
+                    "SELECT COUNT(*) FROM taxi_gps_log "
+                    "WHERE event_tag=%s "
+                    "AND beijing_time BETWEEN %s AND %s",
+                    params
+                )
+                total_count = cursor.fetchone()[0]
+                # 2. 活跃车辆数
+                cursor.execute(
+                    "SELECT COUNT(DISTINCT car_plate) FROM taxi_gps_log "
+                    "WHERE event_tag=%s "
+                    "AND beijing_time BETWEEN %s AND %s",
+                    params
+                )
+                active_vehicles = cursor.fetchone()[0]
+                # 3. 平均速度
+                cursor.execute(
+                    "SELECT AVG(speed) FROM taxi_gps_log "
+                    "WHERE event_tag=%s AND speed IS NOT NULL "
+                    "AND beijing_time BETWEEN %s AND %s",
+                    params
+                )
+                avg_speed = cursor.fetchone()[0] or 0
+                # 4. 平均距离（每辆车每次上客到下客的距离，最后取平均）
+                # 只统计本event_tag类型的点
+                cursor.execute(
+                    "SELECT car_plate, beijing_time, gcj02_lat, gcj02_lon "
+                    "FROM taxi_gps_log "
+                    "WHERE event_tag=%s "
+                    "AND beijing_time BETWEEN %s AND %s "
+                    "ORDER BY car_plate, beijing_time",
+                    params
+                )
+                rows = cursor.fetchall()
+                # 计算同一车辆相邻两点的距离，取平均
+                trips = []
+                last_point = {}
+                for car_plate, t, lat, lon in rows:
+                    if car_plate in last_point:
+                        lat1, lon1 = last_point[car_plate]
+                        dist = haversine(lat1, lon1, lat, lon)
+                        trips.append(dist)
+                    last_point[car_plate] = (lat, lon)
+                avg_distance = round(sum(trips)/len(trips), 2) if trips else 0
                 stats = {
                     'total_count': total_count,
                     'active_vehicles': active_vehicles,
-                    'avg_distance': round(avg_distance, 2) if avg_distance else 8.5,
-                    'avg_speed': round(avg_speed, 2) if avg_speed else 22.0
+                    'avg_distance': avg_distance,
+                    'avg_speed': round(avg_speed, 2) if avg_speed else 0
                 }
                 response_data = {
                     'stats': stats,
                     'timeRange': {
-                        'start': start_time.strftime('%Y-%m-%d %H:%M:%S')
-                        if isinstance(start_time, datetime) else start_time,
-                        'end': end_time.strftime('%Y-%m-%d %H:%M:%S')
-                        if isinstance(end_time, datetime) else end_time
+                        'start': start_time,
+                        'end': end_time
                     }
                 }
-                return Response(response_data, status=status.HTTP_200_OK)
+                return Response(
+                    response_data,
+                    status=status.HTTP_200_OK
+                )
         except Exception as e:
             return Response({
                 'error': str(e),
