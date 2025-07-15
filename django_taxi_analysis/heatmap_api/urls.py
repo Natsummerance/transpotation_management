@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import HeatmapDataView, StatisticsView, DashboardDataView, VehicleTrajectoryView, HotspotsAnalysisView, FlowAnalysisView, SpatiotemporalAnalysisView, VehicleIdListView
+from .views import HeatmapDataView, StatisticsView, DashboardDataView, VehicleTrajectoryView, HotspotsAnalysisView, FlowAnalysisView, SpatiotemporalAnalysisView, VehicleIdListView, DistanceDistributionView
  
 urlpatterns = [
     path('heatmap/', HeatmapDataView.as_view(), name='heatmap_data'),
@@ -10,4 +10,5 @@ urlpatterns = [
     path('hotspots/', HotspotsAnalysisView.as_view(), name='hotspots_analysis'),
     path('flow/', FlowAnalysisView.as_view(), name='flow_analysis'),
     path('spatiotemporal/', SpatiotemporalAnalysisView.as_view(), name='spatiotemporal_analysis'),
+    path('distance-distribution/', DistanceDistributionView.as_view(), name='distance_distribution'),
 ] 
