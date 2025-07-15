@@ -51,6 +51,7 @@ import TaxiAnalysisModule from "@/components/taxi-analysis-module"
 import DataVisualizationModule from "@/components/data-visualization-module"
 import SettingsModule from "@/components/settings-module"
 import { useUser } from '@/components/user-context';
+import { useTranslation } from 'react-i18next';
 
 // 定义数据类型
 interface DashboardStats {
@@ -124,6 +125,7 @@ interface Alert {
 }
 
 export default function Dashboard() {
+  const { t } = useTranslation();
   const [activeModule, setActiveModule] = useState("overview")
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -138,6 +140,9 @@ export default function Dashboard() {
   const [alertsLoading, setAlertsLoading] = useState(true)
   const [statsError, setStatsError] = useState<string | null>(null)
   const [alertsError, setAlertsError] = useState<string | null>(null)
+
+  // 新增state
+  const [settingsPage, setSettingsPage] = useState<'profile' | 'system'>('profile');
 
   // 登录控制 - 在渲染前检查
   useEffect(() => {
@@ -333,11 +338,11 @@ export default function Dashboard() {
 
   // 导航项目
   const navigationItems = [
-    { id: "overview", label: "系统概览", icon: Home, shortLabel: "概览" },
-    { id: "road-damage", label: "路面病害检测", icon: AlertTriangle, shortLabel: "病害" },
-    { id: "map-analysis", label: "地图时空分析", icon: MapPin, shortLabel: "地图" },
-    { id: "taxi-analysis", label: "出租车数据分析", icon: Car, shortLabel: "出租" },
-    { id: "logs", label: "日志与事件回放", icon: Activity, shortLabel: "日志" },
+    { id: "overview", label: t('overview'), icon: Home, shortLabel: t('overview') },
+    { id: "road-damage", label: t('road_hazard'), icon: AlertTriangle, shortLabel: t('road_hazard') },
+    { id: "map-analysis", label: t('map_analysis'), icon: MapPin, shortLabel: t('map_analysis') },
+    { id: "taxi-analysis", label: t('taxi_analysis'), icon: Car, shortLabel: t('taxi_analysis') },
+    { id: "logs", label: t('logs'), icon: Activity, shortLabel: t('logs') },
   ]
   
   {/* 
@@ -427,9 +432,9 @@ export default function Dashboard() {
                       </div>
                       <div>
                         <h1 className="text-lg font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                          智慧交管系统
+                          {t('smart_traffic_management_system')}
                         </h1>
-                        <p className="text-xs text-gray-500">城市交通智能管理平台</p>
+                        <p className="text-xs text-gray-500">{t('city_traffic_intelligent_management_platform')}</p>
                       </div>
                     </div>
                   </div>
@@ -465,9 +470,9 @@ export default function Dashboard() {
                 </div>
                 <div className="hidden sm:block">
                   <h1 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                    智慧交管系统
+                    {t('smart_traffic_management_system')}
                   </h1>
-                  <p className="text-xs text-gray-500">城市交通智能管理平台</p>
+                  <p className="text-xs text-gray-500">{t('city_traffic_intelligent_management_platform')}</p>
                 </div>
               </div>
               <div className="hidden sm:block text-sm text-gray-600">
@@ -508,20 +513,20 @@ export default function Dashboard() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>我的账户</DropdownMenuLabel>
+                <DropdownMenuLabel>{t('my_account')}</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setActiveModule("settings")}>
+                <DropdownMenuItem onClick={() => { setActiveModule("settings"); setSettingsPage('profile'); }}>
                   <User className="w-4 h-4 mr-2" />
-                  个人资料
+                  {t('personal_profile')}
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setActiveModule("settings")}>
+                <DropdownMenuItem onClick={() => { setActiveModule("settings"); setSettingsPage('system'); }}>
                   <Settings className="w-4 h-4 mr-2" />
-                  系统设置
+                  {t('system_settings')}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="text-red-600">
                   <LogOut className="w-4 h-4 mr-2" />
-                  退出登录
+                  {t('logout')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -559,13 +564,13 @@ export default function Dashboard() {
                     <Zap className="w-4 h-4 text-white" />
                   </div>
                   <div>
-                    <p className="font-medium text-sm">系统状态</p>
-                    <p className="text-xs text-gray-600">运行正常</p>
+                    <p className="font-medium text-sm">{t('system_status')}</p>
+                    <p className="text-xs text-gray-600">{t('running_normally')}</p>
                   </div>
                 </div>
                 <div className="space-y-2 text-xs">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">CPU使用率</span>
+                    <span className="text-gray-600">{t('cpu_usage')}</span>
                     <span className="font-medium">45%</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-1">
@@ -586,8 +591,8 @@ export default function Dashboard() {
             <div className="space-y-6 sm:space-y-8">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between space-y-3 sm:space-y-0">
                 <div>
-                  <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">系统概览</h2>
-                  <p className="text-gray-600 mt-1">实时监控城市交通状况</p>
+                  <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">{t('system_overview')}</h2>
+                  <p className="text-gray-600 mt-1">{t('real_time_monitoring_city_traffic_conditions')}</p>
                 </div>
                 <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
                   <Button
@@ -595,7 +600,7 @@ export default function Dashboard() {
                     className="border-blue-200 text-blue-600 hover:bg-blue-50 bg-transparent text-sm"
                   >
                     <Eye className="w-4 h-4 mr-2" />
-                    实时监控
+                    {t('real_time_monitoring')}
                   </Button>
                   <div className="relative">
                     <Button
@@ -608,9 +613,9 @@ export default function Dashboard() {
                       ) : (
                         <Activity className="w-4 h-4 mr-2" />
                       )}
-                      生成报告
+                      {t('generate_report')}
                     </Button>
-                    <div className="absolute -bottom-5 right-0 text-xs text-gray-400">调用 /api/report/export</div>
+                    <div className="absolute -bottom-5 right-0 text-xs text-gray-400">{t('call_api_report_export')}</div>
                   </div>
                 </div>
               </div>
@@ -636,7 +641,7 @@ export default function Dashboard() {
                     <Card className="border-0 shadow-lg">
                       <CardContent className="p-6 text-center">
                         <AlertTriangle className="w-12 h-12 mx-auto mb-4 text-red-500" />
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">数据加载失败</h3>
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2">{t('data_loading_failed')}</h3>
                         <p className="text-gray-600 mb-4">{statsError}</p>
                         <Button 
                           onClick={() => {
@@ -645,7 +650,7 @@ export default function Dashboard() {
                           }}
                           variant="outline"
                         >
-                          重试
+                          {t('retry')}
                         </Button>
                       </CardContent>
                     </Card>
@@ -703,12 +708,12 @@ export default function Dashboard() {
                   <CardHeader className="pb-3 sm:pb-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <CardTitle className="text-lg sm:text-xl font-bold">实时警报</CardTitle>
-                        <CardDescription className="text-sm">最新的交通事件和警报信息</CardDescription>
+                        <CardTitle className="text-lg sm:text-xl font-bold">{t('real_time_alerts')}</CardTitle>
+                        <CardDescription className="text-sm">{t('latest_traffic_events_and_alert_information')}</CardDescription>
                       </div>
                       {!alertsLoading && (
                         <Badge variant="destructive" className="animate-pulse text-xs">
-                          {alerts.length} 新警报
+                          {alerts.length} {t('new_alerts')}
                         </Badge>
                       )}
                     </div>
@@ -781,7 +786,7 @@ export default function Dashboard() {
                               <p className="text-xs text-gray-500 mt-1 sm:mt-2">{alert.timeAgo}</p>
                             </div>
                             <Badge variant={colors.badge as any} className="text-xs">
-                              {alert.severity === 'high' ? '紧急' : alert.severity === 'medium' ? '中等' : '一般'}
+                              {alert.severity === 'high' ? t('urgent') : alert.severity === 'medium' ? t('medium') : t('general')}
                             </Badge>
                           </div>
                         );
@@ -789,7 +794,7 @@ export default function Dashboard() {
                     ) : (
                       <div className="text-center py-8 text-gray-500">
                         <Activity className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                        <p>暂无警报信息</p>
+                        <p>{t('no_alert_information')}</p>
                       </div>
                     )}
                   </CardContent>
@@ -797,8 +802,8 @@ export default function Dashboard() {
 
                 <Card className="border-0 shadow-lg">
                   <CardHeader className="pb-3 sm:pb-4">
-                    <CardTitle className="text-lg sm:text-xl font-bold">快速操作</CardTitle>
-                    <CardDescription className="text-sm">常用功能快速入口</CardDescription>
+                    <CardTitle className="text-lg sm:text-xl font-bold">{t('quick_operations')}</CardTitle>
+                    <CardDescription className="text-sm">{t('quick_access_to_common_functions')}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3 sm:space-y-4">
                     <div className="grid grid-cols-2 gap-3 sm:gap-4">
@@ -808,7 +813,7 @@ export default function Dashboard() {
                         onClick={() => setActiveModule("road-damage")}
                       >
                         <AlertTriangle className="w-5 sm:w-6 h-5 sm:h-6 text-blue-600" />
-                        <span className="font-medium">危害报警</span>
+                        <span className="font-medium">{t('hazard_alerts')}</span>
                       </Button>
                       <Button
                         variant="outline"
@@ -816,7 +821,7 @@ export default function Dashboard() {
                         onClick={() => setActiveModule("taxi-analysis")}
                       >
                         <Car className="w-5 sm:w-6 h-5 sm:h-6 text-green-600" />
-                        <span className="font-medium">出租车</span>
+                        <span className="font-medium">{t('taxis')}</span>
                       </Button>
                       <Button
                         variant="outline"
@@ -824,7 +829,7 @@ export default function Dashboard() {
                         onClick={() => setActiveModule("data-visualization")}
                       >
                         <BarChart3 className="w-5 sm:w-6 h-5 sm:h-6 text-purple-600" />
-                        <span className="font-medium">统计图表</span>
+                        <span className="font-medium">{t('statistical_charts')}</span>
                       </Button>
                       <Button
                         variant="outline"
@@ -832,7 +837,7 @@ export default function Dashboard() {
                         onClick={() => setActiveModule("map-analysis")}
                       >
                         <MapPin className="w-5 sm:w-6 h-5 sm:h-6 text-orange-600" />
-                        <span className="font-medium">综合地图</span>
+                        <span className="font-medium">{t('integrated_map')}</span>
                       </Button>
                     </div>
                     <div className="relative">
@@ -846,9 +851,9 @@ export default function Dashboard() {
                         ) : (
                           <BarChart3 className="w-4 h-4 mr-2" />
                         )}
-                        查看详细报告
+                        {t('view_detailed_report')}
                       </Button>
-                      <div className="absolute -bottom-5 right-0 text-xs text-gray-400">调用 /api/report/export</div>
+                      <div className="absolute -bottom-5 right-0 text-xs text-gray-400">{t('call_api_report_export')}</div>
                     </div>
                   </CardContent>
                 </Card>
@@ -868,7 +873,7 @@ export default function Dashboard() {
           {activeModule === "map-analysis" && <MapAnalysisModule />}
           {activeModule === "taxi-analysis" && <TaxiAnalysisModule />}
           {activeModule === "data-visualization" && <DataVisualizationModule />}
-          {activeModule === "settings" && <SettingsModule />}
+          {activeModule === "settings" && <SettingsModule page={settingsPage} />}
         </main>
       </div>
 
