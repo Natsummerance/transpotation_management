@@ -31,8 +31,11 @@ import {
 } from "lucide-react"
 import FaceRecognitionModule from "./face-recognition-module"
 import { useUser } from '@/components/user-context';
+import { useTranslation } from 'react-i18next';
+import i18n from '@/lib/i18n';
 
-export default function SettingsModule() {
+// 移除Tabs相关代码，导出SettingsModule时接收一个props: page，page为'profile'或'system'，根据page显示对应内容
+export default function SettingsModule({ page = 'profile' }: { page?: 'profile' | 'system' }) {
   const [activeTab, setActiveTab] = useState("profile")
   const [isLoading, setIsLoading] = useState(false)
   const [showCurrentPassword, setShowCurrentPassword] = useState(false)
@@ -52,6 +55,7 @@ export default function SettingsModule() {
   })
 
   const { setUser } = useUser();
+  const { t } = useTranslation();
 
   // 页面加载时获取用户信息
   useEffect(() => {
@@ -114,6 +118,29 @@ export default function SettingsModule() {
     sessionTimeout: 60,
     ipWhitelist: "",
   })
+
+  // 页面加载时读取系统设置
+  useEffect(() => {
+    async function fetchSystemSettings() {
+      try {
+        const res = await fetch("/api/system/settings");
+        const data = await res.json();
+        if (data.success && data.data) {
+          setSystemSettings((prev) => ({ ...prev, ...data.data }));
+        }
+      } catch (e) {
+        // 读取失败不处理
+      }
+    }
+    fetchSystemSettings();
+  }, []);
+
+  // 监听语言切换，自动切换i18n语言
+  useEffect(() => {
+    if (systemSettings.language) {
+      i18n.changeLanguage(systemSettings.language);
+    }
+  }, [systemSettings.language]);
 
   // 处理头像上传
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -262,11 +289,10 @@ export default function SettingsModule() {
   const handleSaveSystemSettings = async () => {
     setIsLoading(true)
     try {
-      const response = await fetch("/api/user/settings", {
+      const response = await fetch("/api/system/settings", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("authToken")}`,
         },
         body: JSON.stringify(systemSettings),
       })
@@ -336,10 +362,20 @@ export default function SettingsModule() {
 
   return (
     <div className="space-y-8">
+      {/* 顶部标题和操作栏保留 */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-gray-900">系统设置</h2>
-          <p className="text-gray-600 mt-1">管理您的账户设置和系统偏好</p>
+          {page === 'profile' ? (
+            <>
+              <h2 className="text-3xl font-bold text-gray-900">{t('personal_information')}</h2>
+              <p className="text-gray-600 mt-1">{t('manage_your_personal_information_and_avatar')}</p>
+            </>
+          ) : (
+            <>
+              <h2 className="text-3xl font-bold text-gray-900">{t('system_settings')}</h2>
+              <p className="text-gray-600 mt-1">{t('manage_account_settings_and_preferences')}</p>
+            </>
+          )}
         </div>
         <div className="flex space-x-3">
           {/*<Button variant="outline" onClick={handleExportData} disabled={isLoading} className="bg-transparent">
@@ -348,37 +384,18 @@ export default function SettingsModule() {
           </Button>*/}
           <Button onClick={handleLogout} variant="destructive">
             <LogOut className="w-4 h-4 mr-2" />
-            退出登录
+            {t('logout')}
           </Button>
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 bg-gray-100">
-          <TabsTrigger value="profile" className="data-[state=active]:bg-white">
-            <User className="w-4 h-4 mr-2" />
-            个人信息
-          </TabsTrigger>
-          <TabsTrigger value="security" className="data-[state=active]:bg-white">
-            <Shield className="w-4 h-4 mr-2" />
-            安全设置
-          </TabsTrigger>
-          <TabsTrigger value="system" className="data-[state=active]:bg-white">
-            <Globe className="w-4 h-4 mr-2" />
-            系统设置
-          </TabsTrigger>
-          <TabsTrigger value="notifications" className="data-[state=active]:bg-white">
-            <Bell className="w-4 h-4 mr-2" />
-            通知设置
-          </TabsTrigger>
-        </TabsList>
-
-        {/* 个人信息设置 */}
-        <TabsContent value="profile" className="space-y-6">
+      {/* 根据page显示内容 */}
+      {page === 'profile' && (
+        <div className="space-y-6">
           <Card className="border-0 shadow-lg">
             <CardHeader>
-              <CardTitle className="text-xl font-bold">个人信息</CardTitle>
-              <CardDescription>管理您的个人资料和头像</CardDescription>
+              <CardTitle className="text-xl font-bold">{t('personal_information')}</CardTitle>
+              <CardDescription>{t('manage_your_personal_information_and_avatar')}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               {/* 头像设置 */}
@@ -391,7 +408,6 @@ export default function SettingsModule() {
                         alt="头像" 
                         className="w-full h-full object-cover"
                         onError={(e) => {
-                          // 如果图片加载失败，显示默认图标
                           const target = e.target as HTMLImageElement;
                           target.style.display = 'none';
                           target.nextElementSibling?.classList.remove('hidden');
@@ -423,8 +439,17 @@ export default function SettingsModule() {
                     className="hidden"
                   />
                 </div>
-                <div>
-                  <h3 className="font-semibold text-lg">{userInfo.uname}</h3>
+                <div className="flex flex-col justify-center">
+                  {isEditing ? (
+                    <Input
+                      id="username-inline"
+                      value={userInfo.uname}
+                      onChange={(e) => setUserInfo({ ...userInfo, uname: e.target.value })}
+                      className="text-lg font-semibold w-40"
+                    />
+                  ) : (
+                    <h3 className="font-semibold text-lg">{userInfo.uname}</h3>
+                  )}
                   <p className="text-gray-600">{userInfo.position}</p>
                   <p className="text-sm text-gray-500">{userInfo.department}</p>
                 </div>
@@ -446,25 +471,16 @@ export default function SettingsModule() {
                   ) : (
                     <Button size="sm" variant="outline" onClick={() => setIsEditing(true)} className="bg-transparent">
                       <Edit className="w-4 h-4 mr-2" />
-                      编辑
+                      {t('edit')}
                     </Button>
                   )}
                 </div>
               </div>
 
-              {/* 基本信息表单 */}
+              {/* 基本信息表单（去除用户名输入框） */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="username">用户名</Label>
-                  <Input
-                    id="username"
-                    value={userInfo.uname}
-                    onChange={(e) => setUserInfo({ ...userInfo, uname: e.target.value })}
-                    disabled={!isEditing}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">邮箱地址</Label>
+                  <Label htmlFor="email">{t('email_address')}</Label>
                   <Input
                     id="email"
                     type="email"
@@ -474,7 +490,7 @@ export default function SettingsModule() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="phone">手机号码</Label>
+                  <Label htmlFor="phone">{t('phone_number')}</Label>
                   <Input
                     id="phone"
                     value={userInfo.phone}
@@ -482,24 +498,7 @@ export default function SettingsModule() {
                     disabled={!isEditing}
                   />
                 </div>
-                {/*<div className="space-y-2">
-                  <Label htmlFor="department">部门</Label>
-                  <Input
-                    id="department"
-                    value={userInfo.department}
-                    onChange={(e) => setUserInfo({ ...userInfo, department: e.target.value })}
-                    disabled={!isEditing}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="position">职位</Label>
-                  <Input
-                    id="position"
-                    value={userInfo.position}
-                    onChange={(e) => setUserInfo({ ...userInfo, position: e.target.value })}
-                    disabled={!isEditing}
-                  />
-                </div>*/}
+                {/* 其他字段保持不变 */}
               </div>
 
               {/*<div className="space-y-2">
@@ -519,19 +518,19 @@ export default function SettingsModule() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
           <Card className="border-0 shadow-lg">
             <CardHeader>
-              <CardTitle className="text-xl font-bold">修改密码</CardTitle>
-              <CardDescription>定期更新密码以保护账户安全</CardDescription>
+              <CardTitle className="text-xl font-bold">{t('change_password')}</CardTitle>
+              <CardDescription>{t('update_password_periodically_to_protect_account_security')}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="current-password">当前密码</Label>
+                <Label htmlFor="current-password">{t('current_password')}</Label>
                 <div className="relative">
                   <Input
                     id="current-password"
                     type={showCurrentPassword ? "text" : "password"}
                     value={passwordData.currentPassword}
                     onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                    placeholder="请输入当前密码"
+                    placeholder={t('please_enter_current_password')}
                   />
                   <Button
                     type="button"
@@ -545,14 +544,14 @@ export default function SettingsModule() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="new-password">新密码</Label>
+                <Label htmlFor="new-password">{t('new_password')}</Label>
                 <div className="relative">
                   <Input
                     id="new-password"
                     type={showNewPassword ? "text" : "password"}
                     value={passwordData.newPassword}
                     onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                    placeholder="请输入新密码"
+                    placeholder={t('please_enter_new_password')}
                   />
                   <Button
                     type="button"
@@ -566,18 +565,18 @@ export default function SettingsModule() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="confirm-password">确认新密码</Label>
+                <Label htmlFor="confirm-password">{t('confirm_new_password')}</Label>
                 <Input
                   id="confirm-password"
                   type="password"
                   value={passwordData.confirmPassword}
                   onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                  placeholder="请再次输入新密码"
+                  placeholder={t('please_enter_new_password_again')}
                 />
               </div>
               <Button onClick={handleChangePassword} disabled={isLoading} className="w-full h-10 sm:h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg text-sm">
                 {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Lock className="w-4 h-4 mr-2" />}
-                修改密码
+                {t('change_password')}
               </Button>
             </CardContent>
           </Card>
@@ -586,93 +585,19 @@ export default function SettingsModule() {
           {/* 人脸录入模块 */}
           <FaceRecognitionModule />
           </div>
-        </TabsContent>
-
-        {/* 安全设置 */}
-        <TabsContent value="security" className="space-y-6">
+        </div>
+      )}
+      {page === 'system' && (
+        <div className="space-y-6">
           <Card className="border-0 shadow-lg">
             <CardHeader>
-              <CardTitle className="text-xl font-bold">安全设置</CardTitle>
-              <CardDescription>管理您的账户安全选项</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium">双因素认证</h4>
-                  <p className="text-sm text-gray-600">为您的账户添加额外的安全层</p>
-                </div>
-                <Switch
-                  checked={securitySettings.twoFactorAuth}
-                  onCheckedChange={(checked) => setSecuritySettings({ ...securitySettings, twoFactorAuth: checked })}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium">人脸识别登录</h4>
-                  <p className="text-sm text-gray-600">使用人脸识别快速登录</p>
-                </div>
-                <Switch
-                  checked={securitySettings.faceRecognition}
-                  onCheckedChange={(checked) => setSecuritySettings({ ...securitySettings, faceRecognition: checked })}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium">登录通知</h4>
-                  <p className="text-sm text-gray-600">新设备登录时发送通知</p>
-                </div>
-                <Switch
-                  checked={securitySettings.loginNotifications}
-                  onCheckedChange={(checked) =>
-                    setSecuritySettings({ ...securitySettings, loginNotifications: checked })
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="session-timeout">会话超时时间（分钟）</Label>
-                <Select
-                  value={securitySettings.sessionTimeout.toString()}
-                  onValueChange={(value) =>
-                    setSecuritySettings({ ...securitySettings, sessionTimeout: Number.parseInt(value) })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="15">15分钟</SelectItem>
-                    <SelectItem value="30">30分钟</SelectItem>
-                    <SelectItem value="60">1小时</SelectItem>
-                    <SelectItem value="120">2小时</SelectItem>
-                    <SelectItem value="480">8小时</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="ip-whitelist">IP白名单</Label>
-                <Textarea
-                  id="ip-whitelist"
-                  value={securitySettings.ipWhitelist}
-                  onChange={(e) => setSecuritySettings({ ...securitySettings, ipWhitelist: e.target.value })}
-                  placeholder="输入允许访问的IP地址，每行一个"
-                  rows={3}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* 系统设置 */}
-        <TabsContent value="system" className="space-y-6">
-          <Card className="border-0 shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-xl font-bold">系统设置</CardTitle>
-              <CardDescription>自定义系统外观和行为</CardDescription>
+              <CardTitle className="text-xl font-bold">{t('system_settings')}</CardTitle>
+              <CardDescription>{t('customize_system')}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
-                  <Label htmlFor="theme">主题</Label>
+                  <Label htmlFor="theme">{t('theme')}</Label>
                   <Select
                     value={systemSettings.theme}
                     onValueChange={(value) => setSystemSettings({ ...systemSettings, theme: value })}
@@ -681,14 +606,14 @@ export default function SettingsModule() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="light">浅色主题</SelectItem>
-                      <SelectItem value="dark">深色主题</SelectItem>
-                      <SelectItem value="auto">跟随系统</SelectItem>
+                      <SelectItem value="light">{t('light')}</SelectItem>
+                      <SelectItem value="dark">{t('dark')}</SelectItem>
+                      <SelectItem value="auto">{t('auto')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="language">语言</Label>
+                  <Label htmlFor="language">{t('language')}</Label>
                   <Select
                     value={systemSettings.language}
                     onValueChange={(value) => setSystemSettings({ ...systemSettings, language: value })}
@@ -697,14 +622,14 @@ export default function SettingsModule() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="zh-CN">简体中文</SelectItem>
-                      <SelectItem value="zh-TW">繁体中文</SelectItem>
-                      <SelectItem value="en-US">English</SelectItem>
+                      <SelectItem value="zh-CN">{t('zh-CN')}</SelectItem>
+                      <SelectItem value="zh-TW">{t('zh-TW')}</SelectItem>
+                      <SelectItem value="en-US">{t('en-US')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="timezone">时区</Label>
+                  <Label htmlFor="timezone">{t('timezone')}</Label>
                   <Select
                     value={systemSettings.timezone}
                     onValueChange={(value) => setSystemSettings({ ...systemSettings, timezone: value })}
@@ -713,14 +638,14 @@ export default function SettingsModule() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Asia/Shanghai">北京时间 (UTC+8)</SelectItem>
-                      <SelectItem value="Asia/Hong_Kong">香港时间 (UTC+8)</SelectItem>
-                      <SelectItem value="Asia/Taipei">台北时间 (UTC+8)</SelectItem>
+                      <SelectItem value="Asia/Shanghai">{t('beijing_time_utc_8')}</SelectItem>
+                      <SelectItem value="Asia/Hong_Kong">{t('hong_kong_time_utc_8')}</SelectItem>
+                      <SelectItem value="Asia/Taipei">{t('taipei_time_utc_8')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="date-format">日期格式</Label>
+                  <Label htmlFor="date-format">{t('date_format')}</Label>
                   <Select
                     value={systemSettings.dateFormat}
                     onValueChange={(value) => setSystemSettings({ ...systemSettings, dateFormat: value })}
@@ -729,27 +654,18 @@ export default function SettingsModule() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="YYYY-MM-DD">2024-01-15</SelectItem>
-                      <SelectItem value="MM/DD/YYYY">01/15/2024</SelectItem>
-                      <SelectItem value="DD/MM/YYYY">15/01/2024</SelectItem>
+                      <SelectItem value="YYYY-MM-DD">{t('2024_01_15')}</SelectItem>
+                      <SelectItem value="MM/DD/YYYY">{t('01_15_2024')}</SelectItem>
+                      <SelectItem value="DD/MM/YYYY">{t('15_01_2024')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
+              {/* 删除自动保存开关，只保留声音提示 */}
               <div className="flex items-center justify-between">
                 <div>
-                  <h4 className="font-medium">自动保存</h4>
-                  <p className="text-sm text-gray-600">自动保存您的工作进度</p>
-                </div>
-                <Switch
-                  checked={systemSettings.autoSave}
-                  onCheckedChange={(checked) => setSystemSettings({ ...systemSettings, autoSave: checked })}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium">声音提示</h4>
-                  <p className="text-sm text-gray-600">启用系统声音提示</p>
+                  <h4 className="font-medium">{t('sound')}</h4>
+                  <p className="text-sm text-gray-600">{t('enable_system_sound_notifications')}</p>
                 </div>
                 <Switch
                   checked={systemSettings.soundEnabled}
@@ -758,78 +674,12 @@ export default function SettingsModule() {
               </div>
               <Button onClick={handleSaveSystemSettings} disabled={isLoading} className="w-full">
                 {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                保存设置
+                {t('save')}
               </Button>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        {/* 通知设置 */}
-        <TabsContent value="notifications" className="space-y-6">
-          <Card className="border-0 shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-xl font-bold">通知设置</CardTitle>
-              <CardDescription>管理您接收通知的方式</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium">系统通知</h4>
-                  <p className="text-sm text-gray-600">接收系统重要通知</p>
-                </div>
-                <Switch
-                  checked={systemSettings.notifications}
-                  onCheckedChange={(checked) => setSystemSettings({ ...systemSettings, notifications: checked })}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium">邮件通知</h4>
-                  <p className="text-sm text-gray-600">通过邮件接收通知</p>
-                </div>
-                <Switch
-                  checked={systemSettings.emailNotifications}
-                  onCheckedChange={(checked) => setSystemSettings({ ...systemSettings, emailNotifications: checked })}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium">短信通知</h4>
-                  <p className="text-sm text-gray-600">通过短信接收重要通知</p>
-                </div>
-                <Switch
-                  checked={systemSettings.smsNotifications}
-                  onCheckedChange={(checked) => setSystemSettings({ ...systemSettings, smsNotifications: checked })}
-                />
-              </div>
-              <div className="space-y-4">
-                <h4 className="font-medium">通知类型</h4>
-                <div className="space-y-3">
-                  {[
-                    { key: "traffic", label: "交通事件", enabled: true },
-                    { key: "violation", label: "违章检测", enabled: true },
-                    { key: "hazard", label: "道路危险", enabled: true },
-                    { key: "system", label: "系统维护", enabled: false },
-                    { key: "security", label: "安全警告", enabled: true },
-                  ].map((item) => (
-                    <div key={item.key} className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <span className="text-sm">{item.label}</span>
-                        {item.enabled && (
-                          <Badge variant="default" className="text-xs">
-                            已启用
-                          </Badge>
-                        )}
-                      </div>
-                      <Switch checked={item.enabled} />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+        </div>
+      )}
     </div>
   )
 }
