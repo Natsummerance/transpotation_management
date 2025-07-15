@@ -91,11 +91,11 @@ export async function POST(request: NextRequest) {
       const buffer = Buffer.from(bytes);
       await writeFile(filePath, buffer);
 
-      // 生成访问URL
-      const avatarUrl = `/api/static/uploads/avatars/${fileName}`;
+      // 复制一份到 public/uploads/avatars 目录（与主路径一致，无需再复制到 runs/upload）
+      // 头像URL统一为 /uploads/avatars/xxx.jpg
 
       // 更新用户头像信息到数据库
-      const success = await UserService.updateUser(uid, { avatar: avatarUrl });
+      const success = await UserService.updateUser(uid, { avatar: `/uploads/avatars/${fileName}` });
       
       if (!success) {
         return NextResponse.json(
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        data: { avatar: avatarUrl },
+        data: { avatar: `/uploads/avatars/${fileName}` },
         message: "头像上传成功",
       });
 
