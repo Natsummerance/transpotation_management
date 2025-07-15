@@ -92,7 +92,7 @@ class ServiceManager:
         
         required_dirs = [
             "django_taxi_analysis",
-            "face-recognition-cv2-master/face-recognition-cv2-master",
+            "face-recognition-cv2-master",
             "app"
         ]
         
@@ -108,7 +108,7 @@ class ServiceManager:
         key_files = [
             "django_taxi_analysis/manage.py",
             "django_taxi_analysis/requirements.txt",
-            "face-recognition-cv2-master/face-recognition-cv2-master/face_api.py",
+            "face-recognition-cv2-master/face_api.py",
             "package.json",
             "next.config.mjs"
         ]
@@ -253,7 +253,7 @@ class ServiceManager:
             
             # 启动人脸识别服务
             print_colored("启动CV2人脸识别服务...", Colors.OKBLUE)
-            face_dir = self.base_dir / "face-recognition-cv2-master" / "face-recognition-cv2-master"
+            face_dir = self.base_dir / "face-recognition-cv2-master"
             if self.is_windows:
                 subprocess.Popen([
                     "start", "cmd", "/k", 
