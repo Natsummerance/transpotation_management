@@ -91,22 +91,22 @@ export async function GET(request: NextRequest) {
     const whereParams: any[] = [];
     
     // 基于检测结果进行筛选
+    let dbType = '';
     if (type && type !== 'all') {
-      // 根据病害类型筛选，使用JSON_EXTRACT函数
-      // 支持的病害类型：D0纵向裂缝、D1横向裂缝、D20龟裂、D40坑洼
       const validTypes = ['D0纵向裂缝', 'D1横向裂缝', 'D20龟裂', 'D40坑洼'];
-      // 字段名映射，防止前端传参有空格或别名
       const typeMap: Record<string, string> = {
         'D0纵向裂缝': 'D0纵向裂缝',
         'D1横向裂缝': 'D1横向裂缝',
         'D20龟裂': 'D20龟裂',
         'D40坑洼': 'D40坑洼',
-        // 可扩展别名
       };
       const cleanType = (type + '').replace(/\s/g, '').trim();
-      const dbType = Object.keys(typeMap).find(t => t.replace(/\s/g, '') === cleanType);
+      dbType = Object.keys(typeMap).find(t => t.replace(/\s/g, '') === cleanType) || '';
       if (dbType && validTypes.includes(dbType)) {
         whereClause = `WHERE JSON_EXTRACT(results, '$.${dbType}.count') > 0`;
+      } else {
+        // 非法type，忽略type筛选
+        dbType = '';
       }
     }
     
