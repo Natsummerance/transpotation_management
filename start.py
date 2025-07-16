@@ -179,6 +179,18 @@ class ServiceManager:
             print_colored(f"错误: 人脸识别依赖安装失败 - {e}", Colors.FAIL)
             return False
         
+        # 安装YOLO依赖
+        print_colored("安装YOLO依赖...", Colors.OKBLUE)
+        yolo_dir = self.base_dir / "RDD_yolo11"
+        try:
+            subprocess.run([
+                str(pip_path), "install", "-r", "requirements.txt"
+            ], cwd=yolo_dir, check=True)
+            print_status("YOLO依赖", "安装完成")
+        except subprocess.CalledProcessError as e:
+            print_colored(f"错误: YOLO依赖安装失败 - {e}", Colors.FAIL)
+            return False
+        
         # 安装Node.js依赖
         print_colored("安装前端依赖...", Colors.OKBLUE)
         npm_cmd = 'npm'
