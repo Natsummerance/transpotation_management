@@ -25,12 +25,14 @@ import {
 } from "lucide-react"
 import ForgotPasswordModal from "@/components/ForgotPasswordModal";
 import { encryptAES } from "@/lib/cryptoFront";
+import { useTranslation } from 'react-i18next';
 
 
 type LoginMode = "password" | "code" | "face"
 type RegisterStep = "info" | "face" | "success"
 
 export default function LoginPage() {
+  const { t } = useTranslation();
   const [isLogin, setIsLogin] = useState(true)
   const [loginMode, setLoginMode] = useState<LoginMode>("password")
   const [registerStep, setRegisterStep] = useState<RegisterStep>("info")
@@ -513,10 +515,10 @@ export default function LoginPage() {
             <Shield className="w-6 sm:w-8 h-6 sm:h-8 text-white" />
           </div>
           <CardTitle className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            智慧交管系统
+            {t('smart_traffic_management_system')}
           </CardTitle>
           <CardDescription className="text-gray-600 text-base sm:text-lg">
-            {isLogin ? "登录您的账户" : "创建新账户"}
+            {isLogin ? t('login_title') : t('register_title')}
           </CardDescription>
         </CardHeader>
         <CardContent className="px-4 sm:px-6">
@@ -529,37 +531,37 @@ export default function LoginPage() {
                   className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs sm:text-sm px-1 sm:px-3"
                 >
                   <Lock className="w-3 h-3 mr-1" />
-                  <span className="hidden sm:inline">密码登录</span>
-                  <span className="sm:hidden">密码</span>
+                  <span className="hidden sm:inline">{t('login_tab_password')}</span>
+                  <span className="sm:hidden">{t('login_tab_password')}</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="code"
                   className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs sm:text-sm px-1 sm:px-3"
                 >
                   <Mail className="w-3 h-3 mr-1" />
-                  <span className="hidden sm:inline">验证码</span>
-                  <span className="sm:hidden">验证码</span>
+                  <span className="hidden sm:inline">{t('login_tab_code')}</span>
+                  <span className="sm:hidden">{t('login_tab_code')}</span>
                 </TabsTrigger>
                 <TabsTrigger
                   value="face"
                   className="data-[state=active]:bg-white data-[state=active]:shadow-sm text-xs sm:text-sm px-1 sm:px-3"
                 >
                   <Scan className="w-3 h-3 mr-1" />
-                  <span className="hidden sm:inline">人脸识别</span>
-                  <span className="sm:hidden">人脸</span>
+                  <span className="hidden sm:inline">{t('login_tab_face')}</span>
+                  <span className="sm:hidden">{t('login_tab_face')}</span>
                 </TabsTrigger>
               </TabsList>
 
               <TabsContent value="password" className="space-y-3 sm:space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="account" className="text-sm font-medium text-gray-700">
-                    账户
+                    {t('login_account')}
                   </Label>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <Input
                       id="account"
-                      placeholder="用户名/邮箱/手机号"
+                      placeholder={t('login_input_account_password')}
                       className="pl-10 h-10 sm:h-12 border-gray-200 focus:border-blue-500 text-sm sm:text-base"
                       value={loginData.account}
                       onChange={(e) => setLoginData({ ...loginData, account: e.target.value })}
@@ -568,14 +570,14 @@ export default function LoginPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password" className="text-sm font-medium text-gray-700">
-                    密码
+                    {t('login_password')}
                   </Label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <Input
                       id="password"
                       type={showPassword ? "text" : "password"}
-                      placeholder="请输入密码"
+                      placeholder={t('login_password')}
                       className="pl-10 pr-10 h-10 sm:h-12 border-gray-200 focus:border-blue-500 text-sm sm:text-base"
                       value={loginData.password}
                       onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
@@ -604,10 +606,10 @@ export default function LoginPage() {
                     {isLoading ? (
                       <div className="flex items-center">
                         <Loader2 className="animate-spin h-4 w-4 mr-2" />
-                        登录中...
+                        {t('login_loading')}
                       </div>
                     ) : (
-                      "登录系统"
+                      t('login_button')
                     )}
                   </Button>
                   <Button
@@ -615,7 +617,7 @@ export default function LoginPage() {
                     className="absolute -bottom-9 right-0 text-xs text-blue-600 hover:text-blue-700"
                     onClick={() => setForgotPasswordOpen(true)}
                   >
-                    忘记密码?
+                    {t('login_forgot_password')}
                   </Button>
                   <ForgotPasswordModal
                     open={forgotPasswordOpen}
@@ -661,13 +663,13 @@ export default function LoginPage() {
               <TabsContent value="code" className="space-y-3 sm:space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="account-code" className="text-sm font-medium text-gray-700">
-                    手机号/邮箱
+                    {t('login_account_code')}
                   </Label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <Input
                       id="account-code"
-                      placeholder="请输入手机号或邮箱"
+                      placeholder={t('login_input_account_code')}
                       className="pl-10 h-10 sm:h-12 border-gray-200 focus:border-blue-500 text-sm sm:text-base"
                       value={loginData.account}
                       onChange={(e) => setLoginData({ ...loginData, account: e.target.value })}
@@ -683,7 +685,7 @@ export default function LoginPage() {
                       <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                       <Input
                         id="code"
-                        placeholder="请输入验证码"
+                        placeholder={t('login_input_code')}
                         className="pl-10 h-10 sm:h-12 border-gray-200 focus:border-blue-500 text-sm sm:text-base"
                         value={loginData.code}
                         onChange={(e) => setLoginData({ ...loginData, code: e.target.value })}
@@ -696,7 +698,7 @@ export default function LoginPage() {
                         onClick={sendVerificationCode}
                         disabled={countdown > 0}
                       >
-                        {countdown > 0 ? `${countdown}s` : "发送"}
+                        {countdown > 0 ? `${countdown}s` : t('login_send_code')}
                       </Button>
                     </div>
                   </div>
@@ -713,7 +715,7 @@ export default function LoginPage() {
                         验证中...
                       </div>
                     ) : (
-                      "验证登录"
+                      t('login_verify_login')
                     )}
                   </Button>
                   <div className="absolute -bottom-5 right-0 text-xs text-gray-400"></div>
@@ -739,13 +741,13 @@ export default function LoginPage() {
                           <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                             <div className="text-center text-white">
                               <Loader2 className="w-8 h-8 mx-auto mb-2 animate-spin" />
-                              <p className="text-sm font-medium">正在识别...</p>
+                              <p className="text-sm font-medium">{t('login_face_recognition_loading')}</p>
                             </div>
                           </div>
                         )}
                         <div className="absolute top-2 right-2 flex space-x-1">
                           <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                          <span className="text-xs text-white bg-black/50 px-1 rounded">LIVE</span>
+                          <span className="text-xs text-white bg-black/50 px-1 rounded">{t('login_live_indicator')}</span>
                         </div>
                       </div>
                     ) : (
@@ -758,7 +760,7 @@ export default function LoginPage() {
                         ) : (
                           <div className="text-center">
                             <Camera className="w-8 sm:w-12 h-8 sm:h-12 mx-auto mb-2 sm:mb-3 text-gray-400" />
-                            <p className="text-xs sm:text-sm text-gray-600">点击开始人脸识别</p>
+                            <p className="text-xs sm:text-sm text-gray-600">{t('login_click_start_face_recognition')}</p>
                           </div>
                         )}
                       </div>
@@ -778,12 +780,12 @@ export default function LoginPage() {
                       ) : stream ? (
                         <>
                           <Scan className="w-4 h-4 mr-2" />
-                          开始识别
+                          {t('login_start_recognition')}
                         </>
                       ) : (
                         <>
                           <Video className="w-4 h-4 mr-2" />
-                          启动摄像头
+                          {t('login_start_camera')}
                         </>
                       )}
                     </Button>
@@ -799,7 +801,7 @@ export default function LoginPage() {
                       }}
                     >
                       <VideoOff className="w-4 h-4 mr-2" />
-                      关闭摄像头
+                      {t('login_close_camera')}
                     </Button>
                   )}
                   {/* 新增：人脸识别错误提示 */}
@@ -846,13 +848,13 @@ export default function LoginPage() {
                   <div className="space-y-3 sm:space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="username" className="text-sm font-medium text-gray-700">
-                        用户名
+                        {t('register_username')}
                       </Label>
                       <div className="relative">
                         <User className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
                           id="username"
-                          placeholder="请输入用户名"
+                          placeholder={t('register_input_username')}
                           className="pl-10 h-10 sm:h-12 border-gray-200 focus:border-blue-500 text-sm sm:text-base"
                           value={registerData.username}
                           onChange={(e) => setRegisterData({ ...registerData, username: e.target.value })}
@@ -862,14 +864,14 @@ export default function LoginPage() {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="email" className="text-sm font-medium text-gray-700">
-                          邮箱
+                          {t('register_email')}
                         </Label>
                         <div className="relative">
                           <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                           <Input
                             id="email"
                             type="email"
-                            placeholder="请输入邮箱地址"
+                            placeholder={t('register_input_email')}
                             className="pl-10 h-10 sm:h-12 border-gray-200 focus:border-blue-500 text-sm sm:text-base"
                             value={registerData.email}
                             onChange={(e) => setRegisterData({ ...registerData, email: e.target.value })}
@@ -878,13 +880,13 @@ export default function LoginPage() {
                       </div>
                       <div className="space-y-2">
                         <Label htmlFor="phone" className="text-sm font-medium text-gray-700">
-                          手机号
+                          {t('register_phone')}
                         </Label>
                         <div className="relative">
                           <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                           <Input
                             id="phone"
-                            placeholder="请输入手机号"
+                            placeholder={t('register_input_phone')}
                             className="pl-10 h-10 sm:h-12 border-gray-200 focus:border-blue-500 text-sm sm:text-base"
                             value={registerData.phone}
                             onChange={(e) => setRegisterData({ ...registerData, phone: e.target.value })}
@@ -894,14 +896,14 @@ export default function LoginPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="reg-password" className="text-sm font-medium text-gray-700">
-                        密码
+                        {t('register_password')}
                       </Label>
                       <div className="relative">
                         <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
                           id="reg-password"
                           type={showPassword ? "text" : "password"}
-                          placeholder="请输入密码"
+                          placeholder={t('register_input_password')}
                           className="pl-10 pr-10 h-10 sm:h-12 border-gray-200 focus:border-blue-500 text-sm sm:text-base"
                           value={registerData.password}
                           onChange={(e) => setRegisterData({ ...registerData, password: e.target.value })}
@@ -923,14 +925,14 @@ export default function LoginPage() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="confirm-password" className="text-sm font-medium text-gray-700">
-                        确认密码
+                        {t('register_confirm_password')}
                       </Label>
                       <div className="relative">
                         <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
                           id="confirm-password"
                           type={showPassword ? "text" : "password"}
-                          placeholder="请再次输入密码"
+                          placeholder={t('register_input_confirm_password')}
                           className="pl-10 h-10 sm:h-12 border-gray-200 focus:border-blue-500 text-sm sm:text-base"
                           value={registerData.confirmPassword}
                           onChange={(e) => setRegisterData({ ...registerData, confirmPassword: e.target.value })}
@@ -950,7 +952,7 @@ export default function LoginPage() {
                           注册中...
                         </div>
                       ) : (
-                        "下一步：录入人脸"
+                        t('register_next_step')
                       )}
                     </Button>
                     <div className="absolute -bottom-5 right-0 text-xs text-gray-400"></div>
@@ -961,8 +963,8 @@ export default function LoginPage() {
               {registerStep === "face" && (
                 <>
                   <div className="text-center space-y-3 sm:space-y-4">
-                    <h3 className="text-lg font-semibold text-gray-900">录入人脸信息</h3>
-                    <p className="text-sm text-gray-600">请正对摄像头，保持面部清晰可见</p>
+                    <h3 className="text-lg font-semibold text-gray-900">{t('register_face_title')}</h3>
+                    <p className="text-sm text-gray-600">{t('register_face_description')}</p>
                   </div>
                   <div className="text-center space-y-4 sm:space-y-6">
                     <div className="mx-auto w-64 h-48 border-2 border-dashed border-gray-300 rounded-xl bg-gradient-to-br from-green-50 to-blue-50 relative overflow-hidden">
@@ -982,7 +984,7 @@ export default function LoginPage() {
                             <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                               <div className="text-center text-white">
                                 <Loader2 className="w-8 h-8 mx-auto mb-2 animate-spin" />
-                                <p className="text-sm font-medium">正在录入...</p>
+                                <p className="text-sm font-medium">{t('register_face_loading')}</p>
                               </div>
                             </div>
                           )}
@@ -997,7 +999,7 @@ export default function LoginPage() {
                           ) : (
                             <div className="text-center">
                               <Camera className="w-12 sm:w-16 h-12 sm:h-16 mx-auto mb-3 sm:mb-4 text-gray-400" />
-                              <p className="text-sm text-gray-600">点击开始录入人脸</p>
+                              <p className="text-sm text-gray-600">{t('register_click_start_face_registration')}</p>
                             </div>
                           )}
                         </div>
@@ -1017,16 +1019,16 @@ export default function LoginPage() {
                         ) : stream ? (
                           <>
                             <Scan className="w-4 h-4 mr-2" />
-                            开始录入人脸
+                            {t('register_start_face_registration')}
                           </>
                         ) : (
                           <>
                             <Video className="w-4 h-4 mr-2" />
-                            启动摄像头
+                            {t('register_start_camera')}
                           </>
                         )}
                       </Button>
-                      <div className="absolute -bottom-5 right-0 text-xs text-gray-400">人脸录入功能（演示）</div>
+                      <div className="absolute -bottom-5 right-0 text-xs text-gray-400">{t('register_face_registration_note')}</div>
                     </div>
                     {stream && (
                       <Button
@@ -1038,7 +1040,7 @@ export default function LoginPage() {
                         }}
                       >
                         <VideoOff className="w-4 h-4 mr-2" />
-                        关闭摄像头
+                        {t('register_close_camera')}
                       </Button>
                     )}
                     {/* 新增：注册界面人脸录入错误提示 */}
@@ -1079,7 +1081,7 @@ export default function LoginPage() {
                       className="w-full text-gray-500 hover:text-gray-700"
                       onClick={() => setRegisterStep("success")}
                     >
-                      跳过此步骤
+                      {t('register_skip_step')}
                     </Button>
                   </div>
                   <Button
@@ -1088,7 +1090,7 @@ export default function LoginPage() {
                     onClick={() => setRegisterStep("info")}
                   >
                     <ArrowLeft className="w-4 h-4 mr-2" />
-                    返回上一步
+                    {t('register_back_step')}
                   </Button>
                 </>
               )}
@@ -1099,22 +1101,22 @@ export default function LoginPage() {
                     <CheckCircle className="w-8 sm:w-10 h-8 sm:h-10 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">注册成功！</h3>
-                    <p className="text-gray-600">您的账户已创建完成，人脸信息已录入</p>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">{t('register_success_title')}</h3>
+                    <p className="text-gray-600">{t('register_success_description')}</p>
                   </div>
                   <div className="bg-green-50 rounded-lg p-3 sm:p-4 text-left">
-                    <h4 className="font-medium text-green-800 mb-2">账户信息</h4>
+                    <h4 className="font-medium text-green-800 mb-2">{t('register_account_info_title')}</h4>
                     <div className="space-y-1 text-sm text-green-700">
-                      <p>用户名: {registerData.username}</p>
-                      <p>邮箱: {registerData.email}</p>
-                      <p>手机号: {registerData.phone}</p>
+                      <p>{t('register_username')}: {registerData.username}</p>
+                      <p>{t('register_email')}: {registerData.email}</p>
+                      <p>{t('register_phone')}: {registerData.phone}</p>
                     </div>
                   </div>
                   <Button
                     className="w-full h-10 sm:h-12 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium shadow-lg text-sm sm:text-base"
                     onClick={resetToLogin}
                   >
-                    立即登录
+                    {t('register_login_now')}
                   </Button>
                 </div>
               )}
@@ -1125,13 +1127,13 @@ export default function LoginPage() {
           {registerStep === "info" && (
             <div className="mt-4 sm:mt-6 text-center">
               <p className="text-sm text-gray-600">
-                {isLogin ? "还没有账户？" : "已有账户？"}
+                {isLogin ? t('register_no_account') : t('register_have_account')}
                 <Button
                   variant="link"
                   className="p-0 ml-1 text-blue-600 hover:text-blue-700 text-sm"
                   onClick={() => setIsLogin(!isLogin)}
                 >
-                  {isLogin ? "立即注册" : "立即登录"}
+                  {isLogin ? t('register_create_account') : t('register_login_now')}
                 </Button>
               </p>
             </div>
