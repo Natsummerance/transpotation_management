@@ -361,34 +361,8 @@ export default function SettingsModule({ page = 'profile' }: { page?: 'profile' 
   }
 
   return (
-    <div className="space-y-8">
-      {/* 顶部标题和操作栏保留 */}
-      <div className="flex items-center justify-between">
-        <div>
-          {page === 'profile' ? (
-            <>
-              <h2 className="text-3xl font-bold text-gray-900">{t('personal_information')}</h2>
-              <p className="text-gray-600 mt-1">{t('manage_your_personal_information_and_avatar')}</p>
-            </>
-          ) : (
-            <>
-              <h2 className="text-3xl font-bold text-gray-900">{t('system_settings')}</h2>
-              <p className="text-gray-600 mt-1">{t('manage_account_settings_and_preferences')}</p>
-            </>
-          )}
-        </div>
-        <div className="flex space-x-3">
-          {/*<Button variant="outline" onClick={handleExportData} disabled={isLoading} className="bg-transparent">
-            <Download className="w-4 h-4 mr-2" />
-            导出数据
-          </Button>*/}
-          <Button onClick={handleLogout} variant="destructive">
-            <LogOut className="w-4 h-4 mr-2" />
-            {t('logout')}
-          </Button>
-        </div>
-      </div>
-
+    <div>
+      {/* 认证状态显示和顶部人脸识别入口已移除，仅保留下方个人信息区块中的人脸识别入口 */}
       {/* 根据page显示内容 */}
       {page === 'profile' && (
         <div className="space-y-6">
@@ -448,7 +422,7 @@ export default function SettingsModule({ page = 'profile' }: { page?: 'profile' 
                       className="text-lg font-semibold w-40"
                     />
                   ) : (
-                    <h3 className="font-semibold text-lg">{userInfo.uname}</h3>
+                  <h3 className="font-semibold text-lg">{userInfo.uname}</h3>
                   )}
                   <p className="text-gray-600">{userInfo.position}</p>
                   <p className="text-sm text-gray-500">{userInfo.department}</p>
@@ -585,7 +559,7 @@ export default function SettingsModule({ page = 'profile' }: { page?: 'profile' 
           {/* 人脸录入模块 */}
           <FaceRecognitionModule />
           </div>
-        </div>
+                </div>
       )}
       {page === 'system' && (
         <div className="space-y-6">
@@ -621,20 +595,10 @@ export default function SettingsModule({ page = 'profile' }: { page?: 'profile' 
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent style={{ maxHeight: 240, overflowY: 'auto' }}>
+                    <SelectContent>
                       <SelectItem value="zh-CN">{t('zh-CN')}</SelectItem>
                       <SelectItem value="zh-TW">{t('zh-TW')}</SelectItem>
                       <SelectItem value="en-US">{t('en-US')}</SelectItem>
-                      <SelectItem value="ja-JP">{t('ja-JP')}</SelectItem>
-                      <SelectItem value="ko-KR">{t('ko-KR')}</SelectItem>
-                      <SelectItem value="fr-FR">{t('fr-FR')}</SelectItem>
-                      <SelectItem value="de-DE">{t('de-DE')}</SelectItem>
-                      <SelectItem value="it-IT">{t('it-IT')}</SelectItem>
-                      <SelectItem value="es-ES">{t('es-ES')}</SelectItem>
-                      <SelectItem value="pt-PT">{t('pt-PT')}</SelectItem>
-                      <SelectItem value="el-GR">{t('el-GR')}</SelectItem>
-                      <SelectItem value="ar-SA">{t('ar-SA')}</SelectItem>
-                      <SelectItem value="ru-RU">{t('ru-RU')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -682,15 +646,13 @@ export default function SettingsModule({ page = 'profile' }: { page?: 'profile' 
                   onCheckedChange={(checked) => setSystemSettings({ ...systemSettings, soundEnabled: checked })}
                 />
               </div>
-              <Button onClick={handleSaveSystemSettings} disabled={isLoading} 
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white h-10 sm:h-12 text-sm sm:text-base"
-              >
+              <Button onClick={handleSaveSystemSettings} disabled={isLoading} className="w-full">
                 {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                 {t('save')}
               </Button>
             </CardContent>
           </Card>
-        </div>
+              </div>
       )}
     </div>
   )
