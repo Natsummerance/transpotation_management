@@ -3,6 +3,7 @@ import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
+import { existsSync, statSync } from 'fs';
 
 // 定义YOLO标签到病害类型的映射
 const damageMapping: { [key: string]: string } = {
@@ -189,41 +190,201 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 构建结果图片的URL路径
-    const predictDir = path.join(process.cwd(), 'runs', 'detect', 'predict');
-    const predictFileName = path.basename(imagePath); // 与原图同名
-    const predictImagePath = path.join(predictDir, predictFileName);
-    let resultImageUrl: string | null = null;
-    let found = false;
-    // 优先用 pythonResult.image_path
-    let resultImagePath = pythonResult.image_path || predictImagePath;
-    for (let i = 0; i < 5; i++) { // 最多重试5次
-      if (await fs.access(resultImagePath).then(() => true).catch(() => false)) {
-        found = true;
-        break;
-      }
-      // 等待100ms再重试
-      await new Promise(res => setTimeout(res, 100));
-    }
-    if (!found) {
-      // 直接在 runs/detect/predict 目录下找同名图片
-      if (await fs.access(predictImagePath).then(() => true).catch(() => false)) {
-        resultImagePath = predictImagePath;
-        found = true;
-      }
-    }
-    if (found) {
-      const relativePath = path.relative(process.cwd(), resultImagePath).replace(/\\/g, '/');
-      resultImageUrl = `/api/static/${relativePath}`;
-    } else {
-      // 彻底找不到才返回空
-      console.warn('Result image not found after retries and folder scan:', resultImagePath);
-      resultImageUrl = '';
-    }
+    // === 只要 pythonResult.image_path 里有 runs/detect/predict/xxx.avi 或 .mp4 就拼接静态URL ===
+    let resultImageUrl = '';
+    if (pythonResult.image_path) {
+      let origPath = pythonResult.image_path.replace(/\\/g, '/');
+      const ext = path.extname(origPath).toLowerCase();
+      let fileName = path.basename(origPath, ext);
+      let h264FileName = `${fileName}_h264.mp4`;
+      let h264FilePath = path.join(path.dirname(origPath), h264FileName);
+      let absH264FilePath = path.isAbsolute(h264FilePath) ? h264FilePath : path.join(process.cwd(), h264FilePath);
+      let absOrigPath = path.isAbsolute(origPath) ? origPath : path.join(process.cwd(), origPath);
 
+      // 路径矫正：如果 image_path 是 .mp4 但实际只存在 .avi 文件，则自动切换为 .avi
+      if (ext === '.mp4' && !existsSync(absOrigPath)) {
+        const aviPath = origPath.replace(/\.mp4$/i, '.avi');
+        const absAviPath = path.isAbsolute(aviPath) ? aviPath : path.join(process.cwd(), aviPath);
+        if (existsSync(absAviPath)) {
+          console.log('⚠️ image_path 指向的 mp4 不存在，自动切换为 avi:', absAviPath);
+          origPath = aviPath;
+          absOrigPath = absAviPath;
+        }
+      }
+
+      console.log('=== 转码调试信息 ===');
+      console.log('原始文件路径:', origPath);
+      console.log('文件扩展名:', ext);
+      console.log('文件名:', fileName);
+      console.log('H264文件名:', h264FileName);
+      console.log('H264文件路径:', h264FilePath);
+      console.log('绝对H264路径:', absH264FilePath);
+      console.log('绝对原始路径:', absOrigPath);
+      console.log('原始文件是否存在:', existsSync(absOrigPath));
+      console.log('H264文件是否已存在:', existsSync(absH264FilePath));
+      console.log('扩展名检查 - ext === ".avi":', ext === '.avi');
+      console.log('扩展名检查 - ext === ".mp4":', ext === '.mp4');
+      console.log('扩展名检查 - ext.toLowerCase() === ".avi":', ext.toLowerCase() === '.avi');
+
+      // 强制对 avi 文件进行转码，确保浏览器能播放
+      if (ext.toLowerCase() === '.avi') {
+        console.log('✅ 检测到 AVI 文件，强制开始转码:', absOrigPath, '->', absH264FilePath);
+        
+        // 用 ffmpeg 转码为 H.264，优化参数确保浏览器兼容性
+        try {
+          console.log('🚀 启动 ffmpeg 转码进程...');
+          await new Promise((resolve, reject) => {
+            const ffmpegArgs = [
+              '-y',                    // 覆盖输出文件
+              '-i', absOrigPath,       // 输入文件
+              '-c:v', 'libx264',       // 视频编码器
+              '-preset', 'fast',       // 编码预设，平衡速度和质量
+              '-crf', '23',            // 恒定质量因子
+              '-profile:v', 'baseline', // 兼容性最好的 profile
+              '-level', '3.1',         // 兼容性级别
+              '-pix_fmt', 'yuv420p',   // 像素格式，确保浏览器兼容
+              '-movflags', '+faststart', // 流式播放优化
+              '-an',                   // 跳过音频流
+              '-avoid_negative_ts', 'make_zero', // 时间戳处理
+              '-fflags', '+genpts',    // 生成时间戳
+              absH264FilePath          // 输出文件
+            ];
+            
+            console.log('📋 ffmpeg 命令参数:', ffmpegArgs);
+            
+            const ffmpeg = spawn('ffmpeg', ffmpegArgs);
+            
+            let ffmpegOutput = '';
+            let ffmpegError = '';
+            
+            ffmpeg.stdout.on('data', (data) => {
+              ffmpegOutput += data.toString();
+            });
+            
+            ffmpeg.stderr.on('data', (data) => {
+              ffmpegError += data.toString();
+            });
+            
+            ffmpeg.on('close', (code) => {
+              console.log('🏁 ffmpeg 转码完成，退出码:', code);
+              console.log('📤 ffmpeg 输出:', ffmpegOutput);
+              console.log('❌ ffmpeg 错误:', ffmpegError);
+              
+              if (code === 0) {
+                // 验证输出文件
+                if (existsSync(absH264FilePath)) {
+                  const stats = statSync(absH264FilePath);
+                  console.log('✅ 转码成功，输出文件大小:', stats.size, '字节');
+                  if (stats.size > 0) {
+                    console.log('🎉 转码完全成功！');
+                    resolve(code);
+                  } else {
+                    console.error('❌ 输出文件大小为0，转码失败');
+                    reject(new Error('输出文件大小为0'));
+                  }
+                } else {
+                  console.error('❌ 输出文件不存在，转码失败');
+                  reject(new Error('输出文件不存在'));
+                }
+              } else {
+                console.error('❌ ffmpeg 转码失败，退出码:', code);
+                reject(new Error(`ffmpeg 转码失败，退出码: ${code}`));
+              }
+            });
+            
+            ffmpeg.on('error', (err) => {
+              console.error('💥 ffmpeg 启动错误:', err);
+              reject(err);
+            });
+          });
+          
+          console.log('AVI 转码Promise完成');
+        } catch (error) {
+          console.error('AVI 转码过程中发生错误:', error);
+          // 转码失败时，尝试使用原始文件（但浏览器可能无法播放）
+          resultImageUrl = `/api/static/runs/detect/predict/${path.basename(origPath)}`;
+          console.log('转码失败，使用原始 AVI 文件（浏览器可能无法播放）:', resultImageUrl);
+        }
+      } else if (ext === '.mp4') {
+        // 对 mp4 文件，检查是否需要转码（如果编码不是 H.264）
+        if (!existsSync(absH264FilePath)) {
+          console.log('检测到 MP4 文件，开始转码:', absOrigPath, '->', absH264FilePath);
+          
+          // 用 ffmpeg 转码为 H.264
+          try {
+            await new Promise((resolve, reject) => {
+              const ffmpeg = spawn('ffmpeg', [
+                '-y',
+                '-i', absOrigPath,
+                '-c:v', 'libx264',
+                '-profile:v', 'baseline',
+                '-pix_fmt', 'yuv420p',
+                '-movflags', '+faststart',
+                '-an',  // 跳过音频流，避免无音频文件转码失败
+                absH264FilePath
+              ]);
+              
+              let ffmpegOutput = '';
+              let ffmpegError = '';
+              
+              ffmpeg.stdout.on('data', (data) => {
+                ffmpegOutput += data.toString();
+              });
+              
+              ffmpeg.stderr.on('data', (data) => {
+                ffmpegError += data.toString();
+              });
+              
+              ffmpeg.on('close', (code) => {
+                console.log('ffmpeg 转码完成，退出码:', code);
+                console.log('ffmpeg 输出:', ffmpegOutput);
+                console.log('ffmpeg 错误:', ffmpegError);
+                
+                if (code === 0) {
+                  console.log('转码成功，检查输出文件是否存在:', existsSync(absH264FilePath));
+                  resolve(code);
+                } else {
+                  console.error('ffmpeg 转码失败，退出码:', code);
+                  reject(new Error(`ffmpeg 转码失败，退出码: ${code}`));
+                }
+              });
+              
+              ffmpeg.on('error', (err) => {
+                console.error('ffmpeg 启动错误:', err);
+                reject(err);
+              });
+            });
+            
+            console.log('MP4 转码Promise完成');
+          } catch (error) {
+            console.error('MP4 转码过程中发生错误:', error);
+            // 转码失败时，使用原始文件
+            resultImageUrl = `/api/static/runs/detect/predict/${path.basename(origPath)}`;
+          }
+        } else {
+          console.log('MP4 文件已存在 H.264 版本，跳过转码');
+        }
+      } else {
+        console.log('非视频文件，跳过转码');
+      }
+      
+      // 如果转码成功或文件已存在，使用H264文件
+      if (existsSync(absH264FilePath)) {
+        resultImageUrl = `/api/static/runs/detect/predict/${h264FileName}`;
+        console.log('使用H264文件:', resultImageUrl);
+      } else {
+        // 否则使用原始文件
+        resultImageUrl = `/api/static/runs/detect/predict/${path.basename(origPath)}`;
+        console.log('使用原始文件:', resultImageUrl);
+      }
+    } else {
+      resultImageUrl = '';
+      console.log('没有image_path，resultImageUrl设为空');
+    }
     return NextResponse.json({ 
       results,
       resultImage: resultImageUrl,
+      result_image: resultImageUrl,
       pythonResult: pythonResult // 添加原始Python结果用于调试
     });
 
