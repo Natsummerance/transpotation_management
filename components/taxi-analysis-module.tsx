@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Car, TrendingUp, MapPin, Download, Eye, BarChart3, Users, Loader2, Calendar, Layers, Route, Target, Clock } from "lucide-react"
+import { Range, getTrackBackground } from "react-range"
 
 // 声明高德地图全局变量
 declare global {
@@ -14,55 +15,46 @@ declare global {
   }
 }
 
-// 时间范围选项
-const timeRangeOptions = [
-  { value: "historical", label: "历史数据 (2013-09-12)" },
-  { value: "today", label: "今天" },
-  { value: "week", label: "本周" },
-  { value: "month", label: "本月" },
-  { value: "custom", label: "自定义" },
-]
-
-// 获取时间范围的起止时间字符串
-function getTimeRange(range: string, customStart?: string, customEnd?: string) {
-  const now = new Date();
-  let start: Date, end: Date;
-  
-  if (range === "historical") {
-    // 使用2013年9月12日的历史数据
-    start = new Date(2013, 8, 12, 0, 0, 0); // 月份从0开始，所以9月是8
-    end = new Date(2013, 8, 12, 23, 59, 59);
-  } else if (range === "today") {
-    start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-    end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-  } else if (range === "week") {
-    const day = now.getDay() || 7;
-    start = new Date(now);
-    start.setDate(now.getDate() - day + 1);
-    start.setHours(0, 0, 0, 0);
-    end = new Date(now);
-    end.setHours(23, 59, 59, 999);
-  } else if (range === "month") {
-    start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0);
-    end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-  } else if (range === "custom" && customStart && customEnd) {
-    start = new Date(customStart);
-    end = new Date(customEnd);
-  } else {
-    // 默认使用历史数据
-    start = new Date(2013, 8, 12, 0, 0, 0);
-    end = new Date(2013, 8, 12, 23, 59, 59);
+// 时间轴半天粒度常量
+function generateHalfDayTimeline(startDate: string, endDate: string) {
+  const result: string[] = [];
+  let current = new Date(startDate + 'T00:00:00');
+  const end = new Date(endDate + 'T00:00:00');
+  while (current <= end) {
+    // 用本地时间拼接 yyyy-MM-dd HH:mm
+    const y = current.getFullYear();
+    const m = (current.getMonth() + 1).toString().padStart(2, '0');
+    const d = current.getDate().toString().padStart(2, '0');
+    const h = current.getHours().toString().padStart(2, '0');
+    const mm = current.getMinutes().toString().padStart(2, '0');
+    result.push(`${y}-${m}-${d} ${h}:${mm}`);
+    current.setHours(current.getHours() + 12);
   }
-  // 格式化为 MySQL DATETIME 字符串
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  const format = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-  return { start: format(start), end: format(end) };
+  return result;
+}
+const TIMELINE_HALFDAY = generateHalfDayTimeline('2013-09-12', '2013-09-19');
+const TIMELINE_MIN = 0;
+const TIMELINE_MAX = TIMELINE_HALFDAY.length - 1;
+
+// 获取时间范围的起止时间字符串（支持半天）
+function getTimeRange(customStart?: string, customEnd?: string) {
+  // customStart/customEnd 格式为 yyyy-MM-dd HH:mm
+  const start = customStart ? `${customStart}:00` : "2013-09-12 00:00:00"
+  // 结束时间如果是 00:00，取当天 11:59:59；如果是 12:00，取当天 23:59:59
+  let end = "2013-09-12 23:59:59";
+  if (customEnd) {
+    if (customEnd.endsWith('00:00')) {
+      end = customEnd.replace('00:00', '11:59:59');
+    } else if (customEnd.endsWith('12:00')) {
+      end = customEnd.replace('12:00', '23:59:59');
+    }
+  }
+  return { start, end }
 }
 
 export default function TaxiAnalysisModule() {
-  const [timeRange, setTimeRange] = useState("historical") // 默认选择历史数据
-  const [customStart, setCustomStart] = useState("")
-  const [customEnd, setCustomEnd] = useState("")
+  const [customStart, setCustomStart] = useState("2013-09-12")
+  const [customEnd, setCustomEnd] = useState("2013-09-12")
   const [isLoading, setIsLoading] = useState(true)
   const [isHeatmapLoading, setIsHeatmapLoading] = useState(true)
   const [isTrajectoryLoading, setIsTrajectoryLoading] = useState(false)
@@ -103,6 +95,15 @@ export default function TaxiAnalysisModule() {
   const [isFromCache, setIsFromCache] = useState(false); // 标记热力图数据来源
   // 标记是否已恢复缓存
   const [hasRestoredCache, setHasRestoredCache] = useState(false);
+
+  // 时间轴滑块值，0-(TIMELINE_HALFDAY.length-1)分别对应TIMELINE_HALFDAY
+  const [timelineRange, setTimelineRange] = useState<[number, number]>([0, 1])
+
+  // 时间轴变更时，更新customStart/customEnd
+  useEffect(() => {
+    setCustomStart(TIMELINE_HALFDAY[timelineRange[0]])
+    setCustomEnd(TIMELINE_HALFDAY[timelineRange[1]])
+  }, [timelineRange])
 
   // 加载高德地图和出租车数据
   useEffect(() => {
@@ -195,14 +196,13 @@ export default function TaxiAnalysisModule() {
       setHeatmapInstance(null)
     }
     try {
-      const { start, end } = getTimeRange(timeRange, customStart, customEnd)
+      const { start, end } = getTimeRange(customStart, customEnd)
       const url = `http://localhost:8000/api/heatmap/?event_type=${eventType}&start_time=${encodeURIComponent(start)}&end_time=${encodeURIComponent(end)}&limit=1000`
       
       console.log("请求热力图数据:", {
         url,
-        timeRange,
-        start,
-        end
+        customStart,
+        customEnd
       })
       
       const response = await fetch(url)
@@ -243,7 +243,7 @@ export default function TaxiAnalysisModule() {
   // 获取仪表板综合数据
   const fetchDashboardData = async () => {
     console.log("开始获取仪表板数据...")
-    const { start, end } = getTimeRange(timeRange, customStart, customEnd)
+    const { start, end } = getTimeRange(customStart, customEnd)
     try {
       const url = `http://localhost:8000/api/dashboard/?event_type=${eventType}&start_time=${encodeURIComponent(start)}&end_time=${encodeURIComponent(end)}`
       console.log("dashboard url", url)
@@ -262,7 +262,7 @@ export default function TaxiAnalysisModule() {
   // 获取热点分析数据
   const fetchHotspotsData = async () => {
     console.log("开始获取热点分析数据...")
-    const { start, end } = getTimeRange(timeRange, customStart, customEnd)
+    const { start, end } = getTimeRange(customStart, customEnd)
     try {
       // 调用后端新API
       const response = await fetch(`http://localhost:8000/api/hotspots/?event_type=${eventType}&start_time=${encodeURIComponent(start)}&end_time=${encodeURIComponent(end)}`)
@@ -279,7 +279,7 @@ export default function TaxiAnalysisModule() {
 
   // 获取路程分布分析数据（调用Django后端新API）
   const fetchDistanceDistribution = async () => {
-    const { start, end } = getTimeRange(timeRange, customStart, customEnd)
+    const { start, end } = getTimeRange(customStart, customEnd)
     try {
       const response = await fetch(`http://localhost:8000/api/distance-distribution/?start_time=${encodeURIComponent(start)}&end_time=${encodeURIComponent(end)}`)
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
@@ -293,7 +293,7 @@ export default function TaxiAnalysisModule() {
 
   // 获取热门上客点聚类地图数据（前50个）
   const fetchHotspotsMapData = async () => {
-    const { start, end } = getTimeRange(timeRange, customStart, customEnd)
+    const { start, end } = getTimeRange(customStart, customEnd)
     try {
       const response = await fetch(`http://localhost:8000/api/hotspots/?event_type=${eventType}&start_time=${encodeURIComponent(start)}&end_time=${encodeURIComponent(end)}&n_cluster=50`)
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
@@ -322,7 +322,7 @@ export default function TaxiAnalysisModule() {
       // 全部车辆（只取前10辆，防止卡死）
       const ids = vehicleIds.slice(0, 10)
       const all = await Promise.all(ids.map(async id => {
-        const { start, end } = getTimeRange(timeRange, customStart, customEnd)
+        const { start, end } = getTimeRange(customStart, customEnd)
         const res = await fetch(`http://localhost:8000/api/trajectory/?car_plate=${id}&start_time=${encodeURIComponent(start)}&end_time=${encodeURIComponent(end)}`)
         if (res.ok) {
           const data = await res.json()
@@ -335,7 +335,7 @@ export default function TaxiAnalysisModule() {
     } else {
       // 单车
       if (!selectedVehicle) return; // 新增：car_plate 为空不请求
-      const { start, end } = getTimeRange(timeRange, customStart, customEnd)
+      const { start, end } = getTimeRange(customStart, customEnd)
       const res = await fetch(`http://localhost:8000/api/trajectory/?car_plate=${selectedVehicle}&start_time=${encodeURIComponent(start)}&end_time=${encodeURIComponent(end)}`)
       if (res.ok) {
         const data = await res.json()
@@ -370,15 +370,19 @@ export default function TaxiAnalysisModule() {
       fetchTrajectories()
     }
     // eslint-disable-next-line
-  }, [activeView, selectedVehicle, trajectoryMapInstance, timeRange, customStart, customEnd])
+  }, [activeView, selectedVehicle, trajectoryMapInstance, customStart, customEnd])
 
   // 切换eventType、时间等时，彻底清理热力图
   useEffect(() => {
     if (vehicleHeatmapRef.current) {
-      vehicleHeatmapRef.current.setMap(null)
-      vehicleHeatmapRef.current = null
+      if (typeof vehicleHeatmapRef.current.setMap === 'function') {
+        vehicleHeatmapRef.current.setMap(null)
+        vehicleHeatmapRef.current = null
+      } else {
+        vehicleHeatmapRef.current = null
+      }
     }
-  }, [eventType, timeRange, customStart, customEnd])
+  }, [eventType, customStart, customEnd])
 
   // 更新热力图
   const updateHeatmap = (data: any) => {
@@ -396,8 +400,10 @@ export default function TaxiAnalysisModule() {
       return;
     }
     // 彻底清理旧热力图
-    if (vehicleHeatmapRef.current) {
+    if (vehicleHeatmapRef.current && typeof vehicleHeatmapRef.current.setMap === 'function') {
       vehicleHeatmapRef.current.setMap(null)
+      vehicleHeatmapRef.current = null
+    } else {
       vehicleHeatmapRef.current = null
     }
     // 创建新的热力图
@@ -439,7 +445,7 @@ export default function TaxiAnalysisModule() {
       fetchHotspotsMapData()
     }
     // eslint-disable-next-line
-  }, [heatmapMapInstance, timeRange, customStart, customEnd, eventType])
+  }, [heatmapMapInstance, customStart, customEnd, eventType])
 
   // 在eventType变化时，清除热力图和相关地图的图层
   useEffect(() => {
@@ -522,7 +528,7 @@ export default function TaxiAnalysisModule() {
       fetchHotspotsData();
       setIsLoading(false);
     }
-  }, [mapReadyStep, eventType, timeRange, customStart, customEnd]);
+  }, [mapReadyStep, eventType, customStart, customEnd]);
 
   // 简化地图容器，移除minHeight和背景色
   const renderCustomTimeInputs = () => (
@@ -558,7 +564,6 @@ export default function TaxiAnalysisModule() {
             if (data.trajectories) setTrajectories(data.trajectories);
             if (data.hotspotsMapData) setHotspotsMapData(data.hotspotsMapData);
             if (data.distanceDistribution) setDistanceDistribution(data.distanceDistribution);
-            if (data.timeRange) setTimeRange(data.timeRange);
             if (data.customStart) setCustomStart(data.customStart);
             if (data.customEnd) setCustomEnd(data.customEnd);
             if (data.eventType) setEventType(data.eventType);
@@ -609,7 +614,6 @@ export default function TaxiAnalysisModule() {
         trajectories,
         hotspotsMapData,
         distanceDistribution,
-        timeRange,
         customStart,
         customEnd,
         eventType,
@@ -619,7 +623,7 @@ export default function TaxiAnalysisModule() {
         cacheTime: Date.now()
       }));
     }
-  }, [taxiData, dashboardData, trajectories, hotspotsMapData, distanceDistribution, timeRange, customStart, customEnd, eventType, activeView, selectedVehicle, hotspotTab]);
+  }, [taxiData, dashboardData, trajectories, hotspotsMapData, distanceDistribution, customStart, customEnd, eventType, activeView, selectedVehicle, hotspotTab]);
 
   return (
     <div className="space-y-8">
@@ -629,12 +633,41 @@ export default function TaxiAnalysisModule() {
           <p className="text-gray-600 mt-1">出租车运营数据分析与可视化展示</p>
         </div>
         <div className="flex space-x-3">
-          <Button variant="outline" className="border-blue-200 text-blue-600 hover:bg-blue-50 bg-transparent">
-            <Eye className="w-4 h-4 mr-2" />全屏显示
+          <Button
+            variant="outline"
+            className="border-blue-200 text-blue-600 hover:bg-blue-50 bg-white rounded-lg shadow-sm"
+            onClick={() => {
+              fetchTaxiHeatmapData()
+              fetchDashboardData()
+              fetchHotspotsData()
+              fetchDistanceDistribution()
+              fetchHotspotsMapData()
+            }}
+          >
+            <Loader2 className="w-4 h-4 mr-2" />刷新数据
           </Button>
-          <Button className="bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg">
-            <Download className="w-4 h-4 mr-2" />导出分析报告
-          </Button>
+          <div className="flex rounded-lg overflow-hidden">
+            <button
+              className={`px-4 py-2 text-sm font-semibold transition-colors focus:outline-none
+                ${eventType === 'pickup'
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white'
+                  : 'bg-white/70 text-gray-500'}
+              `}
+              onClick={() => setEventType('pickup')}
+              type="button"
+              style={{ border: 'none' }}
+            >上客</button>
+            <button
+              className={`px-4 py-2 text-sm font-semibold transition-colors focus:outline-none
+                ${eventType === 'dropoff'
+                  ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white'
+                  : 'bg-white/70 text-gray-500'}
+              `}
+              onClick={() => setEventType('dropoff')}
+              type="button"
+              style={{ border: 'none' }}
+            >下客</button>
+          </div>
         </div>
       </div>
 
@@ -642,55 +675,15 @@ export default function TaxiAnalysisModule() {
 
       {/* 控制面板 */}
       <Card className="border-0 shadow-lg">
-        <CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">时间范围</label>
-            <Select value={timeRange} onValueChange={setTimeRange}>
-              <SelectTrigger className="h-12">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                  {timeRangeOptions.map(opt => (
-                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                  ))}
-              </SelectContent>
-            </Select>
-            </div>
-            {/* 新增：上客/下客切换按钮 */}
-            <div className="space-y-2 flex flex-col">
-              <label className="text-sm font-medium text-gray-700">类型</label>
-              <div className="flex rounded-lg border border-gray-200 overflow-hidden w-fit">
-                <button
-                  className={`px-4 py-2 text-sm font-semibold transition-colors ${eventType === 'pickup' ? 'bg-blue-600 text-white' : 'bg-white text-blue-600 hover:bg-blue-50'}`}
-                  onClick={() => setEventType('pickup')}
-                  type="button"
-                >上客</button>
-                <button
-                  className={`px-4 py-2 text-sm font-semibold transition-colors border-l border-gray-200 ${eventType === 'dropoff' ? 'bg-green-600 text-white' : 'bg-white text-green-600 hover:bg-green-50'}`}
-                  onClick={() => setEventType('dropoff')}
-                  type="button"
-                >下客</button>
-              </div>
-            </div>
-            {timeRange === "custom" && (
-              <div className="col-span-2">{renderCustomTimeInputs()}</div>
-            )}
-            {/*<div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">数据总量</label>
-              <div className="text-lg font-bold text-blue-600">{taxiData?.total_count ?? "-"}</div>
-            </div>*/}
-            {/* 刷新按钮移动到最右侧，风格统一 */}
-            <div className="flex items-end justify-end md:col-span-1">
-              <Button
-                variant="outline"
-                className="border-blue-200 text-blue-600 hover:bg-blue-50 bg-white rounded-lg shadow-sm"
-                onClick={fetchTaxiHeatmapData}
-              >
-                <Loader2 className="w-4 h-4 mr-2" />刷新数据
-              </Button>
-            </div>
-          </div>
+        <CardHeader className="mb-0">
+          <CardTitle className="text-lg font-bold">时间范围</CardTitle>
+        </CardHeader>
+        <CardContent className="p-3">
+          <CustomRangeSelector
+            timelineRange={timelineRange}
+            setTimelineRange={setTimelineRange}
+            dates={TIMELINE_HALFDAY}
+          />
         </CardContent>
       </Card>
 
@@ -809,7 +802,7 @@ export default function TaxiAnalysisModule() {
                 <SelectTrigger className="w-40">
                   <SelectValue placeholder="全部车辆" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-60 overflow-y-auto">
                   <SelectItem value="all">无</SelectItem>
                   {vehicleIds.map(id => (
                     <SelectItem key={id} value={id}>{id}</SelectItem>
@@ -1205,6 +1198,148 @@ function HotspotsMap({ data, eventType }: { data: any[], eventType: 'pickup' | '
     <div style={{ position: 'relative', width: '100%', height: 400, borderRadius: 16, overflow: 'hidden', border: '1px solid #e5e7eb', marginTop: 32 }}>
       <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
       <div style={{ position: 'absolute', bottom: 8, left: 12, fontSize: 12, color: '#888' }}> </div>
+    </div>
+  )
+}
+
+// 自定义区间选择器组件
+function CustomRangeSelector({ timelineRange, setTimelineRange, dates }: { timelineRange: [number, number], setTimelineRange: (r: [number, number]) => void, dates: string[] }) {
+  const [dragStart, setDragStart] = useState<number | null>(null)
+  const [dragEnd, setDragEnd] = useState<number | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+
+  // 计算当前高亮区间
+  const highlightRange = isDragging && dragStart !== null && dragEnd !== null
+    ? [Math.min(dragStart, dragEnd), Math.max(dragStart, dragEnd)] as [number, number]
+    : timelineRange
+
+  // 鼠标事件
+  const handleMouseDown = (idx: number) => {
+    setDragStart(idx)
+    setDragEnd(idx)
+    setIsDragging(true)
+  }
+  const handleMouseEnter = (idx: number) => {
+    if (isDragging) setDragEnd(idx)
+  }
+  const handleMouseUp = () => {
+    if (isDragging && dragStart !== null && dragEnd !== null) {
+      setTimelineRange([Math.min(dragStart, dragEnd), Math.max(dragStart, dragEnd)])
+    }
+    setIsDragging(false)
+    setDragStart(null)
+    setDragEnd(null)
+  }
+
+  // 轨道和 marks
+  return (
+    <div
+      style={{ width: '100%', padding: '8px 0 0 0', userSelect: 'none', cursor: isDragging ? 'pointer' : 'default' }}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+    >
+      {/* 轨道 */}
+      <div style={{ position: 'relative', height: 60, margin: '0 8px' }}>
+        {/* 背景轨道 */}
+        <div style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          top: 32,
+          height: 18,
+          borderRadius: 9,
+          background: 'linear-gradient(90deg,#e0e7ef 0%,#f3f4f6 100%)',
+          boxShadow: '0 2px 8px #0001',
+        }} />
+        {/* 高亮区间 */}
+        <div style={{
+          position: 'absolute',
+          left: `${(highlightRange[0]) / (dates.length - 1) * 100}%`,
+          width: `${(highlightRange[1] - highlightRange[0]) / (dates.length - 1) * 100}%`,
+          top: 32,
+          height: 18,
+          borderRadius: 9,
+          background: 'linear-gradient(90deg,#3b82f6 0%,#06b6d4 100%)',
+          boxShadow: '0 2px 12px #3b82f633',
+          transition: isDragging ? 'none' : 'left 0.2s, width 0.2s',
+        }} />
+        {/* 日期文字（只在整天节点显示，半天节点不显示） */}
+        <div style={{ position: 'absolute', left: 0, right: 0, top: 0, height: 28, display: 'flex', justifyContent: 'space-between', zIndex: 2 }}>
+          {dates.map((date, idx) => (
+            (idx % 2 === 0 || idx === dates.length - 1) ? (
+              <span
+                key={date}
+                style={{
+                  color: idx >= highlightRange[0] && idx <= highlightRange[1] ? '#2563eb' : '#a3a3a3',
+                  fontWeight: idx >= highlightRange[0] && idx <= highlightRange[1] ? 700 : 400,
+                  fontSize: 16,
+                  minWidth: 44,
+                  textAlign: 'center',
+                  whiteSpace: 'nowrap',
+                  display: 'inline-block',
+                  transition: 'color 0.2s,font-weight 0.2s',
+                  letterSpacing: 1,
+                  cursor: 'pointer',
+                }}>{date.slice(5, 10)}</span>
+            ) : (
+              <span key={date} style={{ minWidth: 44 }}></span>
+            )
+          ))}
+        </div>
+        {/* 鼠标交互区域（条） */}
+        <div
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            top: 34,
+            height: 32,
+            zIndex: 3,
+            cursor: isDragging ? 'pointer' : 'crosshair',
+          }}
+          onMouseDown={e => {
+            const rect = e.currentTarget.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const idx = Math.round(x / rect.width * (dates.length - 1));
+            handleMouseDown(idx);
+          }}
+          onMouseMove={e => {
+            if (!isDragging) return;
+            const rect = e.currentTarget.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            let idx = Math.round(x / rect.width * (dates.length - 1));
+            idx = Math.max(0, Math.min(dates.length - 1, idx));
+            handleMouseEnter(idx);
+          }}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+        >
+          {/* 背景条 */}
+          <div style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            top: 10,
+            height: 12,
+            borderRadius: 6,
+            background: isDragging ? 'linear-gradient(90deg,#e0e7ef 0%,#c7d2fe 100%)' : 'linear-gradient(90deg,#e0e7ef 0%,#f3f4f6 100%)',
+            boxShadow: '0 2px 8px #0001',
+            transition: 'background 0.2s',
+          }} />
+          {/* 高亮区间条 */}
+          <div style={{
+            position: 'absolute',
+            left: `${(highlightRange[0]) / (dates.length - 1) * 100}%`,
+            width: `${(highlightRange[1] - highlightRange[0]) / (dates.length - 1) * 100}%`,
+            top: 10,
+            height: 12,
+            borderRadius: 6,
+            background: 'linear-gradient(90deg,#3b82f6 0%,#06b6d4 100%)',
+            boxShadow: '0 2px 12px #3b82f633',
+            transition: isDragging ? 'none' : 'left 0.2s, width 0.2s',
+          }} />
+        </div>
+      </div>
     </div>
   )
 }

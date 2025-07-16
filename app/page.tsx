@@ -81,7 +81,7 @@ export default function LoginPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          uname: loginData.account,
+          account: loginData.account,
           password: loginData.password
         }),
       });

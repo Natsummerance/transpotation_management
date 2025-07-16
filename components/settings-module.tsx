@@ -54,7 +54,7 @@ export default function SettingsModule({ page = 'profile' }: { page?: 'profile' 
     bio: "",
   })
 
-  const { setUser } = useUser();
+  const { setUser, user } = useUser();
   const { t } = useTranslation();
 
   // 页面加载时获取用户信息
@@ -585,7 +585,7 @@ export default function SettingsModule({ page = 'profile' }: { page?: 'profile' 
           {/* 人脸录入模块 */}
           <FaceRecognitionModule />
           </div>
-        </div>
+      </div>
       )}
       {page === 'system' && (
         <div className="space-y-6">

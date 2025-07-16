@@ -6,6 +6,7 @@ interface User {
   uname: string;
   email: string;
   avatar?: string;
+  role?: string; // 新增
   // ...其他字段
 }
 

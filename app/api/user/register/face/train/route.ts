@@ -50,6 +50,9 @@ export async function POST(request: NextRequest) {
         try {
           const result = JSON.parse(data);
           session.status = 'completed';
+          // 更新用户role为authenticated
+          const { UserService } = require('@/lib/userService');
+          UserService.updateUser(session.user_id, { role: 'authenticated' });
           // 清理 session 和 data 目录
           delete registrationSessions[session_id];
           removeDir(dataDir);

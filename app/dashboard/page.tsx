@@ -132,6 +132,7 @@ export default function Dashboard() {
   const [currentTime, setCurrentTime] = useState(new Date())
   const { user, setUser } = useUser();
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [blockRender, setBlockRender] = useState(false);
   
   // 新增状态管理
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null)
@@ -152,7 +153,18 @@ export default function Dashboard() {
       return;
     }
     setIsAuthenticated(true);
+    // 认证用户访问控制
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      const user = JSON.parse(userData);
+      if (user.role !== 'authenticated') {
+        alert('请先完成人脸认证！');
+        setBlockRender(true);
+        window.location.href = '/profile';
+      }
+    }
   }, []);
+  if (blockRender) return null;
 
   // 获取用户信息
   useEffect(() => {

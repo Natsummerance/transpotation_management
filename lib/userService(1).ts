@@ -69,8 +69,7 @@ export class UserService {
         uname: newUser.uname,
         email: newUser.email,
         phone: newUser.phone,
-        password_hash: hashedPassword,
-        role: 'unauthenticated'
+        password_hash: hashedPassword
       });
 
       return user;

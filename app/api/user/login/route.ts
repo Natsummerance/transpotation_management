@@ -7,18 +7,18 @@ const JWT_SECRET = process.env.JWT_SECRET || 'default_secret_key';
 
 export async function POST(request: NextRequest) {
   try {
-    const { uname, password } = await request.json();
+    const { account, password } = await request.json();
 
     // 参数验证
-    if (!uname || uname.trim() === '') {
-      return NextResponse.json(Result.error('400', '用户名不能为空'));
+    if (!account || account.trim() === '') {
+      return NextResponse.json(Result.error('400', '账号不能为空'));
     }
     if (!password || password.trim() === '') {
       return NextResponse.json(Result.error('400', '密码不能为空'));
     }
 
     // 登录验证
-    const user = await UserService.loginService(uname, password);
+    const user = await UserService.loginService(account, password);
     if (user) {
       // 生成token
       const token = jwt.sign({ uid: user.uid, uname: user.uname }, JWT_SECRET, { expiresIn: '8h' });

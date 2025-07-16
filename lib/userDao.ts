@@ -5,7 +5,9 @@ export interface User {
   uname: string;
   password_hash: string;
   email: string;
+  phone?: string; // 新增
   avatar?: string;
+  role?: string; // 新增
 }
 
 export class UserDao {
@@ -44,6 +46,23 @@ export class UserDao {
   }
 
   /**
+   * 根据手机号查找用户
+   */
+  static async findByPhone(phone: string): Promise<User | null> {
+    try {
+      const [rows] = await pool.execute(
+        'SELECT * FROM user WHERE phone = ?',
+        [phone]
+      );
+      const users = rows as User[];
+      return users.length > 0 ? users[0] : null;
+    } catch (error) {
+      console.error('查询用户失败:', error);
+      throw error;
+    }
+  }
+
+  /**
    * 根据用户ID查找用户
    */
   static async findById(uid: number): Promise<User | null> {
@@ -66,13 +85,14 @@ export class UserDao {
   static async create(user: Omit<User, 'uid'>): Promise<User> {
     try {
       const [result] = await pool.execute(
-        'INSERT INTO user (uname, password_hash, email) VALUES (?, ?, ?)',
-        [user.uname, user.password_hash, user.email]
+        'INSERT INTO user (uname, password_hash, email, phone, role) VALUES (?, ?, ?, ?, ?)',
+        [user.uname, user.password_hash, user.email, user.phone || null, user.role || 'unauthenticated']
       );
       const insertResult = result as any;
       return {
         uid: insertResult.insertId,
-        ...user
+        ...user,
+        role: user.role || 'unauthenticated'
       };
     } catch (error) {
       console.error('创建用户失败:', error);
