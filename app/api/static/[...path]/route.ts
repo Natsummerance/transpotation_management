@@ -4,7 +4,8 @@ import fs from 'fs';
 
 export async function GET(req: NextRequest, { params }: { params: { path: string[] } }) {
   try {
-    const filePath = path.join(process.cwd(), ...params.path);
+    // 修正：加上 'RDD_yolo11' 目录
+    const filePath = path.join(process.cwd(), 'RDD_yolo11', ...params.path);
     
     // 安全检查：确保文件路径在项目目录内
     const projectRoot = process.cwd();
@@ -23,9 +24,6 @@ export async function GET(req: NextRequest, { params }: { params: { path: string
     if (!stats.isFile()) {
       return NextResponse.json({ error: 'Not a file' }, { status: 400 });
     }
-    
-    // 读取文件
-    const fileBuffer = fs.readFileSync(resolvedPath);
     
     // 根据文件扩展名设置Content-Type
     const ext = path.extname(resolvedPath).toLowerCase();
@@ -48,14 +46,74 @@ export async function GET(req: NextRequest, { params }: { params: { path: string
       case '.svg':
         contentType = 'image/svg+xml';
         break;
+      case '.mp4':
+        contentType = 'video/mp4';
+        break;
+      case '.avi':
+        contentType = 'video/x-msvideo';
+        break;
+      case '.mov':
+        contentType = 'video/quicktime';
+        break;
+      case '.webm':
+        contentType = 'video/webm';
+        break;
+      case '.ogg':
+        contentType = 'video/ogg';
+        break;
+      case '.mp3':
+        contentType = 'audio/mpeg';
+        break;
+      case '.wav':
+        contentType = 'audio/wav';
+        break;
+      case '.m4a':
+        contentType = 'audio/mp4';
+        break;
+      case '.m4v':
+        contentType = 'video/mp4';
+        break;
+      case '.m3u8':
+        contentType = 'application/vnd.apple.mpegurl';
+        break;
+      case '.ts':
+        contentType = 'video/mp2t';
+        break;
     }
-    
-    return new NextResponse(fileBuffer, {
-      headers: {
+
+    // 检查是否为视频/音频类型，决定是否处理Range
+    const isMedia = contentType.startsWith('video/') || contentType.startsWith('audio/');
+    const range = req.headers.get('range');
+    if (isMedia && range) {
+      const total = stats.size;
+      const parts = range.replace(/bytes=/, '').split('-');
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : total - 1;
+      if (isNaN(start) || isNaN(end) || start > end || end >= total) {
+        return new NextResponse(null, { status: 416, headers: { 'Content-Range': `bytes */${total}` } });
+      }
+      const chunkSize = (end - start) + 1;
+      const file = fs.createReadStream(resolvedPath, { start, end });
+      const headers = {
+        'Content-Range': `bytes ${start}-${end}/${total}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': chunkSize.toString(),
         'Content-Type': contentType,
+        'Cache-Control': 'public, max-age=31536000',
+      };
+      // @ts-ignore
+      return new NextResponse(file, { status: 206, headers });
+    } else {
+      // 非Range请求，返回整个文件
+      const fileBuffer = fs.readFileSync(resolvedPath);
+      return new NextResponse(fileBuffer, {
+        headers: {
+          'Content-Type': contentType,
+          'Content-Length': stats.size.toString(),
         'Cache-Control': 'public, max-age=31536000',
       },
     });
+    }
     
   } catch (error) {
     console.error('Static file serve error:', error);
