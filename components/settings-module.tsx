@@ -621,7 +621,7 @@ export default function SettingsModule({ page = 'profile' }: { page?: 'profile' 
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent style={{ maxHeight: 240, overflowY: 'auto' }}>
                       <SelectItem value="zh-CN">{t('zh-CN')}</SelectItem>
                       <SelectItem value="zh-TW">{t('zh-TW')}</SelectItem>
                       <SelectItem value="en-US">{t('en-US')}</SelectItem>
