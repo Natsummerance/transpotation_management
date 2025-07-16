@@ -367,7 +367,7 @@ export default function RoadDamageModule() {
   }, [damageRecords, addressCache, fetchAndCacheAddress]);
 
   // 获取检测历史数据
-  const fetchDetectionHistory = useCallback(async () => {
+  const fetchDetectionHistory = async () => {
     setIsLoadingHistory(true);
     try {
       const params = new URLSearchParams({
@@ -392,8 +392,8 @@ export default function RoadDamageModule() {
       const data: DetectionHistoryResponse = await response.json();
       console.log('API返回数据:', data);
       
-      if (data.error) {
-        throw new Error(data.error);
+      if (!response.ok || (data.error && data.error !== '')) {
+        throw new Error(data.error || `HTTP ${response.status}`);
       }
       
       setDamageRecords(data.data || []);
@@ -405,12 +405,12 @@ export default function RoadDamageModule() {
     } finally {
       setIsLoadingHistory(false);
     }
-  }, [currentPage, selectedType, searchTerm]);
+  };
 
-  // 组件加载时获取检测历史
+  // 组件加载和依赖变化时获取检测历史
   useEffect(() => {
     fetchDetectionHistory();
-  }, [fetchDetectionHistory]);
+  }, [currentPage, selectedType, searchTerm]);
 
   // 解析检测结果JSON字符串（保留用于兼容性）
   const parseResults = (resultsJson: string | object): DamageResults => {
@@ -432,6 +432,29 @@ export default function RoadDamageModule() {
       };
     }
   };
+
+  // 新增：统一解析 results 字段，避免筛选失效
+  function parseResultsSafe(results: any): DamageResults {
+    if (!results) return {
+      'D0纵向裂缝': { count: 0, confidence: 0 },
+      'D1横向裂缝': { count: 0, confidence: 0 },
+      'D20龟裂': { count: 0, confidence: 0 },
+      'D40坑洼': { count: 0, confidence: 0 },
+    };
+    if (typeof results === 'string') {
+      try {
+        return JSON.parse(results);
+      } catch {
+        return {
+          'D0纵向裂缝': { count: 0, confidence: 0 },
+          'D1横向裂缝': { count: 0, confidence: 0 },
+          'D20龟裂': { count: 0, confidence: 0 },
+          'D40坑洼': { count: 0, confidence: 0 },
+        };
+      }
+    }
+    return results;
+  }
 
   // 获取主要检测类型（保留用于兼容性）
   const getMainDamageType = (results: DamageResults): string => {
@@ -497,17 +520,18 @@ export default function RoadDamageModule() {
   const filteredDamageRecords = selectedType === 'all'
     ? damageRecords
     : damageRecords.filter(record => {
-        // result 可能是对象或字符串
-        let resultsObj = record.results;
-        if (typeof resultsObj === 'string') {
-          try {
-            resultsObj = JSON.parse(resultsObj);
-          } catch {
-            return false;
-          }
+        const resultsObj = parseResultsSafe(record.results);
+        // 类型保护，确保 selectedType 是 DamageResults 的 key
+        if ([
+          'D0纵向裂缝',
+          'D1横向裂缝',
+          'D20龟裂',
+          'D40坑洼',
+        ].includes(selectedType)) {
+          const key = selectedType as keyof DamageResults;
+          return resultsObj[key] && resultsObj[key].count > 0;
         }
-        // 只显示该类型数量大于0的记录
-        return resultsObj && resultsObj[selectedType] && resultsObj[selectedType].count > 0;
+        return false;
       });
 
   // 处理分页
