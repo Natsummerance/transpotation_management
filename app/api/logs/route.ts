@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { pool } from '@/lib/database';
 
+// 强制动态渲染，避免静态生成错误
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   let connection: any;
   try {
@@ -67,8 +70,37 @@ export async function GET(request: NextRequest) {
         dr.id,
         dr.created_at as time,
         '路面病害' as type,
-        '信息' as level,
-        CONCAT('路面病害检测 - ', COALESCE(JSON_UNQUOTE(JSON_EXTRACT(dr.results, '$.summary.mainDamageType')), '未知类型')) as message,
+        CASE 
+          WHEN JSON_EXTRACT(dr.results, '$."D40坑洼".count') > 0 THEN '严重'
+          WHEN JSON_EXTRACT(dr.results, '$."D20龟裂".count') > 0 THEN '警告'
+          WHEN JSON_EXTRACT(dr.results, '$."D1横向裂缝".count') > 0 OR JSON_EXTRACT(dr.results, '$."D0纵向裂缝".count') > 0 THEN '信息'
+          ELSE '信息'
+        END as level,
+        CONCAT('路面病害检测 - ', 
+          CASE 
+            WHEN JSON_EXTRACT(dr.results, '$."D40坑洼".count') > 0 THEN 
+              CONCAT('坑洼(', JSON_EXTRACT(dr.results, '$."D40坑洼".count'), '处)')
+            WHEN JSON_EXTRACT(dr.results, '$."D20龟裂".count') > 0 THEN 
+              CONCAT('龟裂(', JSON_EXTRACT(dr.results, '$."D20龟裂".count'), '处)')
+            WHEN JSON_EXTRACT(dr.results, '$."D1横向裂缝".count') > 0 THEN 
+              CONCAT('横向裂缝(', JSON_EXTRACT(dr.results, '$."D1横向裂缝".count'), '处)')
+            WHEN JSON_EXTRACT(dr.results, '$."D0纵向裂缝".count') > 0 THEN 
+              CONCAT('纵向裂缝(', JSON_EXTRACT(dr.results, '$."D0纵向裂缝".count'), '处)')
+            ELSE '未检测到病害'
+          END,
+          ' - 置信度: ',
+          CASE 
+            WHEN JSON_EXTRACT(dr.results, '$."D40坑洼".count') > 0 THEN 
+              CONCAT(ROUND(JSON_EXTRACT(dr.results, '$."D40坑洼".confidence') * 100, 1), '%')
+            WHEN JSON_EXTRACT(dr.results, '$."D20龟裂".count') > 0 THEN 
+              CONCAT(ROUND(JSON_EXTRACT(dr.results, '$."D20龟裂".confidence') * 100, 1), '%')
+            WHEN JSON_EXTRACT(dr.results, '$."D1横向裂缝".count') > 0 THEN 
+              CONCAT(ROUND(JSON_EXTRACT(dr.results, '$."D1横向裂缝".confidence') * 100, 1), '%')
+            WHEN JSON_EXTRACT(dr.results, '$."D0纵向裂缝".count') > 0 THEN 
+              CONCAT(ROUND(JSON_EXTRACT(dr.results, '$."D0纵向裂缝".confidence') * 100, 1), '%')
+            ELSE '0%'
+          END
+        ) as message,
         '系统' as user,
         CONCAT(dr.location_lat, ',', dr.location_lng) as ip,
         false as hasVideo,
@@ -199,7 +231,7 @@ export async function GET(request: NextRequest) {
       const [logs] = await connection.execute(unionQuery, allParams);
       
       // 生成CSV内容
-      const csvHeader = '时间,类型,级别,消息,用户,IP地址\n';
+      const csvHeader = '时间,类型,级别,消息,用户,操作地址\n';
       const csvContent = logs.map((log: any) => 
         `"${new Date(log.time).toLocaleString('zh-CN')}","${log.type}","${log.level}","${log.message}","${log.user}","${log.ip}"`
       ).join('\n');

@@ -1,6 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { decryptAES } from "@/lib/crypto";
 
+// 强制动态渲染，避免静态生成错误
+export const dynamic = 'force-dynamic'
+
 export async function POST(request: NextRequest) {
   try {
     let { image, action, userId } = await request.json();

@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { pool, checkPoolHealth } from '@/lib/database';
 
+// 强制动态渲染，避免静态生成错误
+export const dynamic = 'force-dynamic'
+
 // 高德地图逆地理编码API
 async function getAddressFromCoordinates(lat: number, lng: number): Promise<string> {
   try {

@@ -3,48 +3,34 @@ import { pool } from '@/lib/database'
 import type { NextRequest } from 'next/server'
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = request.nextUrl
-  const start = searchParams.get('start')
-  const end = searchParams.get('end')
-  let where = ''
-  let params: any[] = []
-  if (start && end) {
-    where = 'WHERE DATE(timestamp) >= ? AND DATE(timestamp) <= ?'
-    params = [start, end]
-  }
+  // 1. 所有损坏点经纬度
+  const [pointRows] = await pool.execute(
+    'SELECT location_lat AS lat, location_lng AS lng FROM damage_reports'
+  )
+  const points = Array.isArray(pointRows) ? pointRows : []
 
-  // 1. 损坏类型分布
+  // 2. 损坏类型分布
   const [typeRows] = await pool.execute(
-    `SELECT JSON_UNQUOTE(JSON_EXTRACT(results, '$.type')) as type, COUNT(*) as count FROM damage_reports ${where} GROUP BY type`,
-    params
+    `SELECT JSON_UNQUOTE(JSON_EXTRACT(results, '$.type')) AS type, COUNT(*) AS count FROM damage_reports GROUP BY type`
   )
   const typeStats = Array.isArray(typeRows) ? typeRows : []
 
-  // 2. 地理热力数据
-  const [heatRows] = await pool.execute(
-    `SELECT location_lat as lat, location_lng as lng FROM damage_reports ${where}`,
-    params
-  )
-  const heatmap = Array.isArray(heatRows) ? heatRows : []
-
-  // 3. 时间趋势
+  // 3. 损坏上报趋势
   const [trendRows] = await pool.execute(
-    `SELECT DATE(timestamp) as date, COUNT(*) as count FROM damage_reports ${where} GROUP BY date ORDER BY date DESC LIMIT 30`,
-    params
+    'SELECT DATE(timestamp) AS date, COUNT(*) AS count FROM damage_reports GROUP BY date ORDER BY date DESC'
   )
-  const timeTrend = Array.isArray(trendRows) ? trendRows : []
+  const trend = Array.isArray(trendRows) ? trendRows : []
 
-  // 4. 图片列表
+  // 4. 最新损坏图片
   const [imgRows] = await pool.execute(
-    `SELECT result_image as url, timestamp as time FROM damage_reports ${where ? where + ' AND' : 'WHERE'} result_image IS NOT NULL ORDER BY timestamp DESC LIMIT 20`,
-    params
+    'SELECT result_image AS url, timestamp AS time FROM damage_reports WHERE result_image IS NOT NULL ORDER BY timestamp DESC LIMIT 20'
   )
   const images = Array.isArray(imgRows) ? imgRows : []
 
   return NextResponse.json({
+    points,
     typeStats,
-    heatmap,
-    timeTrend,
+    trend,
     images,
   })
 } 

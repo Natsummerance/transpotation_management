@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { EmailService } from '@/lib/emailService';
 import { Result } from '@/lib/result';
 
+// 强制动态渲染，避免静态生成错误
+export const dynamic = 'force-dynamic'
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
