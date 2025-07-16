@@ -682,7 +682,9 @@ export default function SettingsModule({ page = 'profile' }: { page?: 'profile' 
                   onCheckedChange={(checked) => setSystemSettings({ ...systemSettings, soundEnabled: checked })}
                 />
               </div>
-              <Button onClick={handleSaveSystemSettings} disabled={isLoading} className="w-full">
+              <Button onClick={handleSaveSystemSettings} disabled={isLoading} 
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white h-10 sm:h-12 text-sm sm:text-base"
+              >
                 {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                 {t('save')}
               </Button>
