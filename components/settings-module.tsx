@@ -625,6 +625,16 @@ export default function SettingsModule({ page = 'profile' }: { page?: 'profile' 
                       <SelectItem value="zh-CN">{t('zh-CN')}</SelectItem>
                       <SelectItem value="zh-TW">{t('zh-TW')}</SelectItem>
                       <SelectItem value="en-US">{t('en-US')}</SelectItem>
+                      <SelectItem value="ja-JP">{t('ja-JP')}</SelectItem>
+                      <SelectItem value="ko-KR">{t('ko-KR')}</SelectItem>
+                      <SelectItem value="fr-FR">{t('fr-FR')}</SelectItem>
+                      <SelectItem value="de-DE">{t('de-DE')}</SelectItem>
+                      <SelectItem value="it-IT">{t('it-IT')}</SelectItem>
+                      <SelectItem value="es-ES">{t('es-ES')}</SelectItem>
+                      <SelectItem value="pt-PT">{t('pt-PT')}</SelectItem>
+                      <SelectItem value="el-GR">{t('el-GR')}</SelectItem>
+                      <SelectItem value="ar-SA">{t('ar-SA')}</SelectItem>
+                      <SelectItem value="ru-RU">{t('ru-RU')}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

@@ -96,6 +96,14 @@ export default function TaxiAnalysisModule() {
   const [trajectoryMapInstance, setTrajectoryMapInstance] = useState<any>(null);
   const [hotspotsMapInstance, setHotspotsMapInstance] = useState<any>(null);
 
+  // 缓存 key
+  const TAXI_ANALYSIS_CACHE_KEY = 'taxi_analysis_cache';
+  // 热门上客区域排行Tab状态（如有）
+  const [hotspotTab, setHotspotTab] = useState('rank'); // 如无tab可忽略
+  const [isFromCache, setIsFromCache] = useState(false); // 标记热力图数据来源
+  // 标记是否已恢复缓存
+  const [hasRestoredCache, setHasRestoredCache] = useState(false);
+
   // 加载高德地图和出租车数据
   useEffect(() => {
     const loadMapAndData = async () => {
@@ -374,9 +382,18 @@ export default function TaxiAnalysisModule() {
 
   // 更新热力图
   const updateHeatmap = (data: any) => {
-    if (!heatmapMapInstance) {
-      console.log("地图实例未准备好")
-      return
+    // 终极防御：地图实例、插件、容器都必须 ready
+    if (
+      !heatmapMapInstance ||
+      typeof heatmapMapInstance.add !== "function" ||
+      typeof heatmapMapInstance.getCenter !== "function" ||
+      typeof window.AMap?.HeatMap !== "function" ||
+      !mapRef.current ||
+      !(mapRef.current instanceof Element) ||
+      typeof heatmapMapInstance.getContainer !== "function" ||
+      !(heatmapMapInstance.getContainer() instanceof Element)
+    ) {
+      return;
     }
     // 彻底清理旧热力图
     if (vehicleHeatmapRef.current) {
@@ -385,24 +402,28 @@ export default function TaxiAnalysisModule() {
     }
     // 创建新的热力图
     if (data.heatmapData && data.heatmapData.length > 0) {
-      console.log("创建热力图，数据点数:", data.heatmapData.length)
-      const heatmap = new window.AMap.HeatMap(heatmapMapInstance, {
-        radius: 25,
-        opacity: [0, 0.8],
-        gradient: {
-          0.4: "blue",
-          0.6: "cyan",
-          0.7: "lime",
-          0.8: "yellow",
-          1.0: "red",
-        },
-      })
-      heatmap.setDataSet({
-        data: data.heatmapData,
-        max: 100,
-      })
-      vehicleHeatmapRef.current = heatmap
-      console.log("热力图创建成功")
+      try {
+        console.log("创建热力图，数据点数:", data.heatmapData.length)
+        const heatmap = new window.AMap.HeatMap(heatmapMapInstance, {
+          radius: 25,
+          opacity: [0, 0.8],
+          gradient: {
+            0.4: "blue",
+            0.6: "cyan",
+            0.7: "lime",
+            0.8: "yellow",
+            1.0: "red",
+          },
+        })
+        heatmap.setDataSet({
+          data: data.heatmapData,
+          max: 100,
+        })
+        vehicleHeatmapRef.current = heatmap
+        console.log("热力图创建成功")
+      } catch (e) {
+        console.error("热力图创建失败", e, heatmapMapInstance, mapRef.current)
+      }
     } else {
       console.log("无热力图数据")
     }
@@ -450,13 +471,13 @@ export default function TaxiAnalysisModule() {
   // 依次初始化底图
   useEffect(() => {
     if (mapReadyStep === 0 && mapRef.current && window.AMap) {
-      // 初始化热力图底图
+      // 只允许赋值为地图实例
       const map = new window.AMap.Map(mapRef.current, {
         zoom: 11,
         center: [117.0009, 36.6758],
         mapStyle: "amap://styles/normal",
       });
-      setHeatmapMapInstance(map);
+      setHeatmapMapInstance(map); // 这里必须是 map 实例
       map.on('complete', () => setMapReadyStep(1));
     }
   }, [mapReadyStep, mapRef.current, window.AMap]);
@@ -522,6 +543,83 @@ export default function TaxiAnalysisModule() {
       <Button size="sm" onClick={fetchTaxiHeatmapData} className="ml-2">查询</Button>
     </div>
   )
+
+  const CACHE_EXPIRE_MS = 1000 * 60 * 60; // 1小时有效
+  useEffect(() => {
+    // 只在首次加载时尝试恢复缓存
+    if (!hasRestoredCache) {
+      const cache = localStorage.getItem(TAXI_ANALYSIS_CACHE_KEY);
+      if (cache) {
+        try {
+          const data = JSON.parse(cache);
+          if (data.cacheTime && Date.now() - data.cacheTime < CACHE_EXPIRE_MS) {
+            if (data.taxiData) setTaxiData(data.taxiData);
+            if (data.dashboardData) setDashboardData(data.dashboardData);
+            if (data.trajectories) setTrajectories(data.trajectories);
+            if (data.hotspotsMapData) setHotspotsMapData(data.hotspotsMapData);
+            if (data.distanceDistribution) setDistanceDistribution(data.distanceDistribution);
+            if (data.timeRange) setTimeRange(data.timeRange);
+            if (data.customStart) setCustomStart(data.customStart);
+            if (data.customEnd) setCustomEnd(data.customEnd);
+            if (data.eventType) setEventType(data.eventType);
+            if (data.activeView) setActiveView(data.activeView);
+            if (data.selectedVehicle) setSelectedVehicle(data.selectedVehicle);
+            if (data.hotspotTab) setHotspotTab(data.hotspotTab);
+            setIsLoading(false);
+            setIsHeatmapLoading(false);
+            setIsFromCache(true);
+            setHasRestoredCache(true);
+            return;
+          }
+        } catch (e) {
+          // 缓存损坏，忽略
+        }
+      }
+      setHasRestoredCache(true); // 没有缓存也标记，防止后续重复
+    }
+  }, [hasRestoredCache]);
+
+  // 只在首次加载且无缓存时请求数据
+  useEffect(() => {
+    if (hasRestoredCache && !isFromCache && !taxiData) {
+      // 只请求一次
+      setIsLoading(true);
+      setIsHeatmapLoading(true);
+      fetchTaxiHeatmapData();
+      fetchDashboardData();
+      fetchHotspotsData();
+      fetchDistanceDistribution();
+      fetchHotspotsMapData();
+    }
+  }, [hasRestoredCache, isFromCache]);
+
+  // 地图实例/底图 ready 后不再重复请求数据，只负责渲染
+  useEffect(() => {
+    if (heatmapMapInstance && taxiData && taxiData.heatmapData) {
+      updateHeatmap({ heatmapData: taxiData.heatmapData });
+    }
+  }, [heatmapMapInstance, taxiData]);
+
+  useEffect(() => {
+    // 只要关键数据都加载了就缓存
+    if (taxiData && dashboardData && trajectories && hotspotsMapData && distanceDistribution) {
+      localStorage.setItem(TAXI_ANALYSIS_CACHE_KEY, JSON.stringify({
+        taxiData,
+        dashboardData,
+        trajectories,
+        hotspotsMapData,
+        distanceDistribution,
+        timeRange,
+        customStart,
+        customEnd,
+        eventType,
+        activeView,
+        selectedVehicle,
+        hotspotTab,
+        cacheTime: Date.now()
+      }));
+    }
+  }, [taxiData, dashboardData, trajectories, hotspotsMapData, distanceDistribution, timeRange, customStart, customEnd, eventType, activeView, selectedVehicle, hotspotTab]);
 
   return (
     <div className="space-y-8">
@@ -689,6 +787,9 @@ export default function TaxiAnalysisModule() {
                     <p className="text-xs text-gray-400">API: 72ea028abc28fc7412f92d884311e74a</p>
                   </div>
                 </div>
+              )}
+              {isFromCache && (
+                <div className="absolute top-2 right-2 z-20 text-xs text-green-600 bg-white/80 px-2 py-1 rounded shadow">已从缓存恢复</div>
               )}
               <div ref={mapRef} className="w-full h-96 rounded-xl border" />
               <div className="absolute bottom-2 left-2 text-xs text-gray-400"> </div>

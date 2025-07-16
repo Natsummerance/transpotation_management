@@ -1,0 +1,12 @@
+{
+  "theme": "light",
+  "language": "zh-CN",
+  "timezone": "Asia/Shanghai",
+  "dateFormat": "YYYY-MM-DD",
+  "autoSave": true,
+  "notifications": true,
+  "emailNotifications": true,
+  "smsNotifications": false,
+  "soundEnabled": true,
+  "autoLogout": 30
+}

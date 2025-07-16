@@ -96,5 +96,15 @@
   "receive_important_notifications_via_sms": "Receive important notifications via SMS",
   "notification_types": "Notification Types",
   "enabled": "Enabled",
-  "authenticated": "Authenticated"
+  "authenticated": "Authenticated",
+  "ja-JP": "Japanese",
+  "ko-KR": "Korean",
+  "fr-FR": "French",
+  "de-DE": "German",
+  "it-IT": "Italian",
+  "es-ES": "Spanish",
+  "pt-PT": "Portuguese",
+  "el-GR": "Greek",
+  "ar-SA": "Arabic",
+  "ru-RU": "Russian"
 } 

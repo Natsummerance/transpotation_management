@@ -1,33 +1,31 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
+import HttpApi from 'i18next-http-backend';
 
-// 语言资源
-const resources = {
-  'zh-CN': {
-    translation: require('../public/locales/zh-CN/translation.json'),
-  },
-  'zh-TW': {
-    translation: require('../public/locales/zh-TW/translation.json'),
-  },
-  'en-US': {
-    translation: require('../public/locales/en-US/translation.json'),
-  },
-};
+// 动态加载语言包，不再静态 require 资源
 
 i18n
+  .use(HttpApi)
   .use(LanguageDetector)
   .use(initReactI18next)
   .init({
-    resources,
     fallbackLng: 'zh-CN',
+    supportedLngs: [
+      'zh-CN', 'zh-TW', 'en-US', 'ja-JP', 'ko-KR', 'fr-FR', 'de-DE', 'it-IT', 'es-ES', 'pt-PT', 'el-GR', 'ar-SA', 'ru-RU'
+    ],
+    backend: {
+      loadPath: '/locales/{{lng}}/translation.json',
+    },
     interpolation: {
       escapeValue: false,
     },
-    supportedLngs: ['zh-CN', 'zh-TW', 'en-US'],
     detection: {
       order: ['localStorage', 'navigator'],
       caches: ['localStorage'],
+    },
+    react: {
+      useSuspense: false,
     },
   });
 

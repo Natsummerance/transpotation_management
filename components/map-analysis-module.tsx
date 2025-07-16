@@ -17,6 +17,18 @@ declare global {
   }
 }
 
+// 工具函数：格式化为 'YYYY-MM-DD HH:mm:ss'
+function formatDateTime(dt: Date | string) {
+  if (typeof dt === 'string') {
+    // 已经是字符串，尝试转为 Date
+    const d = new Date(dt)
+    if (isNaN(d.getTime())) return dt // 不是有效日期，直接返回原字符串
+    dt = d
+  }
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}:${pad(dt.getSeconds())}`;
+}
+
 export default function MapAnalysisModule() {
   const [selectedTimeRange, setSelectedTimeRange] = useState("today")
   const [selectedLayer, setSelectedLayer] = useState("none")  // 默认无图层
@@ -88,15 +100,20 @@ export default function MapAnalysisModule() {
   // 获取时空分析数据
   const fetchAnalysisData = async () => {
     try {
-      const params = new URLSearchParams({
+      // 统一格式化时间参数
+      let params = new URLSearchParams({
         timeRange: selectedTimeRange,
         layer: selectedLayer
       });
-      
-      if (selectedLayer === "vehicle_heatmap") {
-        params.append('current_time', currentTime);
+      if (selectedLayer === "vehicle_heatmap" && currentTime) {
+        params.append('current_time', formatDateTime(currentTime));
       }
-      
+      // 其它图层如 trajectory_points 也需要 current_time
+      if (selectedLayer === "trajectory_points" && currentTime) {
+        params.append('current_time', formatDateTime(currentTime));
+      }
+      // 其它需要自定义时间范围的情况
+      // TODO: 如果后端需要 start_time/end_time，需补充
       const response = await fetch(`/api/analysis/spatiotemporal?${params.toString()}`)
       if (response.ok) {
         const data = await response.json()
@@ -669,7 +686,7 @@ export default function MapAnalysisModule() {
               </div>
             )}
             <div ref={mapRef} className="w-full h-96 rounded-xl border" />
-            <div className="absolute bottom-2 left-2 text-xs text-gray-400"></div>
+            <div className="absolute bottom-2 left-2 text-xs text-gray-400">© 高德地图</div>
           </div>
         </CardContent>
       </Card>
@@ -795,21 +812,12 @@ export default function MapAnalysisModule() {
               </div>
               {selectedDamage.result_image && (
                 <div className="w-full flex justify-center items-center bg-gray-50 rounded-xl mt-2 overflow-hidden group transition-all duration-300" style={{height:'auto', padding:'0'}}>
-                  {/\.(mp4|avi|webm)$/i.test(selectedDamage.result_image) ? (
-                    <video
-                      src={selectedDamage.result_image}
-                      controls
-                      className="w-full max-h-[400px] rounded-xl object-contain bg-black"
-                      style={{display:'block', margin:'0 auto'}}
-                    />
-                  ) : (
-                    <img
-                      src={selectedDamage.result_image}
-                      alt="病害图片"
-                      className="object-contain max-w-full max-h-[400px] transition-transform duration-300 ease-in-out group-hover:scale-110 group-hover:shadow-2xl group-hover:border-blue-400 group-hover:border-2 rounded-xl cursor-zoom-in"
-                      style={{display:'block', margin:'0 auto', width:'100%', height:'100%'}}
-                    />
-                  )}
+                  <img
+                    src={selectedDamage.result_image}
+                    alt="病害图片"
+                    className="object-contain max-w-full max-h-60 transition-transform duration-300 ease-in-out group-hover:scale-110 group-hover:shadow-2xl group-hover:border-blue-400 group-hover:border-2 rounded-xl cursor-zoom-in"
+                    style={{display:'block', margin:'0 auto', width:'100%', height:'100%'}}
+                  />
                 </div>
               )}
             </div>
