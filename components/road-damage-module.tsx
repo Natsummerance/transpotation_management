@@ -42,6 +42,7 @@ interface DetectionResponse {
     'D40坑洼': DamageStats;
   };
   resultImage?: string;
+  result_image?: string;
 }
 
 // 检测历史记录接口
@@ -697,9 +698,11 @@ const handleUploadAndAnalyze = async (file: File) => {
       console.warn('API响应中没有results字段');
     }
     
-    if (data.resultImage) {
-      setResultImage(data.resultImage);
-      console.log('设置结果图片:', data.resultImage);
+    // 兼容 resultImage 和 result_image 字段
+    const resultImg = data.resultImage || data.result_image;
+    if (resultImg) {
+      setResultImage(resultImg);
+      console.log('设置结果图片:', resultImg);
     } else {
       console.warn('API响应中没有resultImage字段');
     }
@@ -866,12 +869,12 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
             {uploadedFile && !isAnalyzing ? (
               <>
                 <div className="w-full flex justify-center items-center bg-muted rounded-md overflow-hidden" style={{ minHeight: 180, maxHeight: 400 }}>
-                  {resultImage && (/\.(mp4|avi|webm)$/i.test(resultImage) ? (
+                  {resultImage && (/(\.mp4|\.avi|\.webm)$/i.test(resultImage) ? (
                     <video
                       src={resultImage}
                       controls
-                      className="max-w-full max-h-[400px] rounded-lg"
-                      style={{ display: 'block', margin: '0 auto', background: '#000' }}
+                      className="w-full max-h-[400px] rounded-lg object-contain bg-black"
+                      style={{ display: 'block', margin: '0 auto' }}
                     />
                   ) : (
                     <img
@@ -1057,7 +1060,24 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                       <CardContent className="p-3">
                         <div className="flex">
                           {/* 小圆角正方形图片缩略图 */}
-                          <div className="relative w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 overflow-hidden mr-2">
+                          <div className="relative w-16 h-16 sm:w-20 sm:h-20 flex-shrink-0 overflow-hidden mr-2 group">
+                            {/\.(mp4|avi|webm)$/i.test(record.result_image) ? (
+                              <video
+                                src={record.result_image}
+                                className="w-full h-full object-cover rounded-xl border border-gray-200"
+                                muted
+                                loop
+                                preload="metadata"
+                                poster="/placeholder.svg"
+                                ref={el => {
+                                  if (el) {
+                                    el.onmouseenter = () => { el.currentTime = 0; el.play(); };
+                                    el.onmouseleave = () => { el.pause(); el.currentTime = 0; };
+                                  }
+                                }}
+                                style={{ objectFit: 'cover', background: '#000', cursor: 'pointer' }}
+                              />
+                            ) : (
                             <img
                               src={record.result_image || "/placeholder.svg"}
                               alt="检测结果"
@@ -1066,6 +1086,7 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                                 (e.target as HTMLImageElement).src = "/placeholder.svg";
                               }}
                             />
+                            )}
                             {/* 状态指示器 */}
                             <div className="absolute top-1 right-1">
                               {record.totalCount > 0 ? (
@@ -1245,6 +1266,14 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                     检测结果图片
                   </h3>
                   <div className="flex justify-center items-center p-2">
+                    {selectedRecord.result_image && (/\.(mp4|avi|webm)$/i.test(selectedRecord.result_image)) ? (
+                      <video
+                        src={selectedRecord.result_image}
+                        controls
+                        className="w-full max-h-[400px] rounded-lg object-contain bg-black"
+                        style={{ display: 'block', margin: '0 auto' }}
+                      />
+                    ) : (
                     <img 
                       src={selectedRecord.result_image || "/placeholder.svg"} 
                       alt="检测结果" 
@@ -1254,6 +1283,7 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
                       }}
                       style={{ display: 'block', margin: '0 auto' }}
                     />
+                    )}
                   </div>
                 </div>
 

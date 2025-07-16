@@ -578,10 +578,10 @@ export default function TaxiAnalysisModule() {
             {timeRange === "custom" && (
               <div className="col-span-2">{renderCustomTimeInputs()}</div>
             )}
-            <div className="space-y-2">
+            {/*<div className="space-y-2">
               <label className="text-sm font-medium text-gray-700">数据总量</label>
               <div className="text-lg font-bold text-blue-600">{taxiData?.total_count ?? "-"}</div>
-            </div>
+            </div>*/}
             {/* 刷新按钮移动到最右侧，风格统一 */}
             <div className="flex items-end justify-end md:col-span-1">
               <Button
@@ -691,7 +691,7 @@ export default function TaxiAnalysisModule() {
                 </div>
               )}
               <div ref={mapRef} className="w-full h-96 rounded-xl border" />
-              <div className="absolute bottom-2 left-2 text-xs text-gray-400">© 高德地图</div>
+              <div className="absolute bottom-2 left-2 text-xs text-gray-400"> </div>
             </div>
           </CardContent>
         </Card>
@@ -727,7 +727,7 @@ export default function TaxiAnalysisModule() {
                 </div>
               )}
               <div ref={trajectoryMapRef} className="w-full h-80 rounded-xl border bg-gradient-to-br from-blue-50 to-cyan-50" />
-              <div className="absolute bottom-2 left-2 text-xs text-gray-400">© 高德地图</div>
+              <div className="absolute bottom-2 left-2 text-xs text-gray-400"> </div>
             </div>
           </CardContent>
         </Card>
@@ -1099,27 +1099,11 @@ function HotspotsMap({ data, eventType }: { data: any[], eventType: 'pickup' | '
     })
   }, [mapInstance, data, eventType])
 
-  // 图例
-  const legend = (
-    <div style={{ position: 'absolute', right: 16, bottom: 16, background: '#fff', borderRadius: 8, boxShadow: '0 2px 8px #0001', padding: 12, zIndex: 999 }}>
-      <div style={{ fontWeight: 'bold', marginBottom: 4 }}>图例</div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        {[1, 10, 20, 30, 40, 50].map((rank, i) => (
-          <div key={rank} style={{ display: 'flex', alignItems: 'center', marginRight: 8 }}>
-            <span style={{ width: 16, height: 16, borderRadius: 8, background: colorList[i], display: 'inline-block', marginRight: 4, boxShadow: '0 2px 8px #0002' }}></span>
-            <span style={{ fontSize: 12 }}>#{rank}</span>
-          </div>
-        ))}
-      </div>
-      <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>颜色区分排名，点击Marker查看{eventType === 'pickup' ? '上客点' : '下客点'}详情</div>
-    </div>
-  )
 
   return (
     <div style={{ position: 'relative', width: '100%', height: 400, borderRadius: 16, overflow: 'hidden', border: '1px solid #e5e7eb', marginTop: 32 }}>
       <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
-      {legend}
-      <div style={{ position: 'absolute', bottom: 8, left: 12, fontSize: 12, color: '#888' }}>© 高德地图</div>
+      <div style={{ position: 'absolute', bottom: 8, left: 12, fontSize: 12, color: '#888' }}> </div>
     </div>
   )
 }

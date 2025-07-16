@@ -669,7 +669,7 @@ export default function MapAnalysisModule() {
               </div>
             )}
             <div ref={mapRef} className="w-full h-96 rounded-xl border" />
-            <div className="absolute bottom-2 left-2 text-xs text-gray-400">© 高德地图</div>
+            <div className="absolute bottom-2 left-2 text-xs text-gray-400"></div>
           </div>
         </CardContent>
       </Card>
@@ -795,12 +795,21 @@ export default function MapAnalysisModule() {
               </div>
               {selectedDamage.result_image && (
                 <div className="w-full flex justify-center items-center bg-gray-50 rounded-xl mt-2 overflow-hidden group transition-all duration-300" style={{height:'auto', padding:'0'}}>
-                  <img
-                    src={selectedDamage.result_image}
-                    alt="病害图片"
-                    className="object-contain max-w-full max-h-60 transition-transform duration-300 ease-in-out group-hover:scale-110 group-hover:shadow-2xl group-hover:border-blue-400 group-hover:border-2 rounded-xl cursor-zoom-in"
-                    style={{display:'block', margin:'0 auto', width:'100%', height:'100%'}}
-                  />
+                  {/\.(mp4|avi|webm)$/i.test(selectedDamage.result_image) ? (
+                    <video
+                      src={selectedDamage.result_image}
+                      controls
+                      className="w-full max-h-[400px] rounded-xl object-contain bg-black"
+                      style={{display:'block', margin:'0 auto'}}
+                    />
+                  ) : (
+                    <img
+                      src={selectedDamage.result_image}
+                      alt="病害图片"
+                      className="object-contain max-w-full max-h-[400px] transition-transform duration-300 ease-in-out group-hover:scale-110 group-hover:shadow-2xl group-hover:border-blue-400 group-hover:border-2 rounded-xl cursor-zoom-in"
+                      style={{display:'block', margin:'0 auto', width:'100%', height:'100%'}}
+                    />
+                  )}
                 </div>
               )}
             </div>
