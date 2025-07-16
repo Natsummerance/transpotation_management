@@ -9,6 +9,19 @@ import numpy as np
 import requests
 from .distance_distribution import analyze_distance_distribution
 import math
+import os, json
+
+# 持久化地名缓存
+CACHE_FILE = 'location_cache.json'
+if os.path.exists(CACHE_FILE):
+    with open(CACHE_FILE, 'r', encoding='utf-8') as f:
+        location_cache = json.load(f)
+else:
+    location_cache = {}
+
+def save_location_cache():
+    with open(CACHE_FILE, 'w', encoding='utf-8') as f:
+        json.dump(location_cache, f, ensure_ascii=False)
 
 class HeatmapDataView(APIView):
     """热力图数据API视图"""
@@ -459,7 +472,8 @@ class HotspotsAnalysisView(APIView):
                 point_counts = np.array([row[2] for row in results])
                 avg_speeds = np.array([row[3] for row in results])
                 occupied_counts = np.array([row[4] for row in results])
-                kmeans = KMeans(n_clusters=n_clusters, random_state=0, n_init=10)
+                # 修正 n_init 类型为 int
+                kmeans = KMeans(n_clusters=n_clusters, random_state=0, n_init='auto')
                 labels = kmeans.fit_predict(coords, sample_weight=point_counts)
                 clusters = []
                 for i in range(n_clusters):
@@ -485,6 +499,9 @@ class HotspotsAnalysisView(APIView):
                 clusters = sorted(clusters, key=lambda x: x['orders'], reverse=True)[:n_cluster]
                 # 逆地理编码，空位置重试一次
                 def get_location_name(lat, lng, amap_key='c6115796bfbad53bd639041995b5b123', max_retry=2):
+                    key = f'{lat:.5f},{lng:.5f}'
+                    if key in location_cache:
+                        return location_cache[key]
                     url = f'https://restapi.amap.com/v3/geocode/regeo?location={lng},{lat}&key={amap_key}&radius=100&extensions=base'
                     for _ in range(max_retry):
                         try:
@@ -497,9 +514,13 @@ class HotspotsAnalysisView(APIView):
                                     if address == '山东省济南市天桥区无影山街道无影山中路万虹中心(建设中)':
                                         address = '山东省济南市天桥区无影山街道无影山中路济南汽车总站'
                                     if address:
+                                        location_cache[key] = address
+                                        save_location_cache()
                                         return address
                         except Exception as e:
                             print(f'高德API异常: {e}')
+                    location_cache[key] = ''
+                    save_location_cache()
                     return ''
                 hotspots = []
                 for i, cluster in enumerate(clusters):
