@@ -99,11 +99,18 @@ export default function TaxiAnalysisModule() {
   // 时间轴滑块值，0-(TIMELINE_HALFDAY.length-1)分别对应TIMELINE_HALFDAY
   const [timelineRange, setTimelineRange] = useState<[number, number]>([0, 1])
 
-  // 时间轴变更时，更新customStart/customEnd
+  // 时间轴变更时，更新customStart/customEnd（修正为:00结尾）
   useEffect(() => {
-    setCustomStart(TIMELINE_HALFDAY[timelineRange[0]])
-    setCustomEnd(TIMELINE_HALFDAY[timelineRange[1]])
-  }, [timelineRange])
+    // 统一补全为 %Y-%m-%d %H:%M:%S
+    function padToFull(dt: string, end = false) {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dt)) return dt + (end ? ' 23:59:59' : ' 00:00:00');
+      if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(dt)) return dt + ':00';
+      if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(dt)) return dt;
+      return dt;
+    }
+    setCustomStart(padToFull(TIMELINE_HALFDAY[timelineRange[0]]));
+    setCustomEnd(padToFull(TIMELINE_HALFDAY[timelineRange[1]], true));
+  }, [timelineRange]);
 
   // 加载高德地图和出租车数据
   useEffect(() => {
@@ -625,6 +632,64 @@ export default function TaxiAnalysisModule() {
     }
   }, [taxiData, dashboardData, trajectories, hotspotsMapData, distanceDistribution, customStart, customEnd, eventType, activeView, selectedVehicle, hotspotTab]);
 
+  // 新增：客流量分布相关状态
+  const [flowMode, setFlowMode] = useState<'weekly'|'custom'>('weekly');
+  const [flowData, setFlowData] = useState<any[]>([]);
+  const [flowStats, setFlowStats] = useState<any>(null);
+  const [flowLoading, setFlowLoading] = useState(false);
+  const FLOW_CACHE_KEY = 'weekly_passenger_flow_cache';
+
+  // 工具函数：补全日期为YYYY-MM-DD HH:mm:ss
+  function padDateTime(dt: string, end = false) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dt)) return dt + (end ? ' 23:59:59' : ' 00:00:00');
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(dt)) return dt + ':00';
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(dt)) return dt;
+    return dt;
+  }
+
+  // 拉取客流量分布数据
+  useEffect(() => {
+    let ignore = false;
+    async function fetchFlow() {
+      setFlowLoading(true);
+      if (flowMode === 'weekly') {
+        // 先查缓存
+        const cache = localStorage.getItem(FLOW_CACHE_KEY);
+        if (cache) {
+          try {
+            const data = JSON.parse(cache);
+            if (data && Array.isArray(data.flow_data)) {
+              setFlowData(data.flow_data);
+              setFlowStats(data.statistics);
+              setFlowLoading(false);
+              return;
+            }
+          } catch {}
+        }
+      }
+      // 请求后端
+      let url = 'http://localhost:8000/api/weekly-passenger-flow/?mode=' + flowMode;
+      if (flowMode === 'custom') {
+        url += `&custom_start=${encodeURIComponent(padDateTime(customStart))}`;
+        url += `&custom_end=${encodeURIComponent(padDateTime(customEnd, true))}`;
+      }
+      const res = await fetch(url);
+      if (!res.ok) {
+        setFlowData([]); setFlowStats(null); setFlowLoading(false); return;
+      }
+      const data = await res.json();
+      if (ignore) return;
+      setFlowData(data.flow_data || []);
+      setFlowStats(data.statistics || null);
+      if (flowMode === 'weekly') {
+        localStorage.setItem(FLOW_CACHE_KEY, JSON.stringify(data));
+      }
+      setFlowLoading(false);
+    }
+    fetchFlow();
+    return () => { ignore = true; };
+  }, [flowMode, customStart, customEnd]);
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -830,25 +895,58 @@ export default function TaxiAnalysisModule() {
       {/* 数据分析图表 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Card className="border-0 shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-xl font-bold">周客流量分布</CardTitle>
-            <CardDescription>一周内各天的订单量变化</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <div>
+              <CardTitle className="text-xl font-bold">
+                {flowMode === 'weekly' ? '周客流量分布' : '时客流量分布'}
+              </CardTitle>
+              <CardDescription>
+                {flowMode === 'weekly' ? '2013-09-12至2013-09-18七天的客流量分布' : '自定义时间段客流量分布'}
+              </CardDescription>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Select value={flowMode} onValueChange={v => setFlowMode(v as any)}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="weekly">周客流量分布</SelectItem>
+                  <SelectItem value="custom">自定义</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="h-64 bg-gradient-to-t from-green-50 to-white rounded-lg flex items-end justify-center p-4">
-              <div className="flex items-end space-x-2 h-full w-full">
-                {(dashboardData?.weeklyFlow || taxiData?.weeklyData || []).map((hour: any, i: number) => (
-                  <div key={i} className="flex flex-col items-center flex-1">
-                    <div
-                      className="w-full bg-gradient-to-t from-green-500 to-green-300 rounded-t"
-                      style={{ height: `${((hour.pickup || hour.orders || 0) / 1000) * 100}%` }}
-                    ></div>
-                    <span className="text-xs text-gray-500 mt-1">{hour.hour || hour.day}</span>
-                    <span className="text-xs font-medium">{hour.pickup || hour.orders || 0}</span>
-                  </div>
-                ))}
+            {flowLoading ? (
+              <div className="h-64 flex items-center justify-center text-blue-600"><Loader2 className="w-6 h-6 animate-spin mr-2" />加载中...</div>
+            ) : (
+              <div className="h-64 bg-gradient-to-t from-green-50 to-white rounded-lg flex items-end justify-center p-4 overflow-x-auto">
+                <div className="flex items-end space-x-1 h-full w-full">
+                  {flowData.length === 0 && <div className="text-gray-400 w-full text-center">暂无数据</div>}
+                  {flowData.map((item: any, i: number) => (
+                    <div key={i} className="flex flex-col items-center flex-1 min-w-[32px]">
+                      <div
+                        className="w-full bg-gradient-to-t from-green-500 to-green-300 rounded-t"
+                        style={{ height: `${(item.count / (flowStats?.max_count || 1)) * 90 + 10}%` }}
+                        title={item.count}
+                      ></div>
+                      <span className="text-xs text-gray-500 mt-1">
+                        {/* 只显示时:分，避免ValueError */}
+                        {item.time?.slice(11, 16) || item.time}
+                      </span>
+                      <span className="text-xs font-medium">{item.count}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
+            {flowStats && (
+              <div className="mt-2 text-xs text-gray-600 flex flex-wrap gap-4">
+                <span>总数：{flowStats.total_count}</span>
+                <span>峰值：{flowStats.max_count}（{flowStats.peak_time?.slice(5, 16)}）</span>
+                <span>均值：{flowStats.avg_count}</span>
+              </div>
+            )}
           </CardContent>
         </Card>
 
