@@ -75,6 +75,26 @@ export class EmailService {
   }
 
   /**
+   * 发送自定义内容邮件
+   */
+  async sendCustomEmail(email: string, subject: string, html: string): Promise<void> {
+    const mailOptions = {
+      from: process.env.MAIL_USER,
+      to: email,
+      subject,
+      html
+    };
+    try {
+      console.log('正在发送自定义邮件到:', email);
+      await this.transporter.sendMail(mailOptions);
+      console.log(`自定义邮件已发送到: ${email}`);
+    } catch (error: any) {
+      console.error('发送自定义邮件失败:', error);
+      throw new Error(`自定义邮件发送失败: ${error?.message || '未知错误'}`);
+    }
+  }
+
+  /**
    * 测试邮件发送
    */
   async testEmail(email: string): Promise<void> {
