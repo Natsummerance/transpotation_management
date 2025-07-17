@@ -774,12 +774,14 @@ export default function TaxiAnalysisModule() {
     setFlowLoading(true);
 
     // 1. 先请求后端缓存API，立即渲染
-    loadCache('weekly-passenger-flow', 'weekly', (data) => {
-      if (ignore) return;
-      setFlowData(data.flow_data || []);
-      setFlowStats(data.statistics || null);
-      setFlowLoading(false); // 只要有缓存就先结束 loading
-    });
+    fetch('http://localhost:8000/api/cache/taxi/weekly-passenger-flow/weekly.json')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (ignore || !data) return;
+        setFlowData(data.flow_data || []);
+        setFlowStats(data.statistics || null);
+        setFlowLoading(false); // 只要有缓存就先结束 loading
+      });
 
     // 2. 并行请求后端主API，返回后覆盖
     (async () => {
