@@ -190,78 +190,81 @@ export default function DataVisualizationModule() {
     // 主温度大字
     const mainTemp = Math.round(temps.reduce((a, b) => a + b, 0) / temps.length)
     return (
-      <div className="relative w-full overflow-x-auto">
-        <div className="absolute left-6 top-2 flex items-center space-x-2 z-10">
-          {getMainWeatherIcon()}
-          <span className="text-4xl font-bold text-red-500 drop-shadow-lg">{mainTemp}℃</span>
-          <span className="text-base text-gray-500 font-medium">{weatherDate}</span>
+      <div className="relative w-full flex flex-col items-center justify-center overflow-x-auto">
+        <div className="flex flex-col items-center justify-center w-full mt-2 mb-3">
+          <div className="flex items-center justify-center mb-1">
+            {getMainWeatherIcon()}
+            <span className="text-2xl font-bold text-red-500 drop-shadow-none ml-2 mr-2">{mainTemp}℃</span>
+            <span className="text-base text-gray-500 font-normal" style={{fontSize:'1rem'}}>{weatherDate}</span>
+          </div>
         </div>
-        <svg width={W} height={H} className="bg-gradient-to-t from-blue-100 via-white to-cyan-100 rounded-xl shadow-lg">
-          {/* Axes */}
-          <line x1={pad} y1={pad} x2={pad} y2={H - pad} stroke="#bbb" strokeWidth={1} />
-          <line x1={pad} y1={H - pad} x2={W - pad} y2={H - pad} stroke="#bbb" strokeWidth={1} />
-          {/* 湿度面积 */}
-          <linearGradient id="humGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#a5b4fc" stopOpacity="0.45" />
-            <stop offset="100%" stopColor="#6366f1" stopOpacity="0.12" />
-          </linearGradient>
-          <polygon points={[
-            `${pad},${H - pad}`,
-            ...hums.map((v, i) => `${pad + i * xStep},${yHum(v)}`),
-            `${W - pad},${H - pad}`
-          ].join(" ")} fill="url(#humGrad)" />
-          {/* 温度线（带阴影） */}
-          <polyline points={temps.map((v, i) => `${pad + i * xStep},${yTemp(v)}`).join(" ")} fill="none" stroke="#ef4444" strokeWidth={3.5} filter="url(#tempShadow)" />
-          <defs>
-            <filter id="tempShadow" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="2" stdDeviation="2" floodColor="#ef444488" />
-            </filter>
-          </defs>
-          {/* 温度圆点高亮 */}
-          {temps.map((v, i) => (
-            <circle key={i} cx={pad + i * xStep} cy={yTemp(v)} r={5} fill="#fff" stroke="#ef4444" strokeWidth={2} filter="url(#tempShadow)" />
-          ))}
-          {/* 风速/降水平滑曲线 */}
-          <path d={smoothLine(winds, yWind)} fill="none" stroke="#3b82f6" strokeWidth={2.2} strokeDasharray="5 3" />
-          <path d={smoothLine(precs, yPrecip)} fill="none" stroke="#06b6d4" strokeWidth={2.2} strokeDasharray="2 2" />
-          {/* Y axis labels (温度) */}
-          {[0, 0.25, 0.5, 0.75, 1].map((p, idx) => (
-            <text key={idx} x={pad - 10} y={pad + p * (H - pad * 2)} fontSize={13} fill="#888" textAnchor="end">
-              {Math.round(tempMax - p * (tempMax - tempMin))}℃
-            </text>
-          ))}
-          {/* X axis labels + 小圆点 */}
-          {times.map((t, i) => (
-            <g key={i}>
-              <circle cx={pad + i * xStep} cy={H - pad + 8} r={4} fill="#e0e7ef" />
-              <text x={pad + i * xStep} y={H - pad + 24} fontSize={12} fill="#888" textAnchor="middle">{t}</text>
-            </g>
-          ))}
-        </svg>
+        <div className="flex justify-center w-full">
+          <svg width={W} height={H} className="bg-gradient-to-t from-blue-100 via-white to-cyan-100 rounded-xl shadow-lg mx-auto">
+            {/* Axes */}
+            <line x1={pad} y1={pad} x2={pad} y2={H - pad} stroke="#bbb" strokeWidth={1} />
+            <line x1={pad} y1={H - pad} x2={W - pad} y2={H - pad} stroke="#bbb" strokeWidth={1} />
+            {/* 湿度面积 */}
+            <linearGradient id="humGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#a5b4fc" stopOpacity="0.45" />
+              <stop offset="100%" stopColor="#6366f1" stopOpacity="0.12" />
+            </linearGradient>
+            <polygon points={[
+              `${pad},${H - pad}`,
+              ...hums.map((v, i) => `${pad + i * xStep},${yHum(v)}`),
+              `${W - pad},${H - pad}`
+            ].join(" ")} fill="url(#humGrad)" />
+            {/* 温度线（带阴影） */}
+            <polyline points={temps.map((v, i) => `${pad + i * xStep},${yTemp(v)}`).join(" ")} fill="none" stroke="#ef4444" strokeWidth={3.5} />
+            {/* 温度圆点高亮 */}
+            {temps.map((v, i) => (
+              <circle key={i} cx={pad + i * xStep} cy={yTemp(v)} r={4} fill="#fff" stroke="#ef4444" strokeWidth={2} />
+            ))}
+            {/* 风速/降水平滑曲线 */}
+            <path d={smoothLine(winds, yWind)} fill="none" stroke="#3b82f6" strokeWidth={2.2} strokeDasharray="5 3" />
+            <path d={smoothLine(precs, yPrecip)} fill="none" stroke="#06b6d4" strokeWidth={2.2} strokeDasharray="2 2" />
+            {/* Y axis labels (温度) */}
+            {[0, 0.25, 0.5, 0.75, 1].map((p, idx) => (
+              <text key={idx} x={pad - 10} y={pad + p * (H - pad * 2)} fontSize={12} fill="#888" textAnchor="end">
+                {Math.round(tempMax - p * (tempMax - tempMin))}℃
+              </text>
+            ))}
+            {/* X axis labels + 小圆点 */}
+            {times.map((t, i) => (
+              <g key={i}>
+                <circle cx={pad + i * xStep} cy={H - pad + 8} r={3} fill="#e0e7ef" />
+                <text x={pad + i * xStep} y={H - pad + 20} fontSize={11} fill="#888" textAnchor="middle">{t}</text>
+              </g>
+            ))}
+          </svg>
+        </div>
         {/* Legend */}
-        <div className="flex space-x-6 mt-4 ml-2 text-base">
-          <span className="flex items-center text-red-500 font-semibold"><Thermometer className="w-5 h-5 mr-1" />温度</span>
-          <span className="flex items-center text-blue-500 font-semibold"><Wind className="w-5 h-5 mr-1" />风速</span>
-          <span className="flex items-center text-cyan-500 font-semibold"><CloudRain className="w-5 h-5 mr-1" />降水</span>
-          <span className="flex items-center text-indigo-500 font-semibold"><Droplets className="w-5 h-5 mr-1" />湿度</span>
+        <div className="flex space-x-6 mt-3 mb-1 justify-center w-full text-sm">
+          <span className="flex items-center text-red-500 font-medium"><Thermometer className="w-4 h-4 mr-1" />温度</span>
+          <span className="flex items-center text-blue-500 font-medium"><Wind className="w-4 h-4 mr-1" />风速</span>
+          <span className="flex items-center text-cyan-500 font-medium"><CloudRain className="w-4 h-4 mr-1" />降水</span>
+          <span className="flex items-center text-indigo-500 font-medium"><Droplets className="w-4 h-4 mr-1" />湿度</span>
         </div>
       </div>
     )
   }
 
+  const [hoverIdx, setHoverIdx] = useState<number|null>(null);
   // --- 柱状图 ---
   const renderBarChart = () => {
+    const arr = hourWeather.map((d: any) => weatherMetric === "Humidity" ? d.Humidity : d[weatherMetric])
+    const minHeight = 120; // px
+    const maxHeight = 400; // px
+    const maxData = weatherMetric === "Humidity" ? 100 : Math.max(...arr, 1); // 避免除0
+    const chartHeight = minHeight + ((maxData / 100) * (maxHeight - minHeight));
     console.log('hourWeather', hourWeather, 'weatherMetric', weatherMetric)
     if (!hourWeather.length) return <div className="h-48 flex items-center justify-center text-gray-400">暂无小时天气数据</div>
-    const arr = hourWeather.map((d: any) => weatherMetric === "Humidity" ? d.Humidity : d[weatherMetric])
     if (!arr.length || arr.every(v => v === undefined || v === null)) {
       return <div className="h-48 flex items-center justify-center text-gray-400">暂无该指标数据</div>
     }
     const times = hourWeather.map((d: any) => d.time_new.slice(11, 13))
-    const max = weatherMetric === "Humidity" ? 100 : Math.max(...arr)
+    const max = weatherMetric === "Humidity" ? 100 : Math.max(...arr, 1)
     const color = weatherMetric === "temperature" ? "#ef4444" : weatherMetric === "wind_speed" ? "#3b82f6" : weatherMetric === "precip" ? "#06b6d4" : "#6366f1"
     const label = weatherMetric === "temperature" ? "温度(℃)" : weatherMetric === "wind_speed" ? "风速(m/s)" : weatherMetric === "precip" ? "降水(mm)" : "湿度(%)"
-    const [hoverIdx, setHoverIdx] = useState<number|null>(null)
     return (
       <div className="relative w-full max-w-3xl mx-auto h-64 bg-gradient-to-t from-blue-50 to-white rounded-2xl flex items-end justify-center p-4 shadow-xl">
         <div className="flex items-end space-x-2 h-full w-full justify-center">
@@ -277,7 +280,7 @@ export default function DataVisualizationModule() {
               )}
               <div
                 className="w-full rounded-t-xl shadow-md transition-all duration-300 hover:scale-105"
-                style={{ height: `${(v / max) * 90 + 10}%`, background: color, opacity: 0.92, boxShadow: '0 4px 16px #60a5fa22' }}
+                style={{ height: (v / max) * 95 + 20, background: color, opacity: 0.92, boxShadow: '0 4px 16px #60a5fa22' }}
                 title={v}
               ></div>
               <span className="text-xs text-gray-500 mt-1 flex flex-col items-center">
@@ -436,10 +439,14 @@ export default function DataVisualizationModule() {
     <div className="space-y-8">
       {/* 天气预报系统 */}
       <Card className="border-0 shadow-2xl bg-gradient-to-br from-blue-100 via-white to-cyan-100 rounded-2xl">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <div>
-            <CardTitle className="text-2xl font-bold flex items-center"><CloudRain className="w-7 h-7 mr-2 text-blue-500" />天气预报系统</CardTitle>
-            <CardDescription className="text-base text-gray-500">基于历史气象数据的可视化天气趋势</CardDescription>
+        <CardHeader className="flex flex-col items-center justify-center pb-2 text-center">
+          <div className="flex flex-col items-center">
+            <CardTitle className="text-xl font-semibold flex items-center justify-center mb-1">
+              <CloudRain className="w-6 h-6 mr-2 text-blue-500" />天气预报系统
+            </CardTitle>
+            <CardDescription className="text-base text-gray-500 mb-2" style={{fontSize:'1rem'}}>
+              基于历史气象数据的可视化天气趋势
+            </CardDescription>
           </div>
           <div className="flex items-center space-x-2">
             <Calendar className="w-5 h-5 text-gray-500" />
