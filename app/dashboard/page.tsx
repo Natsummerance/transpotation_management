@@ -46,6 +46,7 @@ import DataVisualizationModule from "@/components/data-visualization-module"
 import SettingsModule from "@/components/settings-module"
 import { useUser } from '@/components/user-context';
 import { useTranslation } from 'react-i18next';
+import fs from 'fs';
 
 // 定义数据类型
 interface DashboardStats {
@@ -138,6 +139,17 @@ export default function Dashboard() {
 
   // 新增state
   const [settingsPage, setSettingsPage] = useState<'profile' | 'system'>('profile');
+
+  // 新增：读取cars.txt内容
+  const [carCount, setCarCount] = useState<number | null>(null);
+  useEffect(() => {
+    fetch('/cars.txt')
+      .then(res => res.text())
+      .then(text => {
+        const num = parseInt(text.trim(), 10);
+        if (!isNaN(num)) setCarCount(num);
+      });
+  }, []);
 
   // 登录控制 - 在渲染前检查
   useEffect(() => {
@@ -289,37 +301,39 @@ export default function Dashboard() {
         }
       },
       {
-        title: dashboardStats.taxiAnalysis.title,
-        value: dashboardStats.taxiAnalysis.totalRecords.toString(),
-        change: dashboardStats.taxiAnalysis.change,
-        icon: iconMap[dashboardStats.taxiAnalysis.icon],
+        // 平台活跃车辆
+        title: '平台活跃车辆',
+        value: carCount !== null ? carCount.toString() : '-',
+        change: '',
+        icon: Car,
         color: dashboardStats.taxiAnalysis.color,
         bgColor: dashboardStats.taxiAnalysis.bgColor,
         textColor: dashboardStats.taxiAnalysis.textColor,
-         
         details: {
-          totalRecords: dashboardStats.taxiAnalysis.totalRecords,
-          todayRecords: dashboardStats.taxiAnalysis.todayRecords,
-          yesterdayRecords: dashboardStats.taxiAnalysis.yesterdayRecords,
-          occupiedTrips: dashboardStats.taxiAnalysis.occupiedTrips,
-          avgSpeed: dashboardStats.taxiAnalysis.avgSpeed
+          totalRecords: carCount !== null ? carCount : '-',
+          todayRecords: 0,
+          yesterdayRecords: 0,
+          occupiedTrips: '-',
+          avgSpeed: '-',
+          today: 0,
+          yesterday: 0
         }
       },
       {
-        title: dashboardStats.mapAnalysis.title,
-        value: dashboardStats.mapAnalysis.locationPoints.toString(),
-        change: dashboardStats.mapAnalysis.change,
-        icon: iconMap[dashboardStats.mapAnalysis.icon],
+        // 地图时空分析
+        title: '地图时空分析',
+        value: '3',
+        change: '',
+        icon: MapPin,
         color: dashboardStats.mapAnalysis.color,
         bgColor: dashboardStats.mapAnalysis.bgColor,
         textColor: dashboardStats.mapAnalysis.textColor,
-         
         details: {
-          locationPoints: dashboardStats.mapAnalysis.locationPoints,
-          todayCount: dashboardStats.mapAnalysis.todayCount,
-          yesterdayCount: dashboardStats.mapAnalysis.yesterdayCount,
-          speedViolations: dashboardStats.mapAnalysis.speedViolations,
-          eventsDetected: dashboardStats.mapAnalysis.eventsDetected
+          locationPoints: 3,
+          todayCount: '当前可查看图层 3',
+          // 合并今日昨日为一个字段
+          today: '当前可查看图层 3',
+          yesterday: undefined
         }
       },
       {
@@ -664,55 +678,57 @@ export default function Dashboard() {
                     </Card>
                   </div>
                 ) : (
-                  getStatsCards().map((stat, index) => (
-                    <Card
-                      key={index}
-                      className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden group relative"
-                    >
-                      <CardContent className="p-3 sm:p-0">
-                        <div className={`${stat.bgColor} p-3 sm:p-6 relative`}>
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between">
-                            <div className="mb-2 sm:mb-0">
-                              <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">{stat.title}</p>
-                              <p className="text-xl sm:text-3xl font-bold text-gray-900">{stat.value}</p>
-                                                          <div className="flex items-center mt-1 sm:mt-2">
-                              {stat.change.startsWith('+') ? (
-                                <TrendingUp className="w-2 sm:w-3 h-2 sm:h-3 mr-1 text-green-600" />
-                              ) : stat.change.startsWith('-') ? (
-                                <TrendingUp className="w-2 sm:w-3 h-2 sm:h-3 mr-1 text-red-600 rotate-180" />
-                              ) : (
-                                <TrendingUp className="w-2 sm:w-3 h-2 sm:h-3 mr-1 text-gray-600" />
-                              )}
-                              <span className={`text-xs sm:text-sm font-medium ${
-                                stat.change.startsWith('+') ? 'text-green-600' : 
-                                stat.change.startsWith('-') ? 'text-red-600' : 
-                                'text-gray-600'
-                              }`}>
-                                {stat.change}
-                              </span>
+                  getStatsCards().map((stat, index) => {
+                    // 统计卡片与模块的对应关系
+                    const moduleMap = ["road-damage", "taxi-analysis", "map-analysis", "logs"];
+                    return (
+                      <div key={index} onClick={() => setActiveModule(moduleMap[index])} style={{ cursor: 'pointer' }}>
+                        <Card className="border-0 shadow-lg group hover:shadow-xl transition-all duration-300 overflow-hidden relative">
+                          <CardContent className="p-3 sm:p-0">
+                            <div className={`${stat.bgColor} p-3 sm:p-6 relative`}>
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between">
+                                <div className="mb-2 sm:mb-0">
+                                  <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1">{stat.title}</p>
+                                  <p className="text-xl sm:text-3xl font-bold text-gray-900">{stat.value}</p>
+                                  <div className="flex items-center mt-1 sm:mt-2">
+                                    {stat.change && stat.change.startsWith('+') ? (
+                                      <TrendingUp className="w-2 sm:w-3 h-2 sm:h-3 mr-1 text-green-600" />
+                                    ) : stat.change && stat.change.startsWith('-') ? (
+                                      <TrendingUp className="w-2 sm:w-3 h-2 sm:h-3 mr-1 text-red-600 rotate-180" />
+                                    ) : (
+                                      <TrendingUp className="w-2 sm:w-3 h-2 sm:h-3 mr-1 text-gray-600" />
+                                    )}
+                                    <span className={`text-xs sm:text-sm font-medium ${
+                                      stat.change && stat.change.startsWith('+') ? 'text-green-600' : 
+                                      stat.change && stat.change.startsWith('-') ? 'text-red-600' : 
+                                      'text-gray-600'
+                                    }`}>
+                                      {stat.change}
+                                    </span>
+                                  </div>
+                                  <div className="absolute bottom-1 right-1 text-xs text-gray-500 mt-1">
+                                    {stat.details.today}
+                                  </div>
+                                </div>
+                                <div
+                                  className={`w-10 sm:w-16 h-10 sm:h-16 bg-gradient-to-r ${stat.color} rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300 self-end sm:self-auto`}
+                                >
+                                  {stat.icon && <stat.icon className="w-5 sm:w-8 h-5 sm:h-8 text-white" />}
+                                </div>
+                              </div>
+                              <div className="absolute top-0 right-0 w-16 sm:w-32 h-16 sm:h-32 bg-white/10 rounded-full -mr-8 sm:-mr-16 -mt-8 sm:-mt-16"></div>
                             </div>
-                            <div className="absolute bottom-1 right-1 text-xs text-gray-500 mt-1">
-                              今日: {stat.details.today || stat.details.todayRecords || stat.details.todayCount || stat.details.todayLogs || 0} | 
-                              昨日: {stat.details.yesterday || stat.details.yesterdayRecords || stat.details.yesterdayCount || stat.details.yesterdayLogs || 0}
-                            </div>
-                            </div>
-                            <div
-                              className={`w-10 sm:w-16 h-10 sm:h-16 bg-gradient-to-r ${stat.color} rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300 self-end sm:self-auto`}
-                            >
-                              <stat.icon className="w-5 sm:w-8 h-5 sm:h-8 text-white" />
-                            </div>
-                          </div>
-                          <div className="absolute top-0 right-0 w-16 sm:w-32 h-16 sm:h-32 bg-white/10 rounded-full -mr-8 sm:-mr-16 -mt-8 sm:-mt-16"></div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))
+                          </CardContent>
+                        </Card>
+                      </div>
+                    );
+                  })
                 )}
               </div>
 
               {/* 实时警报和快速操作 - 移动端优化 */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
-                <Card className="border-0 shadow-lg">
+                <Card className="border-0 shadow-lg lg:col-span-2">
                   <CardHeader className="pb-3 sm:pb-4">
                     <div className="flex items-center justify-between">
                       <div>
@@ -808,63 +824,7 @@ export default function Dashboard() {
                   </CardContent>
                 </Card>
 
-                <Card className="border-0 shadow-lg">
-                  <CardHeader className="pb-3 sm:pb-4">
-                    <CardTitle className="text-lg sm:text-xl font-bold">{t('quick_operations')}</CardTitle>
-                    <CardDescription className="text-sm">{t('quick_access_to_common_functions')}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3 sm:space-y-4">
-                    <div className="grid grid-cols-2 gap-3 sm:gap-4">
-                      <Button
-                        variant="outline"
-                        className="h-16 sm:h-20 flex-col space-y-1 sm:space-y-2 border-blue-200 hover:bg-blue-50 hover:border-blue-300 bg-transparent text-xs sm:text-sm"
-                        onClick={() => setActiveModule("road-damage")}
-                      >
-                        <AlertTriangle className="w-5 sm:w-6 h-5 sm:h-6 text-blue-600" />
-                        <span className="font-medium">{t('hazard_alerts')}</span>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="h-16 sm:h-20 flex-col space-y-1 sm:space-y-2 border-orange-200 hover:bg-orange-50 hover:border-orange-300 bg-transparent text-xs sm:text-sm"
-                        onClick={() => setActiveModule("map-analysis")}
-                      >
-                        <MapPin className="w-5 sm:w-6 h-5 sm:h-6 text-orange-600" />
-                        <span className="font-medium">{t('integrated_map')}</span>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="h-16 sm:h-20 flex-col space-y-1 sm:space-y-2 border-green-200 hover:bg-green-50 hover:border-green-300 bg-transparent text-xs sm:text-sm"
-                        onClick={() => setActiveModule("taxi-analysis")}
-                      >
-                        <Car className="w-5 sm:w-6 h-5 sm:h-6 text-green-600" />
-                        <span className="font-medium">订单分析</span>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="h-16 sm:h-20 flex-col space-y-1 sm:space-y-2 border-purple-200 hover:bg-purple-50 hover:border-purple-300 bg-transparent text-xs sm:text-sm"
-                        onClick={() => setActiveModule("logs")}
-                      >
-                        <Activity className="w-5 sm:w-6 h-5 sm:h-6 text-purple-600" />
-                        <span className="font-medium">系统日志</span>
-                      </Button>
-                    </div>
-                    <div className="relative">
-                      <Button
-                        className="w-full h-10 sm:h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg text-sm"
-                        onClick={handleExportReport}
-                        disabled={isLoading}
-                      >
-                        {isLoading ? (
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        ) : (
-                          <BarChart3 className="w-4 h-4 mr-2" />
-                        )}
-                        {t('view_detailed_report')}
-                      </Button>
-                      <div className="absolute -bottom-5 right-0 text-xs text-gray-400">{t('call_api_report_export')}</div>
-                    </div>
-                  </CardContent>
-                </Card>
+                {/* 删除快速操作区（即包含“quick_access_to_common_functions”描述的Card及其内容） */}
               </div>
             </div>
           )}
