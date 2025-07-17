@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
 
   // 3. 人脸识别失败率趋势
   const [faceFailRows] = await pool.execute(
-    'SELECT DATE(create_time) AS date, COUNT(*) AS count FROM face_store GROUP BY date ORDER BY date DESC'
+    'SELECT DATE(create_at) AS date, COUNT(*) AS count FROM face_store GROUP BY date ORDER BY date DESC'
   )
   const faceFailTrend = Array.isArray(faceFailRows) ? faceFailRows : []
 
