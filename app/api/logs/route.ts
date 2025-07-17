@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
         COALESCE(u.uname, '未知用户') as user,
         ll.login_address as ip,
         false as hasVideo,
-        fs.get_face as face_image,
+        NULL as face_image,
         NULL as result_image,
         'login_log' as source,
         CASE 
@@ -154,6 +154,36 @@ export async function GET(request: NextRequest) {
       ${timeConditionSystem}
     `;
 
+    let faceStoreParams: any[] = [];
+    // 永红扫脸日志查询（根据新表结构）
+    let faceStoreLogsQuery = `
+      SELECT 
+        fs.id,
+        fs.created_at as time,
+        '永红扫脸' as type,
+        '信息' as level,
+        CONCAT('永红扫脸数据采集，置信度：', IFNULL(fs.confidence_score, '无'), '，识别状态：', IFNULL(fs.recognition_status, '未知')) as message,
+        '未知用户' as user,
+        IFNULL(fs.ip_address, '') as ip,
+        true as hasVideo,
+        fs.face_image_path as face_image,
+        NULL as result_image,
+        'face_store' as source,
+        '系统' as log_type
+      FROM face_store fs
+      WHERE 1=1
+    `;
+    if (start && end) {
+      faceStoreLogsQuery += ' AND fs.created_at BETWEEN ? AND ?';
+      faceStoreParams = [start, end];
+    } else if (start) {
+      faceStoreLogsQuery += ' AND fs.created_at >= ?';
+      faceStoreParams = [start];
+    } else if (end) {
+      faceStoreLogsQuery += ' AND fs.created_at <= ?';
+      faceStoreParams = [end];
+    }
+
     // 添加类型筛选
     let loginParams = [...timeParamsLogin, ...searchParams1];
     let damageParams = [...timeParamsDamage, ...searchParams2];
@@ -164,21 +194,31 @@ export async function GET(request: NextRequest) {
         loginLogsQuery += ` AND ll.login_type = 'face'`;
         damageLogsQuery += ` AND 1=0`; // 排除路面病害
         systemLogsQuery += ` AND 1=0`; // 排除系统日志
+        faceStoreLogsQuery += ` AND 1=0`; // 排除永红扫脸
       } else if (type === '系统登录') {
         loginLogsQuery += ` AND ll.login_type != 'face'`;
-        damageLogsQuery += ` AND 1=0`; // 排除路面病害
-        systemLogsQuery += ` AND 1=0`; // 排除系统日志
+        damageLogsQuery += ` AND 1=0`;
+        systemLogsQuery += ` AND 1=0`;
+        faceStoreLogsQuery += ` AND 1=0`;
       } else if (type === '路面病害') {
-        loginLogsQuery += ` AND 1=0`; // 排除登录日志
-        systemLogsQuery += ` AND 1=0`; // 排除系统日志
+        loginLogsQuery += ` AND 1=0`;
+        systemLogsQuery += ` AND 1=0`;
+        faceStoreLogsQuery += ` AND 1=0`;
       } else if (type === '系统') {
-        loginLogsQuery += ` AND 1=0`; // 排除登录日志
-        damageLogsQuery += ` AND 1=0`; // 排除路面病害
+        loginLogsQuery += ` AND 1=0`;
+        damageLogsQuery += ` AND 1=0`;
+        // 系统日志和永红扫脸都保留
+      } else if (type === '永红扫脸') {
+        loginLogsQuery += ` AND 1=0`;
+        damageLogsQuery += ` AND 1=0`;
+        systemLogsQuery += ` AND 1=0`;
+        // 只保留永红扫脸
       } else {
         // 其他类型，排除所有
         loginLogsQuery += ` AND 1=0`;
         damageLogsQuery += ` AND 1=0`;
         systemLogsQuery += ` AND 1=0`;
+        faceStoreLogsQuery += ` AND 1=0`;
       }
     }
 
@@ -187,6 +227,7 @@ export async function GET(request: NextRequest) {
       loginLogsQuery += searchCondition;
       damageLogsQuery += searchCondition;
       systemLogsQuery += searchCondition;
+      faceStoreLogsQuery += searchCondition;
     }
 
     // 合并查询
@@ -201,6 +242,10 @@ export async function GET(request: NextRequest) {
       UNION ALL
       (
         ${systemLogsQuery}
+      )
+      UNION ALL
+      (
+        ${faceStoreLogsQuery}
       )
       ORDER BY time DESC
       ${!isExport ? `LIMIT ${limit} OFFSET ${offset}` : ''}
@@ -225,6 +270,10 @@ export async function GET(request: NextRequest) {
         (
           ${systemLogsQuery}
         )
+        UNION ALL
+        (
+          ${faceStoreLogsQuery}
+        )
       ) as all_logs
     `;
 
@@ -243,10 +292,14 @@ export async function GET(request: NextRequest) {
         (
           ${systemLogsQuery}
         )
+        UNION ALL
+        (
+          ${faceStoreLogsQuery}
+        )
       ) as all_logs
     `;
 
-    const allParams = [...loginParams, ...damageParams, ...systemParams];
+    const allParams = [...loginParams, ...damageParams, ...systemParams, ...faceStoreParams];
 
     if (isExport) {
       // 导出功能
@@ -270,8 +323,8 @@ export async function GET(request: NextRequest) {
 
     // 执行查询
     const [logs] = await connection.execute(unionQuery, allParams);
-    const [statsResult] = await connection.execute(statsQuery, [...loginParams, ...damageParams, ...systemParams]);
-    const [countResult] = await connection.execute(countQuery, [...loginParams, ...damageParams, ...systemParams]);
+    const [statsResult] = await connection.execute(statsQuery, [...loginParams, ...damageParams, ...systemParams, ...faceStoreParams]);
+    const [countResult] = await connection.execute(countQuery, [...loginParams, ...damageParams, ...systemParams, ...faceStoreParams]);
 
     const stats = Array.isArray(statsResult) ? statsResult[0] as any : { serious: 0, warning: 0, info: 0, playable: 0 };
     const total = Array.isArray(countResult) ? (countResult[0] as any).total : 0;

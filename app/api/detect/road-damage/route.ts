@@ -4,6 +4,8 @@ import path from 'path';
 import fs from 'fs/promises';
 import { v4 as uuidv4 } from 'uuid';
 import { existsSync, statSync } from 'fs';
+import { UserDao } from '@/lib/userDao';
+import { EmailService } from '@/lib/emailService';
 
 // 定义YOLO标签到病害类型的映射
 const damageMapping: { [key: string]: string } = {
@@ -189,6 +191,26 @@ export async function POST(req: NextRequest) {
         }
       }
     }
+
+    // === 新增：检测到新病害时，向userZbf邮箱发送邮件 ===
+    try {
+      const userZbf = await UserDao.findByUsername('userZbf');
+      if (userZbf && userZbf.email) {
+        const emailService = new EmailService();
+        // 邮件内容可根据需要自定义
+         const subject = '【路面病害检测预警】检测到新病害';
+         const html = `
+           <h2>路面病害检测详情</h2>
+           <ul>
+             ${Object.entries(results).map(([type, info]) => `<li>${type}: 数量 ${info.count}, 置信度 ${info.confidence}</li>`).join('')}
+           </ul>
+           <p>检测时间：${new Date().toLocaleString()}</p >
+         `;
+         await emailService.sendCustomEmail(userZbf.email, subject, html);
+       }
+     } catch (e) {
+      console.error('发送userZbf邮件失败:', e);
+  }
 
     // === 只要 pythonResult.image_path 里有 runs/detect/predict/xxx.avi 或 .mp4 就拼接静态URL ===
     let resultImageUrl = '';
