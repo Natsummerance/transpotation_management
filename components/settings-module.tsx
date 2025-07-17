@@ -44,6 +44,7 @@ export default function SettingsModule({ page = 'profile' }: { page?: 'profile' 
   const [profileImage, setProfileImage] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // 用户信息状态
   const [userInfo, setUserInfo] = useState({
@@ -375,6 +376,19 @@ export default function SettingsModule({ page = 'profile' }: { page?: 'profile' 
       setIsLoading(false)
     }
   }
+
+  // 在组件内部添加 useEffect 控制音乐播放
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (systemSettings.soundEnabled) {
+      audio.currentTime = 0;
+      audio.play().catch(() => {});
+    } else {
+      audio.pause();
+      audio.currentTime = 0;
+    }
+  }, [systemSettings.soundEnabled]);
 
   return (
     <div className="space-y-8">
@@ -727,6 +741,14 @@ export default function SettingsModule({ page = 'profile' }: { page?: 'profile' 
                   className="data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-blue-600 data-[state=checked]:to-purple-600"
                 />
               </div>
+              {/* 背景音乐audio标签，隐藏显示 */}
+              <audio
+                ref={audioRef}
+                src="/public/bgm.mp3"
+                loop
+                preload="auto"
+                style={{ display: "none" }}
+              />
               <Button onClick={handleSaveSystemSettings} disabled={isLoading} 
               className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white h-10 sm:h-12 text-sm sm:text-base"
               >
