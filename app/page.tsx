@@ -26,6 +26,7 @@ import {
 import ForgotPasswordModal from "@/components/ForgotPasswordModal";
 import { encryptAES } from "@/lib/cryptoFront";
 import { useTranslation } from 'react-i18next';
+import FaceRecognitionModule from "@/components/face-recognition-module";
 
 
 type LoginMode = "password" | "code" | "face"
@@ -42,6 +43,13 @@ export default function LoginPage() {
   const [countdown, setCountdown] = useState(0)
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [stream, setStream] = useState<MediaStream | null>(null)
+  
+  // 新增：人脸录入进度状态
+  const [faceRegistrationProgress, setFaceRegistrationProgress] = useState(0)
+  const [faceRegistrationText, setFaceRegistrationText] = useState('')
+  const [isBlinkVerification, setIsBlinkVerification] = useState(false)
+  const [collectedImages, setCollectedImages] = useState(0)
+  const [targetImages, setTargetImages] = useState(0)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -291,16 +299,30 @@ export default function LoginPage() {
       console.log("摄像头权限获取成功，设置视频流...")
       setStream(mediaStream)
       
+      // 等待video元素渲染完成
+      let retryCount = 0;
+      const maxRetries = 10;
+      
+      while (!videoRef.current && retryCount < maxRetries) {
+        console.log(`等待video元素渲染... 重试 ${retryCount +1}/${maxRetries}`)
+        await new Promise(resolve => setTimeout(resolve,100))
+        retryCount++
+      }
+      
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream
         await videoRef.current.play()
         console.log("视频元素开始播放")
+        return true
       } else {
-        console.error("视频元素引用不存在")
+        console.error("视频元素引用不存在，无法设置视频流")
+        // 清理已获取的stream
+        mediaStream.getTracks().forEach(track => track.stop())
+        setStream(null)
+        setCameraError("视频元素初始化失败，请刷新页面重试")
         return false
       }
       
-      return true
     } catch (error) {
       console.error("Camera access failed:", error)
       setCameraError("无法访问摄像头，请检查权限设置")
@@ -390,6 +412,9 @@ export default function LoginPage() {
             localStorage.setItem('token', loginResult.data.token)
             localStorage.setItem('user', JSON.stringify(loginResult.data))
             
+            // 新增：关闭摄像头
+            stopCamera()
+            
             alert(`人脸识别登录成功！欢迎 ${loginResult.data.uname}`)
             window.location.href = '/dashboard'
           } else {
@@ -406,6 +431,8 @@ export default function LoginPage() {
       setLoginError('人脸识别过程中出现错误，请重试')
     } finally {
       setFaceRecognitionActive(false)
+      // 新增：确保关闭摄像头
+      stopCamera()
     }
   }
 
@@ -419,70 +446,257 @@ export default function LoginPage() {
     }
     setFaceRecognitionActive(true)
     setLoginError(null)
+    console.log('设置faceRecognitionActive为true')
     
     try {
       console.log('开始人脸录入...')
       console.log('用户名:', registerData.username)
       
-      // 收集多张图像用于训练
-      const images = []
-      const targetImages = 10 // 收集10张图像
+      // 1. 开始录入会话
+      const startResponse = await fetch('http://localhost:5000/start_registration', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: registerData.username })
+      })
       
-      for (let i = 0; i < targetImages; i++) {
-        // 等待摄像头准备
-        await new Promise(resolve => setTimeout(resolve, 200))
+      console.log('开始录入会话响应状态:', startResponse.status)
+      
+      if (!startResponse.ok) {
+        console.error('开始录入会话HTTP错误:', startResponse.status, startResponse.statusText)
+        const errorText = await startResponse.text()
+        console.error('错误响应内容:', errorText)
+        setLoginError(`开始录入会话失败: HTTP ${startResponse.status}`)
+        return
+      }
+      
+      const startResult = await startResponse.json()
+      console.log('开始录入会话响应数据:', startResult)
+      
+      if (!startResult.success) {
+        setLoginError(startResult.message || '开始录入会话失败')
+        return
+      }
+
+      const sessionId = startResult.session_id
+      const targetImages = startResult.target_images
+      
+      // 设置初始状态
+      setTargetImages(targetImages)
+      setCollectedImages(0)
+      setFaceRegistrationProgress(0)
+      setFaceRegistrationText('开始采集人脸图像...')
+      setIsBlinkVerification(false)
+      
+      console.log('开始采集人脸图像，目标:', targetImages, '张')
+      
+      // 2. 连续采集图像
+      let collectedCount = 0
+      const collectNextImage = async () => {
+        if (collectedCount >= targetImages) {
+          // 采集完成，开始训练
+          setFaceRegistrationText('图像采集完成，开始训练模型...')
+          console.log('图像采集完成，开始训练模型...')
+          
+          const trainResponse = await fetch('http://localhost:5000/train_session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: sessionId })
+          })
+          
+          const trainResult = await trainResponse.json()
+          console.log('训练结果:', trainResult)
+          
+          if (trainResult.success) {
+            setFaceRegistrationText('人脸录入成功！')
+            alert(`人脸录入成功！用户: ${registerData.username}，共训练 ${trainResult.samples} 张图像`)
+            stopCamera();
+            setRegisterStep('success')
+          } else {
+            setLoginError(trainResult.message || '训练失败')
+          }
+          return
+        }
         
+        // 捕获图像
         const imageData = captureFrame()
         if (!imageData) {
           setLoginError('无法获取摄像头图像')
           return
         }
         
-        // 移除base64前缀
+        // 移除base64
         const base64Data = imageData.replace(/^data:image\/[a-z]+;base64,/, "")
-        images.push(base64Data)
         
-        console.log(`收集第 ${i + 1} 张图像...`)
-      }
-      
-      console.log('发送人脸录入请求...')
-      console.log('图像数量:', images.length)
-      
-      const trainResponse = await fetch('http://localhost:5000/train', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          username: registerData.username,
-          images: images 
+        // 发送图像到后端
+        const collectResponse = await fetch('http://localhost:5000/collect_image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            session_id: sessionId,
+            image: base64Data 
+          })
         })
-      })
-      
-      console.log('人脸录入响应状态:', trainResponse.status)
-      
-      if (!trainResponse.ok) {
-        console.error('人脸录入HTTP错误:', trainResponse.status, trainResponse.statusText)
-        const errorText = await trainResponse.text()
-        console.error('错误响应内容:', errorText)
-        setLoginError(`人脸录入失败: HTTP ${trainResponse.status}`)
-        return
+        
+        if (!collectResponse.ok) {
+          const errorText = await collectResponse.text()
+          console.error('采集图像失败:', errorText)
+          setLoginError('采集图像失败')
+          return
+        }
+        
+        const collectResult = await collectResponse.json()
+        console.log('采集结果:', collectResult)
+        
+        if (collectResult.success) {
+          // 使用后端返回的准确数据
+          const currentCollected = collectResult.collected_images || collectedCount + 1
+          const currentProgress = collectResult.progress || ((currentCollected / targetImages) * 100)
+          
+          collectedCount = currentCollected
+          setCollectedImages(currentCollected)
+          setFaceRegistrationProgress(currentProgress)
+          
+          console.log(`已采集 ${currentCollected}/${targetImages} 张图像，进度: ${currentProgress.toFixed(1)}%`)
+          
+          // 更新状态文本
+          if (collectResult.verification_mode) {
+            setIsBlinkVerification(true)
+            setFaceRegistrationText('请眨眼进行验证...')
+            console.log('进入眨眼验证模式')
+            setTimeout(() => collectNextImage(), 500)
+          } else if (collectResult.verification_complete) {
+            setIsBlinkVerification(false)
+            setFaceRegistrationText('眨眼验证通过，继续录入...')
+            setTimeout(() => collectNextImage(), 200)
+          } else {
+            setIsBlinkVerification(false)
+            setFaceRegistrationText(`正在采集图像... ${currentCollected}/${targetImages}`)
+            // 继续采集下一张
+            setTimeout(() => collectNextImage(), 200)
+          }
+        } else {
+          // 处理错误情况
+          if (collectResult.duplicate) {
+            setLoginError(collectResult.message || '检测到重复人脸')
+            return
+          } else {
+            console.log('当前帧处理失败:', collectResult.message)
+            // 如果是未检测到人脸，继续尝试，不显示错误
+            if (collectResult.message && collectResult.message.includes('未检测到人脸')) {
+              console.log('未检测到人脸，继续尝试...')
+              setTimeout(() => collectNextImage(), 200)
+            } else {
+              // 其他错误才显示
+              setLoginError(collectResult.message || '采集图像失败')
+            }
+          }
+        }
       }
       
-      const trainResult = await trainResponse.json()
-      console.log('人脸录入响应数据:', trainResult)
-      
-      if (trainResult.success) {
-        alert(`人脸录入成功！用户ID: ${trainResult.user_id}, 用户名: ${registerData.username}, 训练样本: ${trainResult.samples}张`)
-        setRegisterStep('success')
-      } else {
-        setLoginError(trainResult.message || '人脸录入失败')
-      }
+      // 开始采集
+      collectNextImage()
       
     } catch (error) {
       console.error('Face registration error:', error)
       setLoginError('人脸录入过程中出现错误，请重试')
     } finally {
       setFaceRecognitionActive(false)
+      // 不要在这里stopCamera()
     }
+  }
+
+  // 注册成功后跳转到人脸录入步骤，直接渲染 FaceRecognitionModule
+  if (!isLogin && registerStep === "face") {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-2 sm:p-4 relative overflow-hidden">
+        {/* 背景装饰 */}
+        <div className="absolute inset-0 opacity-20">
+          <div
+            className="w-full h-full"
+            style={{
+              backgroundImage: `url("data:image/svg+xml,${encodeURIComponent('<svg width=\"60\" height=\"60\" viewBox=\"0 0 60 60\" xmlns=\"http://www.w3.org/2000/svg\"><g fill=\"none\" fillRule=\"evenodd\"><g fill=\"#ffffff\" fillOpacity=\"0.05\"><circle cx=\"30\" cy=\"30\" r=\"2\"/></g></g></svg>')}")`,
+            }}
+          ></div>
+        </div>
+        <div className="absolute top-4 sm:top-10 left-4 sm:left-10 text-white/20 hidden sm:block">
+          <div className="w-16 sm:w-32 h-16 sm:h-32 rounded-full border border-white/10 flex items-center justify-center">
+            <Shield className="w-8 sm:w-16 h-8 sm:h-16" />
+          </div>
+        </div>
+        <div className="absolute bottom-4 sm:bottom-10 right-4 sm:right-10 text-white/20 hidden sm:block">
+          <div className="w-12 sm:w-24 h-12 sm:h-24 rounded-full border border-white/10 flex items-center justify-center">
+            <Camera className="w-6 sm:w-12 h-6 sm:h-12" />
+          </div>
+        </div>
+        <Card className="w-full max-w-md shadow-none border-0 backdrop-blur-sm bg-white/95 mx-2 rounded-2xl p-0">
+          <div className="flex flex-col items-center justify-center pt-6 pb-2">
+            <div className="mx-auto mb-3 w-10 sm:w-12 h-10 sm:h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg">
+              <Shield className="w-5 sm:w-6 h-5 sm:h-6 text-white" />
+            </div>
+            <div className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-1 select-none text-center" suppressHydrationWarning>
+              {t('smart_traffic_management_system')}
+            </div>
+            <div className="text-base text-gray-600 text-center mb-2">创建新账户</div>
+            <div className="text-lg font-bold text-gray-900 text-center">人脸录入信息</div>
+          </div>
+          <CardContent className="flex flex-col items-center justify-center p-4 sm:p-6 gap-4">
+            <div className="w-full flex flex-col items-center justify-center bg-transparent shadow-none border-0">
+              <FaceRecognitionModule username={registerData.username} onSuccess={() => setRegisterStep("success")}/>
+            </div>
+            <Button variant="ghost" className="w-full mt-2 rounded-full text-gray-500 hover:text-blue-600 transition-all text-center" onClick={() => setRegisterStep("success")}>跳过此步骤</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!isLogin && registerStep === "success") {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-2 sm:p-4 relative overflow-hidden">
+        {/* 背景装饰同上 */}
+        <div className="absolute inset-0 opacity-20">
+          <div
+            className="w-full h-full"
+            style={{
+              backgroundImage: `url("data:image/svg+xml,${encodeURIComponent('<svg width=\"60\" height=\"60\" viewBox=\"0 0 60 60\" xmlns=\"http://www.w3.org/2000/svg\"><g fill=\"none\" fillRule=\"evenodd\"><g fill=\"#ffffff\" fillOpacity=\"0.05\"><circle cx=\"30\" cy=\"30\" r=\"2\"/></g></g></svg>')}")`,
+            }}
+          ></div>
+        </div>
+        <div className="absolute top-4 sm:top-10 left-4 sm:left-10 text-white/20 hidden sm:block">
+          <div className="w-16 sm:w-32 h-16 sm:h-32 rounded-full border border-white/10 flex items-center justify-center">
+            <Shield className="w-8 sm:w-16 h-8 sm:h-16" />
+          </div>
+        </div>
+        <div className="absolute bottom-4 sm:bottom-10 right-4 sm:right-10 text-white/20 hidden sm:block">
+          <div className="w-12 sm:w-24 h-12 sm:h-24 rounded-full border border-white/10 flex items-center justify-center">
+            <Camera className="w-6 sm:w-12 h-6 sm:h-12" />
+          </div>
+        </div>
+        <Card className="w-full max-w-sm shadow-none border-0 backdrop-blur-sm bg-white/95 mx-2 rounded-2xl p-0">
+          <div className="flex flex-col items-center justify-center pt-6 pb-2">
+            <div className="mx-auto mb-3 w-10 sm:w-12 h-10 sm:h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg">
+              <Shield className="w-5 sm:w-6 h-5 sm:h-6 text-white" />
+            </div>
+            <div className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-1 select-none text-center" suppressHydrationWarning>
+              {t('smart_traffic_management_system')}
+            </div>
+          </div>
+          <CardContent className="flex flex-col items-center justify-center p-4 sm:p-6 gap-4">
+            <div className="w-full flex flex-col items-center justify-center gap-2">
+              <CheckCircle className="w-12 h-12 text-green-500 mb-2" />
+              <div className="text-lg font-bold text-green-700 mb-1">注册成功！</div>
+              <div className="text-gray-700 text-sm mb-2">您的账户已创建并完成了人脸信息录入。</div>
+              <div className="w-full bg-gray-50 rounded-lg p-3 text-sm text-gray-600 mb-2">
+                <div><span className="font-semibold">用户名：</span>{registerData.username}</div>
+                <div><span className="font-semibold">邮箱：</span>{registerData.email}</div>
+                <div><span className="font-semibold">手机号：</span>{registerData.phone}</div>
+              </div>
+              <Button className="w-full mt-2 rounded-full text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 transition-all text-center" onClick={() => window.location.href = '/'}>立即登录</Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (
@@ -509,7 +723,7 @@ export default function LoginPage() {
         </div>
       </div>
 
-      <Card className="w-full max-w-sm sm:max-w-md backdrop-blur-sm bg-white/95 shadow-2xl border-0 mx-2">
+      <Card className="w-full max-w-md shadow-none border-0 backdrop-blur-sm bg-white/95 shadow-2xl border-0 mx-2">
         <CardHeader className="text-center pb-4 sm:pb-6">
           <div className="mx-auto mb-4 sm:mb-6 w-12 sm:w-16 h-12 sm:h-16 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg">
             <Shield className="w-6 sm:w-8 h-6 sm:h-8 text-white" />
@@ -984,7 +1198,20 @@ export default function LoginPage() {
                             <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                               <div className="text-center text-white">
                                 <Loader2 className="w-8 h-8 mx-auto mb-2 animate-spin" />
-                                <p className="text-sm font-medium">{t('register_face_loading')}</p>
+                                <p className="text-sm font-medium">{faceRegistrationText || t('register_face_loading')}</p>
+                                {faceRegistrationProgress > 0 && (
+                                  <div className="mt-2 w-full bg-white/20 rounded-full h-2">
+                                    <div 
+                                      className="bg-white h-2 rounded-full transition-all duration-300"
+                                      style={{ width: `${faceRegistrationProgress}%` }}
+                                    ></div>
+                                  </div>
+                                )}
+                                {isBlinkVerification && (
+                                  <div className="mt-2 text-yellow-300 text-xs">
+                                    👁️ 请眨眼进行验证
+                                  </div>
+                                )}
                               </div>
                             </div>
                           )}
@@ -1005,6 +1232,24 @@ export default function LoginPage() {
                         </div>
                       )}
                     </div>
+                    
+                    {/* 新增：进度信息显示 */}
+                    {faceRecognitionActive && (
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm text-gray-600">
+                          <span>采集进度</span>
+                          <span>{collectedImages}/{targetImages}</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-gradient-to-r from-green-500 to-emerald-500 rounded-full transition-all duration-300"
+                            style={{ width: `${faceRegistrationProgress}%` }}
+                          ></div>
+                        </div>
+                        <p className="text-xs text-gray-500">{faceRegistrationText}</p>
+                      </div>
+                    )}
+                    
                     <div className="relative">
                       <Button
                         className="w-full h-10 sm:h-12 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white font-medium shadow-lg text-sm sm:text-base"
@@ -1079,7 +1324,7 @@ export default function LoginPage() {
                     <Button
                       variant="ghost"
                       className="w-full text-gray-500 hover:text-gray-700"
-                      onClick={() => setRegisterStep("success")}
+                      onClick={() => { stopCamera(); setRegisterStep("success") }}
                     >
                       {t('register_skip_step')}
                     </Button>
@@ -1087,7 +1332,7 @@ export default function LoginPage() {
                   <Button
                     variant="outline"
                     className="w-full h-10 sm:h-12 border-gray-200 hover:bg-gray-50 bg-transparent text-sm sm:text-base"
-                    onClick={() => setRegisterStep("info")}
+                    onClick={() => { stopCamera(); setRegisterStep("info") }}
                   >
                     <ArrowLeft className="w-4 h-4 mr-2" />
                     {t('register_back_step')}
