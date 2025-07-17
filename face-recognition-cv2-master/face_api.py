@@ -15,8 +15,10 @@ import argparse
 import json
 import atexit
 import signal
+from flasgger import Swagger
 
 app = Flask(__name__)
+Swagger(app)
 CORS(app)  # 允许跨域请求
 
 # 全局变量
@@ -367,7 +369,17 @@ registration_sessions = {}
 
 @app.route('/start_registration', methods=['POST'])
 def start_registration():
-    """开始人脸录入会话"""
+    """
+    @api {post} /start_registration 开始人脸录入会话
+    @apiDescription 启动一个新的用户人脸录入会话，需传入用户名。
+    @apiParam {String} username 用户名
+    @apiSuccess {Boolean} success 是否成功
+    @apiSuccess {String} session_id 会话ID
+    @apiSuccess {Number} target_images 目标采集图片数
+    @apiSuccess {String} message 提示信息
+    @apiError (400) {Boolean} success false
+    @apiError (400) {String} message 错误信息
+    """
     global system_state_lock, Total_face_num
     
     if system_state_lock != 0:
@@ -428,7 +440,18 @@ def start_registration():
 
 @app.route('/collect_image', methods=['POST'])
 def collect_image():
-    """收集单张图像 - 与main.py的Get_new_face_with_expression逻辑完全一致"""
+    """
+    @api {post} /collect_image 收集单张人脸图像
+    @apiDescription 上传一张人脸图片到当前录入会话。
+    @apiParam {String} session_id 会话ID
+    @apiParam {String} image base64编码的人脸图片
+    @apiSuccess {Boolean} success 是否成功
+    @apiSuccess {String} message 提示信息
+    @apiSuccess {Number} collected_images 已采集图片数
+    @apiSuccess {Number} progress 录入进度百分比
+    @apiError (400) {Boolean} success false
+    @apiError (400) {String} message 错误信息
+    """
     try:
         data = request.get_json()
         session_id = data.get('session_id')
@@ -595,7 +618,18 @@ def collect_image():
 
 @app.route('/train_session', methods=['POST'])
 def train_session():
-    """训练指定会话的人脸模型 - 与main.py的Train_new_face逻辑一致"""
+    """
+    @api {post} /train_session 训练指定会话的人脸模型
+    @apiDescription 对已采集完毕的会话进行人脸模型训练。
+    @apiParam {String} session_id 会话ID
+    @apiSuccess {Boolean} success 是否成功
+    @apiSuccess {String} message 提示信息
+    @apiSuccess {Number} user_id 用户ID
+    @apiSuccess {String} username 用户名
+    @apiSuccess {Number} samples 训练样本数
+    @apiError (400) {Boolean} success false
+    @apiError (400) {String} message 错误信息
+    """
     global system_state_lock, Total_face_num
     
     try:
@@ -675,7 +709,20 @@ def train_session():
 
 @app.route('/train', methods=['POST'])
 def train_face():
-    """训练人脸模型（兼容旧接口）"""
+    """
+    @api {post} /train 训练人脸模型（兼容旧接口）
+    @apiDescription 通过用户名和多张图片直接训练人脸模型。
+    @apiParam {String} username 用户名
+    @apiParam {String[]} images base64编码的人脸图片数组
+    @apiSuccess {Boolean} success 是否成功
+    @apiSuccess {String} message 提示信息
+    @apiSuccess {Number} user_id 用户ID
+    @apiSuccess {String} username 用户名
+    @apiSuccess {Number} samples 训练样本数
+    @apiSuccess {Number} valid_images 有效图片数
+    @apiError (400) {Boolean} success false
+    @apiError (400) {String} message 错误信息
+    """
     global Total_face_num
     
     # 尝试获取系统锁
@@ -847,6 +894,18 @@ def train_face():
 
 @app.route('/recognize', methods=['POST'])
 def recognize_face():
+    """
+    @api {post} /recognize 人脸识别
+    @apiDescription 上传一张人脸图片，返回识别结果。
+    @apiParam {String} image base64编码的人脸图片
+    @apiSuccess {Boolean} success 是否成功
+    @apiSuccess {String} message 提示信息
+    @apiSuccess {Number} user_id 用户ID（识别成功时）
+    @apiSuccess {String} username 用户名（识别成功时）
+    @apiSuccess {Number} confidence 置信度
+    @apiError (400) {Boolean} success false
+    @apiError (400) {String} message 错误信息
+    """
     """人脸识别 - 与main.py的scan_face逻辑一致"""
     
     # 检查系统锁状态
@@ -1035,7 +1094,18 @@ def recognize_face():
 
 @app.route('/users', methods=['GET'])
 def get_users():
-    """获取用户列表"""
+    """
+    @api {get} /users 获取用户列表
+    @apiDescription 获取所有已录入用户信息。
+    @apiSuccess {Boolean} success 是否成功
+    @apiSuccess {Object[]} users 用户列表
+    @apiSuccess {Number} users.id 用户ID
+    @apiSuccess {String} users.username 用户名
+    @apiSuccess {String} users.model_file 模型文件名
+    @apiSuccess {Number} total 用户总数
+    @apiError (500) {Boolean} success false
+    @apiError (500) {String} message 错误信息
+    """
     try:
         users = []
         for user_id, username in id_dict.items():
@@ -1060,7 +1130,17 @@ def get_users():
 
 @app.route('/user/<int:user_id>', methods=['DELETE'])
 def delete_user(user_id):
-    """删除用户"""
+    """
+    @api {delete} /user/:user_id 删除用户
+    @apiDescription 删除指定ID的用户及其模型文件。
+    @apiParam {Number} user_id 用户ID
+    @apiSuccess {Boolean} success 是否成功
+    @apiSuccess {String} message 提示信息
+    @apiError (404) {Boolean} success false
+    @apiError (404) {String} message 用户不存在
+    @apiError (500) {Boolean} success false
+    @apiError (500) {String} message 错误信息
+    """
     try:
         if user_id not in id_dict:
             return jsonify({
@@ -1137,7 +1217,16 @@ def write_config(user_name):
 
 @app.route('/status', methods=['GET'])
 def get_status():
-    """获取系统状态"""
+    """
+    @api {get} /status 获取系统状态
+    @apiDescription 获取人脸识别系统当前状态信息。
+    @apiSuccess {Boolean} success 是否成功
+    @apiSuccess {String} status 系统状态
+    @apiSuccess {Number} system_lock 系统锁状态
+    @apiSuccess {Number} total_users 用户总数
+    @apiSuccess {Boolean} face_cascade_loaded 人脸检测器是否加载
+    @apiSuccess {Boolean} recognizer_loaded 识别器是否加载
+    """
     return jsonify({
         'success': True,
         'status': 'running',
@@ -1150,7 +1239,16 @@ def get_status():
 
 @app.route('/reset_lock', methods=['POST'])
 def reset_system_lock_endpoint():
-    """手动重置系统锁（用于调试和紧急情况）"""
+    """
+    @api {post} /reset_lock 手动重置系统锁
+    @apiDescription 手动重置系统锁（用于调试和紧急情况）。
+    @apiSuccess {Boolean} success 是否成功
+    @apiSuccess {String} message 提示信息
+    @apiSuccess {Number} previous_lock 重置前锁状态
+    @apiSuccess {Number} current_lock 当前锁状态
+    @apiError (500) {Boolean} success false
+    @apiError (500) {String} message 错误信息
+    """
     try:
         global system_state_lock
         old_lock = system_state_lock
