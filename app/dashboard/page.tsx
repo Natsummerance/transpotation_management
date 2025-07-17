@@ -497,7 +497,7 @@ export default function Dashboard() {
               </div>
               <div className="hidden sm:block text-sm text-gray-600">
                 <div className="bg-gray-100 px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm">
-                  时间: {currentTime.toISOString().slice(0, 11).replace("T", " ")} {currentTime.toTimeString().slice(0, 9)}
+                  {currentTime.toISOString().slice(0, 11).replace("T", " ")} {currentTime.toTimeString().slice(0, 9)}
                   {/*时间: {currentTime.toISOString().slice(0, 19).replace("T", " ")}*/}
                 </div>
               </div>
@@ -707,7 +707,14 @@ export default function Dashboard() {
                                     </span>
                                   </div>
                                   <div className="absolute bottom-1 right-1 text-xs text-gray-500 mt-1">
-                                    {stat.details.today}
+                                    {stat.title === '地图时空分析' ? (
+                                      stat.details.today
+                                    ) : (
+                                      <>
+                                        今日: {stat.details.today ?? stat.details.todayRecords ?? stat.details.todayLogs ?? 0} |
+                                        昨日: {stat.details.yesterday ?? stat.details.yesterdayRecords ?? stat.details.yesterdayLogs ?? 0}
+                                      </>
+                                    )}
                                   </div>
                                 </div>
                                 <div
