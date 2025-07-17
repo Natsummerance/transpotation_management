@@ -9,19 +9,37 @@ import numpy as np
 import requests
 from .distance_distribution import analyze_distance_distribution
 import math
-import os, json
+import os
+import json
 
-# 持久化地名缓存
-CACHE_FILE = 'location_cache.json'
-if os.path.exists(CACHE_FILE):
-    with open(CACHE_FILE, 'r', encoding='utf-8') as f:
-        location_cache = json.load(f)
-else:
-    location_cache = {}
+# 全局位置缓存
+location_cache = {}
+
 
 def save_location_cache():
-    with open(CACHE_FILE, 'w', encoding='utf-8') as f:
-        json.dump(location_cache, f, ensure_ascii=False)
+    """保存位置缓存到文件"""
+    try:
+        with open('location_cache.json', 'w', encoding='utf-8') as f:
+            json.dump(location_cache, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        print(f'保存位置缓存失败: {e}')
+
+
+def load_location_cache():
+    """从文件加载位置缓存"""
+    try:
+        if os.path.exists('location_cache.json'):
+            with open('location_cache.json', 'r', encoding='utf-8') as f:
+                return json.load(f)
+    except Exception as e:
+        print(f'加载位置缓存失败: {e}')
+    return {}
+
+
+# 加载位置缓存
+location_cache = load_location_cache()
+
+
 
 class HeatmapDataView(APIView):
     """热力图数据API视图"""
@@ -250,6 +268,12 @@ class DashboardDataView(APIView):
         else:
             return Response({'error': 'event_type must be pickup or dropoff'}, status=400)
 
+        start_time = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
+        if end_time:
+            end_time = datetime.strptime(end_time, '%Y-%m-%d %H:%M:%S')
+        else:
+            end_time = start_time + timedelta(days=1)
+
         def haversine(lat1, lon1, lat2, lon2):
             R = 6371.0
             phi1 = math.radians(lat1)
@@ -346,8 +370,8 @@ class VehicleTrajectoryView(APIView):
         end_time = request.GET.get('end_time')
         # 默认查询一天
         if not start_time:
-            start_time = "2013-09-12 00:00:00"
-            end_time = "2013-09-12 23:59:59"
+            start_time = datetime.strptime("2013-09-12 00:00:00", '%Y-%m-%d %H:%M:%S')
+            end_time = datetime.strptime("2013-09-12 23:59:59", '%Y-%m-%d %H:%M:%S')
         else:
             start_time = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
             if end_time:
@@ -440,8 +464,8 @@ class HotspotsAnalysisView(APIView):
         else:
             event_tag = 1
         if not start_time:
-            start_time = "2013-09-12 00:00:00"
-            end_time = "2013-09-12 23:59:59"
+            start_time = datetime.strptime("2013-09-12 00:00:00", '%Y-%m-%d %H:%M:%S')
+            end_time = datetime.strptime("2013-09-12 23:59:59", '%Y-%m-%d %H:%M:%S')
         else:
             start_time = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
             if end_time:
@@ -559,8 +583,8 @@ class FlowAnalysisView(APIView):
         
         # 默认查询2013-09-12的数据
         if not start_time:
-            start_time = "2013-09-12 00:00:00"
-            end_time = "2013-09-12 23:59:59"
+            start_time = datetime.strptime("2013-09-12 00:00:00", '%Y-%m-%d %H:%M:%S')
+            end_time = datetime.strptime("2013-09-12 23:59:59", '%Y-%m-%d %H:%M:%S')
         else:
             start_time = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
             if end_time:
@@ -691,10 +715,10 @@ class SpatiotemporalAnalysisView(APIView):
         layer_type = request.GET.get('layer_type', 'none')  # 默认无图层
         current_time = request.GET.get('current_time')  # 时间轴当前时间
         
-        # 默认查询2013-09-12的数据
+        # 默认查询2139的数据
         if not start_time:
-            start_time = "2013-09-12 00:00:00"
-            end_time = "2013-09-12 23:59:59"
+            start_time = 21300
+            end_time = 21323959
         else:
             start_time = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
             if end_time:
@@ -822,7 +846,6 @@ class SpatiotemporalAnalysisView(APIView):
                 
                 # 轨迹点（所有车辆当前时刻位置，按秒）
                 if layer_type == 'trajectory_points' and current_time:
-                    # 取当前时间前后0.5秒的点，每车取最新一条
                     current_dt = datetime.strptime(current_time, '%Y-%m-%d %H:%M:%S')
                     start_sec = current_dt - timedelta(seconds=0.5)
                     end_sec = current_dt + timedelta(seconds=0.5)
@@ -884,8 +907,11 @@ class DistanceDistributionView(APIView):
         end_time = request.GET.get('end_time')
         # 默认时间范围
         if not start_time:
-            start_time = "2013-09-12 00:00:00"
-            end_time = "2013-09-12 23:59:59"
+            start_time = datetime.strptime("2013-09-12 00:00:00", '%Y-%m-%d %H:%M:%S')
+            end_time = datetime.strptime("2013-09-12 23:59:59", '%Y-%m-%d %H:%M:%S')
+        else:
+            start_time = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
+            end_time = datetime.strptime(end_time, '%Y-%m-%d %H:%M:%S')
         result = analyze_distance_distribution(start_time, end_time)
         return Response(result, status=status.HTTP_200_OK)
 
@@ -899,3 +925,143 @@ class VehicleIdListView(APIView):
             return Response({'vehicle_ids': ids}, status=status.HTTP_200_OK)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class WeeklyPassengerFlowView(APIView):
+    """流量分布API视图"""
+    def get(self, request):
+        """
+        获取周客流量分布数据
+        
+        参数:
+        - mode: 模式 (weekly=周客流量分布, custom=自定义)
+        - custom_start: 自定义开始时间 (YYYY-MM-DD HH:MM:SS)
+        - custom_end: 自定义结束时间 (YYYY-MM-DD HH:MM:SS)
+        """
+        try:
+            # 调试：检查数据库连接
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+                cursor.fetchone()
+                
+                # 检查表是否存在
+                cursor.execute("SHOW TABLES LIKE 'taxi_gps_log'")
+                table_exists = cursor.fetchone()
+                if not table_exists:
+                    return Response({
+                        'error': 'taxi_gps_log表不存在',
+                        'message': '请检查数据库表结构'
+                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                
+                # 检查表中是否有数据
+                cursor.execute("SELECT COUNT(*) FROM taxi_gps_log")
+                count = cursor.fetchone()[0]
+                if count == 0:
+                    return Response({
+                        'error': 'taxi_gps_log表中没有数据',
+                        'message': '请检查数据是否已导入'
+                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                    
+        except Exception as e:
+            return Response({
+                'error': f'数据库连接失败: {str(e)}',
+                'message': '数据库连接错误'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        mode = request.GET.get('mode', 'weekly')
+        
+        if mode == 'weekly':
+            # 固定周客流量分布：213-9-9
+            start_time = datetime.strptime("2013-09-12 00:00:00", '%Y-%m-%d %H:%M:%S')
+            end_time = datetime.strptime("2013-09-18 23:59:59", '%Y-%m-%d %H:%M:%S')
+        else:
+            # 自定义模式：使用前端传入的时间范围
+            custom_start = request.GET.get('custom_start')
+            custom_end = request.GET.get('custom_end')
+            
+            if not custom_start or not custom_end:
+                return Response({
+                    'error': '自定义模式需要提供custom_start和custom_end参数'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            start_time = datetime.strptime(custom_start, '%Y-%m-%d %H:%M:%S')
+            end_time = datetime.strptime(custom_end, '%Y-%m-%d %H:%M:%S')
+        
+        try:
+            with connection.cursor() as cursor:
+                # 按5分钟间隔统计event_tag=1和event_tag=3的数据
+                sql = r"""
+                SELECT 
+                    CONCAT(
+                        DATE_FORMAT(beijing_time, '%%Y-%%m-%%d %%H:'),
+                        LPAD(FLOOR(MINUTE(beijing_time)/5)*5, 2, '0')
+                    ) as time_slot,
+                    COUNT(*) as count
+                FROM taxi_gps_log 
+                WHERE event_tag IN (1, 3)
+                AND beijing_time BETWEEN %s AND %s
+                GROUP BY time_slot
+                ORDER BY time_slot
+                """
+  
+                
+                cursor.execute(sql, [start_time, end_time])
+                results = cursor.fetchall()
+                
+                # 处理数据，确保5分钟间隔完整
+                flow_data = []
+                current_time = datetime.strptime(start_time.strftime('%Y-%m-%d %H:%M:%S'), '%Y-%m-%d %H:%M:%S')
+                end_datetime = datetime.strptime(end_time.strftime('%Y-%m-%d %H:%M:%S'), '%Y-%m-%d %H:%M:%S')
+                
+                # 创建时间点映射
+                time_slot_map = {}
+                for row in results:
+                    time_slot, count = row
+                    time_slot_map[time_slot] = count
+                
+                # 生成完整的时间序列（5分钟间隔）
+                while current_time <= end_datetime:
+                    time_slot = current_time.strftime('%Y-%m-%d %H:%M')
+                    count = time_slot_map.get(time_slot, 0)
+                    
+                    flow_data.append({
+                        'time': time_slot,
+                        'count': count
+                    })
+                    
+                    # 增加5分钟
+                    current_time += timedelta(minutes=5)
+                
+                # 计算统计信息
+                total_count = sum(item['count'] for item in flow_data)
+                max_count = max(item['count'] for item in flow_data) if flow_data else 0
+                avg_count = total_count / len(flow_data) if flow_data else 0
+                
+                # 找到峰值时间
+                peak_time = None
+                if flow_data:
+                    peak_item = max(flow_data, key=lambda x: x['count'])
+                    peak_time = peak_item['time']
+                
+                response_data = {
+                    'flow_data': flow_data,
+                    'statistics': {
+                        'total_count': total_count,
+                        'max_count': max_count,
+                        'avg_count': round(avg_count, 2),
+                        'peak_time': peak_time,
+                        'mode': mode
+                    },
+                    'time_range': {
+                        'start': start_time.strftime('%Y-%m-%d %H:%M:%S') if isinstance(start_time, datetime) else start_time,
+                        'end': end_time.strftime('%Y-%m-%d %H:%M:%S') if isinstance(end_time, datetime) else end_time
+                    }
+                }
+                
+                return Response(response_data, status=status.HTTP_200_OK)
+                
+        except Exception as e:
+            return Response({
+                'error': str(e),
+                'message': '查询周客流量分布时发生错误'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

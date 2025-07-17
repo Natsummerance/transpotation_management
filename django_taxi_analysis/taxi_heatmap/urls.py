@@ -15,8 +15,10 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from cache_api.views import TaxiCacheView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('heatmap_api.urls')),
+    path('api/cache/taxi/<str:module>/<str:span>.json', TaxiCacheView.as_view()),
 ]
