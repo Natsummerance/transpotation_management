@@ -2,6 +2,84 @@ import { NextRequest, NextResponse } from 'next/server';
 import path from 'path';
 import fs from 'fs';
 
+/**
+ * @swagger
+ * /api/static/{path}:
+ *   get:
+ *     summary: 静态资源访问
+ *     description: 根据路径动态返回图片、视频、音频等静态资源，支持 Range 分片请求。
+ *     parameters:
+ *       - in: path
+ *         name: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 资源相对路径（如 runs/detect/predict/xxx.jpg）
+ *       - in: header
+ *         name: range
+ *         schema:
+ *           type: string
+ *         description: 媒体资源分片请求的 Range 头
+ *     responses:
+ *       200:
+ *         description: 成功返回静态资源
+ *         content:
+ *           image/jpeg: {}
+ *           image/png: {}
+ *           image/gif: {}
+ *           image/webp: {}
+ *           image/svg+xml: {}
+ *           video/mp4: {}
+ *           video/x-msvideo: {}
+ *           video/quicktime: {}
+ *           video/webm: {}
+ *           video/ogg: {}
+ *           audio/mpeg: {}
+ *           audio/wav: {}
+ *           audio/mp4: {}
+ *           application/octet-stream: {}
+ *       206:
+ *         description: 分片返回媒体资源
+ *         content:
+ *           video/mp4: {}
+ *           audio/mpeg: {}
+ *       400:
+ *         description: 路径不是文件
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *       403:
+ *         description: 访问被拒绝
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *       404:
+ *         description: 文件不存在
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *       500:
+ *         description: 服务器内部错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ */
 export async function GET(req: NextRequest, { params }: { params: { path: string[] } }) {
   try {
     // 修正：加上 'RDD_yolo11' 目录
