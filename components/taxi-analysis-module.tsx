@@ -36,20 +36,46 @@ const TIMELINE_HALFDAY = generateHalfDayTimeline('2013-09-12', '2013-09-19');
 const TIMELINE_MIN = 0;
 const TIMELINE_MAX = TIMELINE_HALFDAY.length - 1;
 
+// 时间补全工具函数，保证格式为YYYY-MM-DD HH:mm:ss
+function padDateTime(dt: string, end = false) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dt)) {
+    return dt + (end ? ' 23:59:59' : ' 00:00:00');
+  }
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(dt)) {
+    return dt + (end ? ':59' : ':00');
+  }
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(dt)) {
+    return dt;
+  }
+  // 兜底：只保留到秒
+  let m = dt.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
+  return m ? m[1] : (end ? '2013-09-12 23:59:59' : '2013-09-12 00:00:00');
+}
+
 // 获取时间范围的起止时间字符串（支持半天）
 function getTimeRange(customStart?: string, customEnd?: string) {
-  // customStart/customEnd 格式为 yyyy-MM-dd HH:mm
-  const start = customStart ? `${customStart}:00` : "2013-09-12 00:00:00"
-  // 结束时间如果是 00:00，取当天 11:59:59；如果是 12:00，取当天 23:59:59
-  let end = "2013-09-12 23:59:59";
-  if (customEnd) {
-    if (customEnd.endsWith('00:00')) {
-      end = customEnd.replace('00:00', '11:59:59');
-    } else if (customEnd.endsWith('12:00')) {
-      end = customEnd.replace('12:00', '23:59:59');
-    }
+  let start = padDateTime(customStart || "2013-09-12", false);
+  let end = padDateTime(customEnd || "2013-09-12", true);
+  return { start, end };
+}
+
+// 时间轴滑块变更时的补全函数
+function padToFull(dt: string, end = false) {
+  return padDateTime(dt, end);
+}
+
+// 生成半天粒度的缓存文件名
+function getCacheSpan(start: string, end: string) {
+  function parse(dt: string) {
+    const d = new Date(dt);
+    const y = d.getFullYear();
+    const m = d.getMonth() + 1;
+    const day = d.getDate();
+    const h = d.getHours();
+    const half = h >= 12 ? 1 : 0;
+    return `${y}-${m}-${day}-${half}`;
   }
-  return { start, end }
+  return `${parse(start)}_${parse(end)}`;
 }
 
 export default function TaxiAnalysisModule() {
@@ -101,13 +127,6 @@ export default function TaxiAnalysisModule() {
 
   // 时间轴变更时，更新customStart/customEnd（修正为:00结尾）
   useEffect(() => {
-    // 统一补全为 %Y-%m-%d %H:%M:%S
-    function padToFull(dt: string, end = false) {
-      if (/^\d{4}-\d{2}-\d{2}$/.test(dt)) return dt + (end ? ' 23:59:59' : ' 00:00:00');
-      if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(dt)) return dt + ':00';
-      if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(dt)) return dt;
-      return dt;
-    }
     setCustomStart(padToFull(TIMELINE_HALFDAY[timelineRange[0]]));
     setCustomEnd(padToFull(TIMELINE_HALFDAY[timelineRange[1]], true));
   }, [timelineRange]);
@@ -639,56 +658,155 @@ export default function TaxiAnalysisModule() {
   const [flowLoading, setFlowLoading] = useState(false);
   const FLOW_CACHE_KEY = 'weekly_passenger_flow_cache';
 
-  // 工具函数：补全日期为YYYY-MM-DD HH:mm:ss
-  function padDateTime(dt: string, end = false) {
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dt)) return dt + (end ? ' 23:59:59' : ' 00:00:00');
-    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(dt)) return dt + ':00';
-    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(dt)) return dt;
-    return dt;
+  const MODULE = 'weekly-passenger-flow';
+
+  // 生成周客流分布缓存文件名（固定为weekly.json）
+  function getWeeklyCachePath() {
+    return '/api/cache/taxi/weekly-passenger-flow/weekly.json';
   }
 
-  // 拉取客流量分布数据
+  async function loadWeeklyCache(setData: (d:any)=>void) {
+    const url = getWeeklyCachePath();
+    try {
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        setFlowData(data.flow_data || []);
+        setFlowStats(data.statistics || null);
+        return true;
+      }
+    } catch {}
+    return false;
+  }
+
+  async function saveWeeklyCache(data: any) {
+    const url = getWeeklyCachePath();
+    try {
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+    } catch {}
+  }
+  // ... existing code ...
+  function getCachePath(module: string, file: string) {
+    return `/api/cache/taxi/${module}/${file}.json`;
+  }
+
+  async function loadCache(module: string, file: string, setData: (d:any)=>void) {
+    const url = getCachePath(module, file);
+    try {
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        setData(data);
+        return true;
+      }
+    } catch {}
+    return false;
+  }
+
+  async function saveCache(module: string, file: string, data: any) {
+    const url = getCachePath(module, file);
+    try {
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+    } catch {}
+  }
+  // ... existing code ...
+  // 综合数据缓存
+  useEffect(() => {
+    async function fetchDashboard() {
+      await loadCache('dashboard', 'dashboard', setDashboardData);
+      // ...后端接口请求，成功后saveCache('dashboard', 'dashboard', data)
+    }
+    fetchDashboard();
+  }, [customStart, customEnd]);
+  // 路程分布分析缓存
+  useEffect(() => {
+    async function fetchDistance() {
+      await loadCache('distance-distribution', 'distance-distribution', setDistanceDistribution);
+      // ...后端接口请求，成功后saveCache('distance-distribution', 'distance-distribution', data)
+    }
+    fetchDistance();
+  }, [customStart, customEnd]);
+  // 热门上下客区域排行缓存
+  useEffect(() => {
+    async function fetchHotspotsRank() {
+      await loadCache('hotspots', 'rank', setHotspotsData);
+      // ...后端接口请求，成功后saveCache('hotspots', 'rank', data)
+    }
+    fetchHotspotsRank();
+  }, [customStart, customEnd]);
+  // 热门上下客点分布图缓存
+  useEffect(() => {
+    async function fetchHotspotsHeatmap() {
+      await loadCache('hotspots', 'heatmap', setHotspotsMapData);
+      // ...后端接口请求，成功后saveCache('hotspots', 'heatmap', data)
+    }
+    fetchHotspotsHeatmap();
+  }, [customStart, customEnd]);
+  // 车辆轨迹可视化缓存
+  useEffect(() => {
+    async function fetchTrajectory() {
+      await loadCache('trajectory', 'trajectory', setTrajectories);
+      // ...后端接口请求，成功后saveCache('trajectory', 'trajectory', data)
+    }
+    fetchTrajectory();
+  }, [customStart, customEnd]);
+  // 出租车上下客热力图缓存
+  useEffect(() => {
+    async function fetchHeatmap() {
+      await loadCache('heatmap', 'heatmap', setTaxiData);
+      // ...后端接口请求，成功后saveCache('heatmap', 'heatmap', data)
+    }
+    fetchHeatmap();
+  }, [customStart, customEnd]);
+  // ... existing code ...
+
+  // 客流量分布数据获取（先请求后端缓存API，再并行请求后端主API覆盖）
   useEffect(() => {
     let ignore = false;
-    async function fetchFlow() {
-      setFlowLoading(true);
-      if (flowMode === 'weekly') {
-        // 先查缓存
-        const cache = localStorage.getItem(FLOW_CACHE_KEY);
-        if (cache) {
-          try {
-            const data = JSON.parse(cache);
-            if (data && Array.isArray(data.flow_data)) {
-              setFlowData(data.flow_data);
-              setFlowStats(data.statistics);
-              setFlowLoading(false);
-              return;
-            }
-          } catch {}
-        }
-      }
-      // 请求后端
+    setFlowLoading(true);
+
+    // 1. 先请求后端缓存API，立即渲染
+    loadCache('weekly-passenger-flow', 'weekly', (data) => {
+      if (ignore) return;
+      setFlowData(data.flow_data || []);
+      setFlowStats(data.statistics || null);
+      setFlowLoading(false); // 只要有缓存就先结束 loading
+    });
+
+    // 2. 并行请求后端主API，返回后覆盖
+    (async () => {
       let url = 'http://localhost:8000/api/weekly-passenger-flow/?mode=' + flowMode;
       if (flowMode === 'custom') {
         url += `&custom_start=${encodeURIComponent(padDateTime(customStart))}`;
         url += `&custom_end=${encodeURIComponent(padDateTime(customEnd, true))}`;
       }
-      const res = await fetch(url);
-      if (!res.ok) {
-        setFlowData([]); setFlowStats(null); setFlowLoading(false); return;
+      try {
+        const res = await fetch(url);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (ignore) return;
+        setFlowData(data.flow_data || []);
+        setFlowStats(data.statistics || null);
+        await saveCache('weekly-passenger-flow', 'weekly', data);
+      } catch (e) {
+        // 后端失败不影响页面
       }
-      const data = await res.json();
-      if (ignore) return;
-      setFlowData(data.flow_data || []);
-      setFlowStats(data.statistics || null);
-      if (flowMode === 'weekly') {
-        localStorage.setItem(FLOW_CACHE_KEY, JSON.stringify(data));
-      }
-      setFlowLoading(false);
-    }
-    fetchFlow();
+    })();
+
     return () => { ignore = true; };
   }, [flowMode, customStart, customEnd]);
+
+  const [hoveredFlowIndex, setHoveredFlowIndex] = useState<number | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<{x: number, y: number} | null>(null);
+  const svgContainerRef = useRef<HTMLDivElement>(null);
 
   return (
     <div className="space-y-8">
@@ -901,7 +1019,7 @@ export default function TaxiAnalysisModule() {
                 {flowMode === 'weekly' ? '周客流量分布' : '时客流量分布'}
               </CardTitle>
               <CardDescription>
-                {flowMode === 'weekly' ? '2013-09-12至2013-09-18七天的客流量分布' : '自定义时间段客流量分布'}
+                {flowMode === 'weekly' ? '2013-9-12至2013-9-18七天的客流量分布' : '自定义时间段客流量分布'}
               </CardDescription>
             </div>
             <div className="flex items-center space-x-2">
@@ -920,31 +1038,267 @@ export default function TaxiAnalysisModule() {
             {flowLoading ? (
               <div className="h-64 flex items-center justify-center text-blue-600"><Loader2 className="w-6 h-6 animate-spin mr-2" />加载中...</div>
             ) : (
-              <div className="h-64 bg-gradient-to-t from-green-50 to-white rounded-lg flex items-end justify-center p-4 overflow-x-auto">
-                <div className="flex items-end space-x-1 h-full w-full">
-                  {flowData.length === 0 && <div className="text-gray-400 w-full text-center">暂无数据</div>}
-                  {flowData.map((item: any, i: number) => (
-                    <div key={i} className="flex flex-col items-center flex-1 min-w-[32px]">
+              <div ref={svgContainerRef} className="h-80 bg-gradient-to-t from-green-50 to-white rounded-lg p-4 overflow-x-auto relative">
+                {flowData.length === 0 && <div className="text-gray-400 w-full text-center h-full flex items-center justify-center">暂无数据</div>}
+                {flowData.length > 0 && (
+                  <>
+                    <svg className="w-full h-full" viewBox={`0 0 ${flowData.length * 20} 240`} preserveAspectRatio="none">
+                      {/* 背景网格线 */}
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <line
+                          key={`grid-${i}`}
+                          x1="0"
+                          y1={40 + i * 32}
+                          x2={flowData.length * 20}
+                          y2={40 + i * 32}
+                          stroke="#e5e7eb"
+                          strokeWidth="1"
+                          strokeDasharray="2,2"
+                        />
+                      ))}
+                      {/* 折线路径 */}
+                      <path
+                        d={flowData.map((item: any, i: number) => {
+                          const maxCount = flowStats?.max_count || 1;
+                          const y = 240 - Math.max((item.count / maxCount) * 200, 2);
+                          const x = i * 20 + 10;
+                          return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+                        }).join(' ')}
+                        stroke="#10b981"
+                        strokeWidth="3"
+                        fill="none"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      {/* 数据点 */}
+                      {flowData.map((item: any, i: number) => {
+                        const maxCount = flowStats?.max_count || 1;
+                        const y = 240 - Math.max((item.count / maxCount) * 200, 2);
+                        const x = i * 20 + 10;
+                        return (
+                          <g key={i}>
+                            <circle
+                              cx={x}
+                              cy={y}
+                              r="5"
+                              fill="#10b981"
+                              stroke="#fff"
+                              strokeWidth="2"
+                              className="hover:r-7 transition-all duration-200 cursor-pointer"
+                              onMouseEnter={e => {
+                                setHoveredFlowIndex(i);
+                                // 记录初始位置
+                                if (svgContainerRef.current) {
+                                  const rect = svgContainerRef.current.getBoundingClientRect();
+                                  setTooltipPos({
+                                    x: x,
+                                    y: y
+                                  });
+                                }
+                              }}
+                              onMouseMove={e => {
+                                if (svgContainerRef.current) {
+                                  const rect = svgContainerRef.current.getBoundingClientRect();
+                                  // 鼠标在SVG内的相对坐标
+                                  setTooltipPos({
+                                    x: e.nativeEvent.offsetX,
+                                    y: e.nativeEvent.offsetY
+                                  });
+                                }
+                              }}
+                              onMouseLeave={() => {
+                                setHoveredFlowIndex(null);
+                                setTooltipPos(null);
+                              }}
+                            />
+                          </g>
+                        );
+                      })}
+                    </svg>
+                    {/* Tooltip */}
+                    {hoveredFlowIndex !== null && flowData[hoveredFlowIndex] && tooltipPos && (
                       <div
-                        className="w-full bg-gradient-to-t from-green-500 to-green-300 rounded-t"
-                        style={{ height: `${(item.count / (flowStats?.max_count || 1)) * 90 + 10}%` }}
-                        title={item.count}
-                      ></div>
-                      <span className="text-xs text-gray-500 mt-1">
-                        {/* 只显示时:分，避免ValueError */}
-                        {item.time?.slice(11, 16) || item.time}
-                      </span>
-                      <span className="text-xs font-medium">{item.count}</span>
+                        style={{
+                          position: 'absolute',
+                          left: tooltipPos.x + 12, // 右侧偏移
+                          top: tooltipPos.y - 8, // 上方微调
+                          pointerEvents: 'none',
+                          zIndex: 20,
+                          minWidth: 110,
+                          maxWidth: 220,
+                          transition: 'opacity 0.15s',
+                          opacity: 1,
+                        }}
+                        className="animate-fade-in"
+                      >
+                        <div style={{
+                          background: 'rgba(255,255,255,0.98)',
+                          borderRadius: 10,
+                          boxShadow: '0 4px 24px #0002',
+                          padding: '12px 18px',
+                          fontSize: 15,
+                          color: '#222',
+                          border: '1.5px solid #10b981',
+                          position: 'relative',
+                          fontWeight: 500,
+                        }}>
+                          <div style={{ fontWeight: 700, color: '#10b981', fontSize: 17, marginBottom: 2 }}>
+                            {flowData[hoveredFlowIndex].count} 人次
+                          </div>
+                          <div style={{ color: '#888', fontSize: 13 }}>
+                            {flowData[hoveredFlowIndex].time}
+                          </div>
+                          {/* 箭头 */}
+                          <div style={{
+                            position: 'absolute',
+                            left: 8,
+                            top: '100%',
+                            width: 0,
+                            height: 0,
+                            borderLeft: '8px solid transparent',
+                            borderRight: '8px solid transparent',
+                            borderTop: '10px solid #fff',
+                            filter: 'drop-shadow(0 2px 4px #0001)'
+                          }} />
+                        </div>
+                      </div>
+                    )}
+                    {/* X轴标签 - 根据数据跨度自动调整精度 */}
+                    <div className="flex justify-between mt-2 text-xs text-gray-500">
+                      {(() => {
+                        if (flowData.length === 0) return null;
+                        // 判断是否为周客流分布（每天一个点，跨度7天）
+                        const firstTime = new Date(flowData[0].time);
+                        const lastTime = new Date(flowData[flowData.length - 1].time);
+                        const timeSpanMs = lastTime.getTime() - firstTime.getTime();
+                        const timeSpanDays = timeSpanMs / (1000 * 60 * 60 * 24);
+                        if (flowData.length <= 8 && Math.abs(timeSpanDays - 6) < 1) {
+                          // 7天分布，全部显示为12日、13日...18日
+                          return flowData.map((item: any, i: number) => {
+                            const itemTime = new Date(item.time);
+                            const day = itemTime.getDate();
+                            return (
+                              <span key={i} className="text-xs text-gray-500">{day}日</span>
+                            );
+                          });
+                        }
+                        // 否则，使用原有自适应逻辑
+                        // ... existing code ...
+                        // 计算数据的时间跨度
+                        const firstTime2 = new Date(flowData[0].time);
+                        const lastTime2 = new Date(flowData[flowData.length - 1].time);
+                        const timeSpanMs2 = lastTime2.getTime() - firstTime2.getTime();
+                        const timeSpanHours = timeSpanMs2 / (1000 * 60 * 60);
+                        const timeSpanDays2 = timeSpanHours / 24;
+                        let labelInterval: number;
+                        let timeFormat: 'hour' | 'day' | 'datetime';
+                        if (timeSpanHours >= 168) {
+                          labelInterval = Math.ceil(timeSpanDays2 / 7);
+                          timeFormat = 'day';
+                        } else if (timeSpanHours >= 84) {
+                          labelInterval = 12;
+                          timeFormat = 'hour';
+                        } else if (timeSpanHours >= 60) {
+                          labelInterval = 8;
+                          timeFormat = 'hour';
+                        } else if (timeSpanHours >= 48) {
+                          labelInterval = 6;
+                          timeFormat = 'hour';
+                        } else if (timeSpanHours >= 36) {
+                          labelInterval = 4;
+                          timeFormat = 'hour';
+                        } else if (timeSpanHours >= 24) {
+                          labelInterval = 3;
+                          timeFormat = 'hour';
+                        } else if (timeSpanHours >= 12) {
+                          labelInterval = 4;
+                          timeFormat = 'hour';
+                        } else if (timeSpanHours >= 6) {
+                          labelInterval = 1;
+                          timeFormat = 'hour';
+                        } else if (timeSpanHours >= 2) {
+                          labelInterval = 0.5;
+                          timeFormat = 'datetime';
+                        } else {
+                          labelInterval = 0.25;
+                          timeFormat = 'datetime';
+                        }
+                        return flowData.map((item: any, i: number) => {
+                          const itemTime = new Date(item.time);
+                          let shouldShow = false;
+                          let displayText = '';
+                          if (i === 0 || i === flowData.length - 1) {
+                            shouldShow = true;
+                          } else {
+                            const hoursFromStart = (itemTime.getTime() - firstTime2.getTime()) / (1000 * 60 * 60);
+                            if (timeFormat === 'day') {
+                              const daysFromStart = hoursFromStart / 24;
+                              shouldShow = Math.abs(daysFromStart % labelInterval) < 0.1;
+                            } else if (timeFormat === 'hour') {
+                              shouldShow = Math.abs(hoursFromStart % labelInterval) < 0.1;
+                            } else {
+                              const minutesFromStart = hoursFromStart * 60;
+                              if (labelInterval === 0.5) {
+                                shouldShow = Math.abs(minutesFromStart % 30) < 1;
+                              } else if (labelInterval === 0.25) {
+                                shouldShow = Math.abs(minutesFromStart % 15) < 1;
+                              } else {
+                                const minutes = itemTime.getMinutes();
+                                shouldShow = minutes === 0 || minutes === 30;
+                              }
+                            }
+                          }
+                          if (shouldShow) {
+                            if (timeFormat === 'day') {
+                              const day = itemTime.getDate();
+                              displayText = `${day}日`;
+                            } else {
+                              const hour = itemTime.getHours();
+                              displayText = `${hour.toString().padStart(2, '0')}时`;
+                            }
+                          }
+                          return shouldShow ? (
+                            <span key={i} className="text-xs text-gray-500">
+                              {displayText}
+                            </span>
+                          ) : null;
+                        });
+                      })()}
                     </div>
-                  ))}
-                </div>
+                  </>
+                )}
               </div>
             )}
             {flowStats && (
-              <div className="mt-2 text-xs text-gray-600 flex flex-wrap gap-4">
-                <span>总数：{flowStats.total_count}</span>
-                <span>峰值：{flowStats.max_count}（{flowStats.peak_time?.slice(5, 16)}）</span>
-                <span>均值：{flowStats.avg_count}</span>
+              <div className="mt-4 p-3 bg-gradient-to-r from-blue-50 to-green-50 rounded-lg border border-blue-100">
+                <div className="flex flex-wrap justify-between items-center gap-3 text-sm">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    <span className="text-gray-600">总客流量:</span>
+                    <span className="font-bold text-blue-600">{flowStats.total_count?.toLocaleString() || '0'}</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                    <span className="text-gray-600">峰值:</span>
+                    <span className="font-bold text-red-600">{flowStats.max_count?.toLocaleString() || '0'}</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span className="text-gray-600">平均:</span>
+                    <span className="font-bold text-green-600">{flowStats.avg_count?.toFixed(1) || '0.0'}</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                    <span className="text-gray-600">峰值时间:</span>
+                    <span className="font-bold text-purple-600">{flowStats.peak_time?.slice(5, 16) || '未知'}</span>
+                  </div>
+                </div>
+                <div className="mt-2 text-xs text-gray-500 text-center border-t border-blue-200 pt-2">
+                  {flowMode === 'weekly' 
+                    ? '统计时间：2013-9-12 至 2013-9-18' 
+                    : `统计时间：${flowStats.time_range?.start?.slice(0, 16) || customStart} 至 ${flowStats.time_range?.end?.slice(0, 16) || customEnd}`
+                  }
+                </div>
               </div>
             )}
           </CardContent>

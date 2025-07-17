@@ -1,6 +1,6 @@
 "use client"
 
-import type React from "react"
+import React, { Suspense } from "react"
 
 import { useState, useRef, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -29,10 +29,11 @@ import {
   X,
   Loader2,
 } from "lucide-react"
-import FaceRecognitionModule from "./face-recognition-module"
+import DrawingBoard from "./DrawingBoard"
 import { useUser } from '@/components/user-context';
 import { useTranslation } from 'react-i18next';
 import i18n from '@/lib/i18n';
+import FaceRecognitionModule from "@/components/face-recognition-module";
 
 // 移除Tabs相关代码，导出SettingsModule时接收一个props: page，page为'profile'或'system'，根据page显示对应内容
 export default function SettingsModule({ page = 'profile' }: { page?: 'profile' | 'system' }) {
@@ -43,6 +44,8 @@ export default function SettingsModule({ page = 'profile' }: { page?: 'profile' 
   const [profileImage, setProfileImage] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [showFaceModal, setShowFaceModal] = useState(false);
+  const [faceAuthenticated, setFaceAuthenticated] = useState(true); // 默认true，实际应根据用户信息判断
 
   // 用户信息状态
   const [userInfo, setUserInfo] = useState({
@@ -81,6 +84,9 @@ export default function SettingsModule({ page = 'profile' }: { page?: 'profile' 
           if (data.data.avatar) {
             setProfileImage(data.data.avatar);
           }
+          // 判断是否已录入人脸（假设data.data.has_face为后端返回的人脸录入状态）
+          setFaceAuthenticated(!!data.data.has_face);
+          if (!data.data.has_face) setShowFaceModal(true);
         }
       } catch (e) {
         // 获取失败不处理
@@ -250,6 +256,12 @@ export default function SettingsModule({ page = 'profile' }: { page?: 'profile' 
       return
     }
 
+    // 新增：检查原密码和新密码是否相同
+    if (passwordData.currentPassword === passwordData.newPassword) {
+      alert("新密码不能与原密码相同，请设置不同的密码")
+      return
+    }
+
     setIsLoading(true)
     try {
       const token = localStorage.getItem('token');
@@ -361,337 +373,363 @@ export default function SettingsModule({ page = 'profile' }: { page?: 'profile' 
   }
 
   return (
-    <div className="space-y-8">
-      {/* 顶部标题和操作栏保留 */}
-      <div className="flex items-center justify-between">
-        <div>
-          {page === 'profile' ? (
-            <>
-              <h2 className="text-3xl font-bold text-gray-900">{t('personal_information')}</h2>
-              <p className="text-gray-600 mt-1">{t('manage_your_personal_information_and_avatar')}</p>
-            </>
-          ) : (
-            <>
-              <h2 className="text-3xl font-bold text-gray-900">{t('system_settings')}</h2>
-              <p className="text-gray-600 mt-1">{t('manage_account_settings_and_preferences')}</p>
-            </>
-          )}
+    <>
+      {showFaceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-xl font-bold mb-4">请录入人脸信息</h2>
+            <FaceRecognitionModule
+              onSuccess={() => {
+                setShowFaceModal(false);
+                setFaceAuthenticated(true);
+                window.location.reload();
+              }}
+            />
+          </div>
         </div>
-        <div className="flex space-x-3">
-          {/*<Button variant="outline" onClick={handleExportData} disabled={isLoading} className="bg-transparent">
-            <Download className="w-4 h-4 mr-2" />
-            导出数据
-          </Button>*/}
-          <Button onClick={handleLogout} variant="destructive">
-            <LogOut className="w-4 h-4 mr-2" />
-            {t('logout')}
-          </Button>
+      )}
+      <div className="space-y-8">
+        {/* 顶部标题和操作栏保留 */}
+        <div className="flex items-center justify-between">
+          <div>
+            {page === 'profile' ? (
+              <>
+                <h2 className="text-3xl font-bold text-gray-900">{t('personal_information')}</h2>
+                <p className="text-gray-600 mt-1">{t('manage_your_personal_information_and_avatar')}</p>
+              </>
+            ) : (
+              <>
+                <h2 className="text-3xl font-bold text-gray-900">{t('system_settings')}</h2>
+                <p className="text-gray-600 mt-1">{t('manage_account_settings_and_preferences')}</p>
+              </>
+            )}
+          </div>
+          <div className="flex space-x-3">
+            {/*<Button variant="outline" onClick={handleExportData} disabled={isLoading} className="bg-transparent">
+              <Download className="w-4 h-4 mr-2" />
+              导出数据
+            </Button>*/}
+            <Button onClick={handleLogout} variant="destructive">
+              <LogOut className="w-4 h-4 mr-2" />
+              {t('logout')}
+            </Button>
+          </div>
         </div>
-      </div>
 
-      {/* 根据page显示内容 */}
-      {page === 'profile' && (
-        <div className="space-y-6">
-          <Card className="border-0 shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-xl font-bold">{t('personal_information')}</CardTitle>
-              <CardDescription>{t('manage_your_personal_information_and_avatar')}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* 头像设置 */}
-              <div className="flex items-center space-x-6">
-                <div className="relative">
-                  <div className="w-24 h-24 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center overflow-hidden">
-                    {profileImage ? (
-                      <img 
-                        src={profileImage.startsWith('data:') ? profileImage : profileImage} 
-                        alt="头像" 
-                        className="w-full h-full object-cover"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.style.display = 'none';
-                          target.nextElementSibling?.classList.remove('hidden');
-                        }}
-                      />
-                    ) : null}
-                    {!profileImage && <User className="w-12 h-12 text-white" />}
-                  </div>
-                  <Button
-                    size="sm"
-                    className="absolute -bottom-2 -right-2 rounded-full w-8 h-8 p-0"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Camera className="w-4 h-4" />
-                    )}
-                  </Button>
-                  <input
-                    aria-label="上传头像"
-                    title="选择头像图片"
-                    placeholder="选择头像图片"
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleAvatarUpload}
-                    className="hidden"
-                  />
-                </div>
-                <div className="flex flex-col justify-center">
-                  {isEditing ? (
-                    <Input
-                      id="username-inline"
-                      value={userInfo.uname}
-                      onChange={(e) => setUserInfo({ ...userInfo, uname: e.target.value })}
-                      className="text-lg font-semibold w-40"
+        {/* 根据page显示内容 */}
+        {page === 'profile' && (
+          <div className="space-y-6">
+            <Card className="border-0 shadow-lg">
+              <CardHeader>
+                <CardTitle className="text-xl font-bold">{t('personal_information')}</CardTitle>
+                <CardDescription>{t('manage_your_personal_information_and_avatar')}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* 头像设置 */}
+                <div className="flex items-center space-x-6">
+                  <div className="relative">
+                    <div className="w-24 h-24 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center overflow-hidden">
+                      {profileImage ? (
+                        <img 
+                          src={profileImage.startsWith('data:') ? profileImage : profileImage} 
+                          alt="头像" 
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            target.nextElementSibling?.classList.remove('hidden');
+                          }}
+                        />
+                      ) : null}
+                      {!profileImage && <User className="w-12 h-12 text-white" />}
+                    </div>
+                    <Button
+                      size="sm"
+                      className="absolute -bottom-2 -right-2 rounded-full w-8 h-8 p-0"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isLoading}
+                    >
+                      {isLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Camera className="w-4 h-4" />
+                      )}
+                    </Button>
+                    <input
+                      aria-label="上传头像"
+                      title="选择头像图片"
+                      placeholder="选择头像图片"
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarUpload}
+                      className="hidden"
                     />
-                  ) : (
-                    <h3 className="font-semibold text-lg">{userInfo.uname}</h3>
-                  )}
-                  <p className="text-gray-600">{userInfo.position}</p>
-                  <p className="text-sm text-gray-500">{userInfo.department}</p>
-                </div>
-                <div className="ml-auto">
-                  {isEditing ? (
-                    <div className="flex space-x-2">
-                      <Button size="sm" onClick={handleSaveProfile} disabled={isLoading}>
-                        {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  </div>
+                  <div className="flex flex-col justify-center">
+                    {isEditing ? (
+                      <Input
+                        id="username-inline"
+                        value={userInfo.uname}
+                        onChange={(e) => setUserInfo({ ...userInfo, uname: e.target.value })}
+                        className="text-lg font-semibold w-40"
+                      />
+                    ) : (
+                      <h3 className="font-semibold text-lg">{userInfo.uname}</h3>
+                    )}
+                    <p className="text-gray-600">{userInfo.position}</p>
+                    <p className="text-sm text-gray-500">{userInfo.department}</p>
+                  </div>
+                  <div className="ml-auto">
+                    {isEditing ? (
+                      <div className="flex space-x-2">
+                        <Button size="sm" onClick={handleSaveProfile} disabled={isLoading}>
+                          {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setIsEditing(false)}
+                          className="bg-transparent"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button size="sm" variant="outline" onClick={() => setIsEditing(true)} className="bg-transparent">
+                        <Edit className="w-4 h-4 mr-2" />
+                        {t('edit')}
                       </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 基本信息表单（去除用户名输入框） */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">{t('email_address')}</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={userInfo.email}
+                      onChange={(e) => setUserInfo({ ...userInfo, email: e.target.value })}
+                      disabled={!isEditing}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">{t('phone_number')}</Label>
+                    <Input
+                      id="phone"
+                      value={userInfo.phone}
+                      onChange={(e) => setUserInfo({ ...userInfo, phone: e.target.value })}
+                      disabled={!isEditing}
+                    />
+                  </div>
+                  {/* 其他字段保持不变 */}
+                </div>
+
+                {/*<div className="space-y-2">
+                  <Label htmlFor="bio">个人简介</Label>
+                  <Textarea
+                    id="bio"
+                    value={userInfo.bio}
+                    onChange={(e) => setUserInfo({ ...userInfo, bio: e.target.value })}
+                    disabled={!isEditing}
+                    rows={3}
+                  />
+                </div>*/}
+              </CardContent>
+            </Card>
+
+            {/* 密码修改 */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
+              <Card className="border-0 shadow-lg">
+                <CardHeader>
+                  <CardTitle className="text-xl font-bold">{t('change_password')}</CardTitle>
+                  <CardDescription>{t('update_password_periodically_to_protect_account_security')}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="current-password">{t('current_password')}</Label>
+                    <div className="relative">
+                      <Input
+                        id="current-password"
+                        type={showCurrentPassword ? "text" : "password"}
+                        value={passwordData.currentPassword}
+                        onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
+                        placeholder={t('please_enter_current_password')}
+                      />
                       <Button
+                        type="button"
+                        variant="ghost"
                         size="sm"
-                        variant="outline"
-                        onClick={() => setIsEditing(false)}
-                        className="bg-transparent"
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0"
+                        onClick={() => setShowCurrentPassword(!showCurrentPassword)}
                       >
-                        <X className="w-4 h-4" />
+                        {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </Button>
                     </div>
-                  ) : (
-                    <Button size="sm" variant="outline" onClick={() => setIsEditing(true)} className="bg-transparent">
-                      <Edit className="w-4 h-4 mr-2" />
-                      {t('edit')}
-                    </Button>
-                  )}
-                </div>
-              </div>
-
-              {/* 基本信息表单（去除用户名输入框） */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="email">{t('email_address')}</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={userInfo.email}
-                    onChange={(e) => setUserInfo({ ...userInfo, email: e.target.value })}
-                    disabled={!isEditing}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">{t('phone_number')}</Label>
-                  <Input
-                    id="phone"
-                    value={userInfo.phone}
-                    onChange={(e) => setUserInfo({ ...userInfo, phone: e.target.value })}
-                    disabled={!isEditing}
-                  />
-                </div>
-                {/* 其他字段保持不变 */}
-              </div>
-
-              {/*<div className="space-y-2">
-                <Label htmlFor="bio">个人简介</Label>
-                <Textarea
-                  id="bio"
-                  value={userInfo.bio}
-                  onChange={(e) => setUserInfo({ ...userInfo, bio: e.target.value })}
-                  disabled={!isEditing}
-                  rows={3}
-                />
-              </div>*/}
-            </CardContent>
-          </Card>
-
-          {/* 密码修改 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
-          <Card className="border-0 shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-xl font-bold">{t('change_password')}</CardTitle>
-              <CardDescription>{t('update_password_periodically_to_protect_account_security')}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="current-password">{t('current_password')}</Label>
-                <div className="relative">
-                  <Input
-                    id="current-password"
-                    type={showCurrentPassword ? "text" : "password"}
-                    value={passwordData.currentPassword}
-                    onChange={(e) => setPasswordData({ ...passwordData, currentPassword: e.target.value })}
-                    placeholder={t('please_enter_current_password')}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0"
-                    onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-                  >
-                    {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="new-password">{t('new_password')}</Label>
+                    <div className="relative">
+                      <Input
+                        id="new-password"
+                        type={showNewPassword ? "text" : "password"}
+                        value={passwordData.newPassword}
+                        onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                        placeholder={t('please_enter_new_password')}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                      >
+                        {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="confirm-password">{t('confirm_new_password')}</Label>
+                    <Input
+                      id="confirm-password"
+                      type="password"
+                      value={passwordData.confirmPassword}
+                      onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                      placeholder={t('please_enter_new_password_again')}
+                    />
+                  </div>
+                  <Button onClick={handleChangePassword} disabled={isLoading} className="w-full h-10 sm:h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg text-sm">
+                    {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Lock className="w-4 h-4 mr-2" />}
+                    {t('change_password')}
                   </Button>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="new-password">{t('new_password')}</Label>
-                <div className="relative">
-                  <Input
-                    id="new-password"
-                    type={showNewPassword ? "text" : "password"}
-                    value={passwordData.newPassword}
-                    onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                    placeholder={t('please_enter_new_password')}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0"
-                    onClick={() => setShowNewPassword(!showNewPassword)}
-                  >
-                    {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </Button>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="confirm-password">{t('confirm_new_password')}</Label>
-                <Input
-                  id="confirm-password"
-                  type="password"
-                  value={passwordData.confirmPassword}
-                  onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                  placeholder={t('please_enter_new_password_again')}
-                />
-              </div>
-              <Button onClick={handleChangePassword} disabled={isLoading} className="w-full h-10 sm:h-12 bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg text-sm">
-                {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Lock className="w-4 h-4 mr-2" />}
-                {t('change_password')}
-              </Button>
-            </CardContent>
-          </Card>
-          
+                </CardContent>
+              </Card>
+              
 
-          {/* 人脸录入模块 */}
-          <FaceRecognitionModule />
+              {/* 人脸录入模块 */}
+              <Card className="border-0 shadow-lg col-span-1">
+                <CardHeader>
+                  <CardTitle className="text-xl font-bold">个性签名</CardTitle>
+                  <CardDescription>可以在此画板上自由绘制并导出图片</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {/* 画板组件 */}
+                  <DrawingBoard />
+                </CardContent>
+              </Card>
+              
+            </div>
           </div>
+        )}
+        {page === 'system' && (
+          <div className="space-y-6">
+            <Card className="border-0 shadow-lg">
+              <CardHeader>
+                <CardTitle className="text-xl font-bold">{t('system_settings')}</CardTitle>
+                <CardDescription>{t('customize_system')}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="theme">{t('theme')}</Label>
+                    <Select
+                      value={systemSettings.theme}
+                      onValueChange={(value) => setSystemSettings({ ...systemSettings, theme: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="light">{t('light')}</SelectItem>
+                        <SelectItem value="dark">{t('dark')}</SelectItem>
+                        <SelectItem value="auto">{t('auto')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="language">{t('language')}</Label>
+                    <Select
+                      value={systemSettings.language}
+                      onValueChange={(value) => setSystemSettings({ ...systemSettings, language: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent style={{ maxHeight: 240, overflowY: 'auto' }}>
+                        <SelectItem value="zh-CN">{t('zh-CN')}</SelectItem>
+                        <SelectItem value="zh-TW">{t('zh-TW')}</SelectItem>
+                        <SelectItem value="en-US">{t('en-US')}</SelectItem>
+                        <SelectItem value="ja-JP">{t('ja-JP')}</SelectItem>
+                        <SelectItem value="ko-KR">{t('ko-KR')}</SelectItem>
+                        <SelectItem value="fr-FR">{t('fr-FR')}</SelectItem>
+                        <SelectItem value="de-DE">{t('de-DE')}</SelectItem>
+                        <SelectItem value="it-IT">{t('it-IT')}</SelectItem>
+                        <SelectItem value="es-ES">{t('es-ES')}</SelectItem>
+                        <SelectItem value="pt-PT">{t('pt-PT')}</SelectItem>
+                        <SelectItem value="el-GR">{t('el-GR')}</SelectItem>
+                        <SelectItem value="ar-SA">{t('ar-SA')}</SelectItem>
+                        <SelectItem value="ru-RU">{t('ru-RU')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="timezone">{t('timezone')}</Label>
+                    <Select
+                      value={systemSettings.timezone}
+                      onValueChange={(value) => setSystemSettings({ ...systemSettings, timezone: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Asia/Shanghai">{t('beijing_time_utc_8')}</SelectItem>
+                        <SelectItem value="Asia/Hong_Kong">{t('hong_kong_time_utc_8')}</SelectItem>
+                        <SelectItem value="Asia/Taipei">{t('taipei_time_utc_8')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="date-format">{t('date_format')}</Label>
+                    <Select
+                      value={systemSettings.dateFormat}
+                      onValueChange={(value) => setSystemSettings({ ...systemSettings, dateFormat: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="YYYY-MM-DD">{t('2024_01_15')}</SelectItem>
+                        <SelectItem value="MM/DD/YYYY">{t('01_15_2024')}</SelectItem>
+                        <SelectItem value="DD/MM/YYYY">{t('15_01_2024')}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                {/* 删除自动保存开关，只保留声音提示 */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-medium">{t('sound')}</h4>
+                    <p className="text-sm text-gray-600">{t('enable_system_sound_notifications')}</p>
+                  </div>
+                  <Switch
+                    checked={systemSettings.soundEnabled}
+                    onCheckedChange={(checked) => setSystemSettings({ ...systemSettings, soundEnabled: checked })}
+                  />
+                </div>
+                <Button onClick={handleSaveSystemSettings} disabled={isLoading} 
+                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white h-10 sm:h-12 text-sm sm:text-base"
+                >
+                  {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                  {t('save')}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
-      )}
-      {page === 'system' && (
-        <div className="space-y-6">
-          <Card className="border-0 shadow-lg">
-            <CardHeader>
-              <CardTitle className="text-xl font-bold">{t('system_settings')}</CardTitle>
-              <CardDescription>{t('customize_system')}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="theme">{t('theme')}</Label>
-                  <Select
-                    value={systemSettings.theme}
-                    onValueChange={(value) => setSystemSettings({ ...systemSettings, theme: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="light">{t('light')}</SelectItem>
-                      <SelectItem value="dark">{t('dark')}</SelectItem>
-                      <SelectItem value="auto">{t('auto')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="language">{t('language')}</Label>
-                  <Select
-                    value={systemSettings.language}
-                    onValueChange={(value) => setSystemSettings({ ...systemSettings, language: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent style={{ maxHeight: 240, overflowY: 'auto' }}>
-                      <SelectItem value="zh-CN">{t('zh-CN')}</SelectItem>
-                      <SelectItem value="zh-TW">{t('zh-TW')}</SelectItem>
-                      <SelectItem value="en-US">{t('en-US')}</SelectItem>
-                      <SelectItem value="ja-JP">{t('ja-JP')}</SelectItem>
-                      <SelectItem value="ko-KR">{t('ko-KR')}</SelectItem>
-                      <SelectItem value="fr-FR">{t('fr-FR')}</SelectItem>
-                      <SelectItem value="de-DE">{t('de-DE')}</SelectItem>
-                      <SelectItem value="it-IT">{t('it-IT')}</SelectItem>
-                      <SelectItem value="es-ES">{t('es-ES')}</SelectItem>
-                      <SelectItem value="pt-PT">{t('pt-PT')}</SelectItem>
-                      <SelectItem value="el-GR">{t('el-GR')}</SelectItem>
-                      <SelectItem value="ar-SA">{t('ar-SA')}</SelectItem>
-                      <SelectItem value="ru-RU">{t('ru-RU')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="timezone">{t('timezone')}</Label>
-                  <Select
-                    value={systemSettings.timezone}
-                    onValueChange={(value) => setSystemSettings({ ...systemSettings, timezone: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Asia/Shanghai">{t('beijing_time_utc_8')}</SelectItem>
-                      <SelectItem value="Asia/Hong_Kong">{t('hong_kong_time_utc_8')}</SelectItem>
-                      <SelectItem value="Asia/Taipei">{t('taipei_time_utc_8')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="date-format">{t('date_format')}</Label>
-                  <Select
-                    value={systemSettings.dateFormat}
-                    onValueChange={(value) => setSystemSettings({ ...systemSettings, dateFormat: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="YYYY-MM-DD">{t('2024_01_15')}</SelectItem>
-                      <SelectItem value="MM/DD/YYYY">{t('01_15_2024')}</SelectItem>
-                      <SelectItem value="DD/MM/YYYY">{t('15_01_2024')}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              {/* 删除自动保存开关，只保留声音提示 */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-medium">{t('sound')}</h4>
-                  <p className="text-sm text-gray-600">{t('enable_system_sound_notifications')}</p>
-                </div>
-                <Switch
-                  checked={systemSettings.soundEnabled}
-                  onCheckedChange={(checked) => setSystemSettings({ ...systemSettings, soundEnabled: checked })}
-                />
-              </div>
-              <Button onClick={handleSaveSystemSettings} disabled={isLoading} 
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white h-10 sm:h-12 text-sm sm:text-base"
-              >
-                {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                {t('save')}
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-    </div>
+    </>
   )
 }

@@ -29,6 +29,50 @@ function formatDateTime(dt: Date | string) {
   return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())} ${pad(dt.getHours())}:${pad(dt.getMinutes())}:${pad(dt.getSeconds())}`;
 }
 
+// 生成半天粒度的缓存文件名
+function getCacheSpan(start: string, end: string) {
+  function parse(dt: string) {
+    const d = new Date(dt);
+    const y = d.getFullYear();
+    const m = d.getMonth() + 1;
+    const day = d.getDate();
+    const h = d.getHours();
+    const half = h >= 12 ? 1 : 0;
+    return `${y}-${m}-${day}-${half}`;
+  }
+  return `${parse(start)}_${parse(end)}`;
+}
+
+function getCachePath(module: string, file: string) {
+  return `/api/cache/taxi/${module}/${file}.json`;
+}
+
+async function loadCache(module: string, file: string, setData: (d:any)=>void) {
+  const url = getCachePath(module, file);
+  try {
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      setData(data);
+      return true;
+    }
+  } catch {}
+  return false;
+}
+
+async function saveCache(module: string, file: string, data: any) {
+  const url = getCachePath(module, file);
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  } catch {}
+}
+
+const MODULE = 'map-analysis';
+
 export default function MapAnalysisModule() {
   const [selectedTimeRange, setSelectedTimeRange] = useState("today")
   const [selectedLayer, setSelectedLayer] = useState("none")  // 默认无图层
@@ -152,17 +196,21 @@ export default function MapAnalysisModule() {
       if (selectedLayer === "vehicle_heatmap" && currentTime) {
         params.append('current_time', formatDateTime(currentTime));
       }
-      // 其它图层如 trajectory_points 也需要 current_time
       if (selectedLayer === "trajectory_points" && currentTime) {
         params.append('current_time', formatDateTime(currentTime));
       }
-      // 其它需要自定义时间范围的情况
-      // TODO: 如果后端需要 start_time/end_time，需补充
+      // 假设有start_time/end_time参数
+      let start = damageStartTime || "2013-09-12 00:00:00";
+      let end = damageEndTime || "2013-09-12 23:59:59";
+      // 先读物理缓存
+      await loadCache(MODULE, getCacheSpan(start, end), setAnalysisData);
+      // 请求后端
       const response = await fetch(`/api/analysis/spatiotemporal?${params.toString()}`)
       if (response.ok) {
         const data = await response.json()
         setAnalysisData(data)
         updateMapVisualization(data)
+        await saveCache(MODULE, getCacheSpan(start, end), data);
       } else {
         console.error("API response not ok:", response.status)
       }

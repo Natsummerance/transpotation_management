@@ -205,6 +205,50 @@ async function getAddressFromCoordinatesFront(lat: number, lng: number): Promise
   }
 }
 
+// 生成半天粒度的缓存文件名
+function getCacheSpan(start: string, end: string) {
+  function parse(dt: string) {
+    const d = new Date(dt);
+    const y = d.getFullYear();
+    const m = d.getMonth() + 1;
+    const day = d.getDate();
+    const h = d.getHours();
+    const half = h >= 12 ? 1 : 0;
+    return `${y}-${m}-${day}-${half}`;
+  }
+  return `${parse(start)}_${parse(end)}`;
+}
+
+function getCachePath(module: string, file: string) {
+  return `/api/cache/taxi/${module}/${file}.json`;
+}
+
+async function loadCache(module: string, file: string, setData: (d:any)=>void) {
+  const url = getCachePath(module, file);
+  try {
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      setData(data);
+      return true;
+    }
+  } catch {}
+  return false;
+}
+
+async function saveCache(module: string, file: string, data: any) {
+  const url = getCachePath(module, file);
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  } catch {}
+}
+
+const MODULE = 'road-damage';
+
 export default function RoadDamageModule() {
   // 添加彩色动画CSS
   useEffect(() => {

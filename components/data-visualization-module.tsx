@@ -6,6 +6,50 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { TrendingUp, Download, Eye, Filter, Calendar, CloudRain, Thermometer, Wind, Droplets, Loader2, Sun, Cloud, CloudSun, CloudRainWind, Snowflake } from "lucide-react"
 
+// 生成半天粒度的缓存文件名
+function getCacheSpan(start: string, end: string) {
+  function parse(dt: string) {
+    const d = new Date(dt);
+    const y = d.getFullYear();
+    const m = d.getMonth() + 1;
+    const day = d.getDate();
+    const h = d.getHours();
+    const half = h >= 12 ? 1 : 0;
+    return `${y}-${m}-${day}-${half}`;
+  }
+  return `${parse(start)}_${parse(end)}`;
+}
+
+function getCachePath(module: string, file: string) {
+  return `/api/cache/taxi/${module}/${file}.json`;
+}
+
+async function loadCache(module: string, file: string, setData: (d:any)=>void) {
+  const url = getCachePath(module, file);
+  try {
+    const res = await fetch(url);
+    if (res.ok) {
+      const data = await res.json();
+      setData(data);
+      return true;
+    }
+  } catch {}
+  return false;
+}
+
+async function saveCache(module: string, file: string, data: any) {
+  const url = getCachePath(module, file);
+  try {
+    await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+  } catch {}
+}
+
+const MODULE = 'data-visualization';
+
 export default function DataVisualizationModule() {
   const [chartType, setChartType] = useState("bar")
   const [timeRange, setTimeRange] = useState("week")
@@ -84,16 +128,24 @@ export default function DataVisualizationModule() {
     const end = `${weatherDate} 23:59:59`
     setWeatherLoading(true)
     setWeatherError(null)
-    fetch(`/api/weather?start_time=${encodeURIComponent(start)}&end_time=${encodeURIComponent(end)}`)
-      .then(res => res.json())
-      .then(data => {
-        setWeatherData(data.weather || [])
+    loadCache(MODULE, getCacheSpan(start, end), (cachedData) => {
+      if (cachedData) {
+        setWeatherData(cachedData.weather || [])
         setWeatherLoading(false)
-      })
-      .catch(err => {
-        setWeatherError("天气数据加载失败")
-        setWeatherLoading(false)
-      })
+      } else {
+        fetch(`/api/weather?start_time=${encodeURIComponent(start)}&end_time=${encodeURIComponent(end)}`)
+          .then(res => res.json())
+          .then(data => {
+            setWeatherData(data.weather || [])
+            setWeatherLoading(false)
+            saveCache(MODULE, getCacheSpan(start, end), data)
+          })
+          .catch(err => {
+            setWeatherError("天气数据加载失败")
+            setWeatherLoading(false)
+          })
+      }
+    })
   }, [weatherDate])
 
   // 选取主天气icon（根据温度/降水/风速）
