@@ -793,11 +793,13 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
           <p className="text-gray-600 mt-1">AI智能识别路面病害，自动生成检测报告</p>
         </div>
         <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
-          <Button variant="outline" className="border-blue-200 text-blue-600 hover:bg-blue-50 bg-transparent text-sm">
+          {/* 删除实时监控按钮 */}
+          {/* <Button variant="outline" className="border-blue-200 text-blue-600 hover:bg-blue-50 bg-transparent text-sm">
             <Eye className="w-4 h-4 mr-2" />
             实时监控
-          </Button>
-          <div className="relative">
+          </Button> */}
+          {/* 删除导出报告按钮 */}
+          {/* <div className="relative">
             <Button
               className="bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg text-sm w-full sm:w-auto"
               onClick={handleConfirmLocation}
@@ -807,7 +809,7 @@ const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
               导出报告
             </Button>
             <div className="absolute -bottom-5 right-0 text-xs text-gray-400">调用 /api/report/export</div>
-          </div>
+          </div> */}
         </div>
       </div>
 

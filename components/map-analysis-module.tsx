@@ -46,6 +46,8 @@ export default function MapAnalysisModule() {
   // 新增：道路病害点数据和弹窗状态
   const [damagePoints, setDamagePoints] = useState<any[]>([]);
   const [selectedDamage, setSelectedDamage] = useState<any | null>(null);
+  const [damageStartTime, setDamageStartTime] = useState("");
+  const [damageEndTime, setDamageEndTime] = useState("");
 
   // 新增：车辆位置热力图实例引用
   const vehicleHeatmapRef = useRef<any>(null)
@@ -56,6 +58,48 @@ export default function MapAnalysisModule() {
   const [trajectoryPoints, setTrajectoryPoints] = useState<any[]>([]); // 当前秒所有车辆点
   const trajectoryMarkersRef = useRef<any[]>([]); // 轨迹点Marker引用
   const [selectedCarPlate, setSelectedCarPlate] = useState<string | null>(null); // 当前选中车牌
+
+  // 新增：全屏状态
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const fullscreenMapRef = useRef<HTMLDivElement>(null);
+
+  // 监听ESC退出全屏
+  useEffect(() => {
+    function handleFullscreenChange() {
+      if (document.fullscreenElement === fullscreenMapRef.current) {
+        setIsFullscreen(true);
+      } else {
+        setIsFullscreen(false);
+      }
+    }
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  // 监听时间范围变化，自动设置起止时间
+  useEffect(() => {
+    if (selectedLayer !== "damage") return;
+    const now = new Date();
+    let start = "";
+    let end = "";
+    if (selectedTimeRange === "today") {
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0).toISOString().slice(0, 19).replace('T', ' ');
+      end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString().slice(0, 19).replace('T', ' ');
+    } else if (selectedTimeRange === "week") {
+      const day = now.getDay() || 7;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - day + 1);
+      start = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate(), 0, 0, 0).toISOString().slice(0, 19).replace('T', ' ');
+      end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString().slice(0, 19).replace('T', ' ');
+    } else if (selectedTimeRange === "month") {
+      start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0).toISOString().slice(0, 19).replace('T', ' ');
+      end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString().slice(0, 19).replace('T', ' ');
+    }
+    if (selectedTimeRange !== "custom") {
+      setDamageStartTime(start);
+      setDamageEndTime(end);
+    }
+  }, [selectedTimeRange, selectedLayer]);
 
   // 加载高德地图和数据
   useEffect(() => {
@@ -130,7 +174,12 @@ export default function MapAnalysisModule() {
   // 新增：获取所有道路病害点
   const fetchDamagePoints = useCallback(async () => {
     try {
-      const res = await fetch("/api/report/damage?page=1&limit=100&type=all");
+      let url = "/api/report/damage?page=1&limit=100&type=all";
+      if (selectedLayer === "damage") {
+        if (damageStartTime) url += `&start_time=${encodeURIComponent(damageStartTime)}`;
+        if (damageEndTime) url += `&end_time=${encodeURIComponent(damageEndTime)}`;
+      }
+      const res = await fetch(url);
       const data = await res.json();
       if (Array.isArray(data.data)) {
         setDamagePoints(data.data.filter((d:any)=>d.totalCount>0));
@@ -138,7 +187,7 @@ export default function MapAnalysisModule() {
     } catch (e) {
       setDamagePoints([]);
     }
-  }, []);
+  }, [selectedLayer, damageStartTime, damageEndTime]);
 
   // 新增：切换到道路病害图层时加载数据
   useEffect(() => {
@@ -330,6 +379,19 @@ export default function MapAnalysisModule() {
         });
       }, 2000); // 每2秒更新一次
     }
+    // 新增：轨迹图自动播放
+    if (isPlaying && selectedLayer === "trajectory") {
+      interval = setInterval(() => {
+        setSecondSliderValue(prev => {
+          const next = prev[0] + 1;
+          if (next > 86399) {
+            setIsPlaying(false); // 播放到头自动暂停
+            return [86399];
+          }
+          return [next];
+        });
+      }, 200); // 每0.2秒推进一帧，可根据需要调整
+    }
     
     return () => {
       if (interval) {
@@ -465,136 +527,328 @@ export default function MapAnalysisModule() {
   }, [selectedLayer, mapInstance]);
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
+    <div className={isFullscreen ? "fixed inset-0 z-50 bg-white flex flex-col" : "space-y-8"}>
+      <div className={isFullscreen ? "hidden" : "flex items-center justify-between"}>
         <div>
           <h2 className="text-3xl font-bold text-gray-900">地图时空分析</h2>
           <p className="text-gray-600 mt-1">基于济南地图的时空数据分析与可视化</p>
         </div>
         <div className="flex space-x-3">
-          <Button variant="outline" className="border-blue-200 text-blue-600 hover:bg-blue-50 bg-transparent">
+          <Button variant="outline" className="border-blue-200 text-blue-600 hover:bg-blue-50 bg-transparent" onClick={() => {
+            if (fullscreenMapRef.current) {
+              fullscreenMapRef.current.requestFullscreen();
+            }
+          }}>
             <Eye className="w-4 h-4 mr-2" />
             全屏显示
           </Button>
-          <Button className="bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg">
+          {/* 删除导出分析报告按钮 */}
+          {/* <Button className="bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg">
             <Download className="w-4 h-4 mr-2" />
             导出分析报告
-          </Button>
+          </Button> */}
         </div>
       </div>
 
       {/* 控制面板 */}
       <Card className="border-0 shadow-lg">
         <CardContent className="p-6">
+          {/* 只在道路病害图层显示时间范围、起始时间、结束时间，其余只显示图层类型 */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">时间范围</label>
-              <Select value={selectedTimeRange} onValueChange={setSelectedTimeRange}>
-                <SelectTrigger className="h-12">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="today">今天</SelectItem>
-                  <SelectItem value="week">本周</SelectItem>
-                  <SelectItem value="month">本月</SelectItem>
-                  <SelectItem value="custom">自定义</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700">图层类型</label>
               <Select value={selectedLayer} onValueChange={setSelectedLayer}>
                 <SelectTrigger className="h-12">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent portalContainer={isFullscreen && fullscreenMapRef.current ? fullscreenMapRef.current! : undefined}>
                   <SelectItem value="none">无</SelectItem>
                   <SelectItem value="vehicle_heatmap">热力图</SelectItem>
                   <SelectItem value="trajectory">轨迹图</SelectItem>
                   <SelectItem value="damage">道路病害</SelectItem>
-                  {/*
-                  <SelectItem value="heatmap">车辆位置热力图</SelectItem>
-                  <SelectItem value="hotspots">热门上客点</SelectItem>
-                  <SelectItem value="flow">客流分析</SelectItem>*/}
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">起始时间</label>
-              <Input type="datetime-local" className="h-12" />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">结束时间</label>
-              <Input type="datetime-local" className="h-12" />
-            </div>
+            {selectedLayer === "damage" && (
+              <>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">时间范围</label>
+                  <Select value={selectedTimeRange} onValueChange={setSelectedTimeRange}>
+                    <SelectTrigger className="h-12">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent portalContainer={isFullscreen && fullscreenMapRef.current ? fullscreenMapRef.current! : undefined}>
+                      <SelectItem value="today">今天</SelectItem>
+                      <SelectItem value="week">本周</SelectItem>
+                      <SelectItem value="month">本月</SelectItem>
+                      <SelectItem value="custom">自定义</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">起始时间</label>
+                  <Input type="datetime-local" className="h-12" value={damageStartTime.replace(' ', 'T')} onChange={e => setDamageStartTime(e.target.value.replace('T', ' '))} disabled={selectedTimeRange!=="custom"} />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">结束时间</label>
+                  <Input type="datetime-local" className="h-12" value={damageEndTime.replace(' ', 'T')} onChange={e => setDamageEndTime(e.target.value.replace('T', ' '))} disabled={selectedTimeRange!=="custom"} />
+                </div>
+              </>
+            )}
           </div>
-          <div className="flex space-x-3 mt-4">
-            <Button variant="outline" className="bg-transparent">
-              <Filter className="w-4 h-4 mr-2" />
-              高级筛选
-            </Button>
-            <Button variant="outline" className="bg-transparent">
-              <Layers className="w-4 h-4 mr-2" />
-              图层管理
-            </Button>
-            {selectedLayer === "vehicle_heatmap" && (
-              <div className="flex items-center space-x-4 w-full">
-                <div className="flex items-center space-x-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => {
-                      setTimeSliderValue([Math.max(0, timeSliderValue[0] - 1)]);
-                    }}
-                  >
-                    <SkipBack className="w-4 h-4" />
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => setIsPlaying(!isPlaying)}
-                  >
-                    {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => {
-                      setTimeSliderValue([Math.min(143, timeSliderValue[0] + 1)]);
-                    }}
-                  >
-                    <SkipForward className="w-4 h-4" />
-                  </Button>
-                </div>
-                
-                <div className="flex-1 flex items-center space-x-4">
-                  <span className="text-sm text-gray-600 whitespace-nowrap">00:00</span>
-                  <div className="flex-1">
-                    <Slider
-                      value={timeSliderValue}
-                      onValueChange={setTimeSliderValue}
-                      max={143}
-                      min={0}
-                      step={1}
-                      className="w-full"
-                    />
+          {/* 进度条和播放控件保留原有逻辑 */}
+          {selectedLayer === "vehicle_heatmap" && (
+            <div className="flex items-center space-x-4 w-full mt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setTimeSliderValue([Math.max(0, timeSliderValue[0] - 1)]);
+                }}
+              >
+                <SkipBack className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsPlaying(!isPlaying)}
+                className="mr-2"
+              >
+                {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setTimeSliderValue([Math.min(143, timeSliderValue[0] + 1)]);
+                }}
+              >
+                <SkipForward className="w-4 h-4" />
+              </Button>
+              <span className="text-sm text-gray-600 whitespace-nowrap">
+                {(() => {
+                  const idx = timeSliderValue[0];
+                  const hour = Math.floor(idx / 6);
+                  const minute = (idx % 6) * 10;
+                  return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+                })()}
+              </span>
+              <div className="flex-1">
+                <Slider
+                  value={timeSliderValue}
+                  onValueChange={val => {
+                    setTimeSliderValue(val);
+                    // 进度条变动时同步currentTime
+                    const idx = val[0];
+                    const hour = Math.floor(idx / 6);
+                    const minute = (idx % 6) * 10;
+                    setCurrentTime(`2013-09-12 ${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}:00`);
+                  }}
+                  max={143}
+                  min={0}
+                  step={1}
+                  className="w-full"
+                />
+              </div>
+              <span className="text-sm text-gray-600 whitespace-nowrap">23:50</span>
+              <div className="flex items-center space-x-2">
+                <Input
+                  type="datetime-local"
+                  value={currentTime.replace(' ', 'T')}
+                  onChange={e => {
+                    const newTime = e.target.value.replace('T', ' ');
+                    setCurrentTime(newTime);
+                    const [h, m] = newTime.split(' ')[1].split(':');
+                    const idx = parseInt(h) * 6 + Math.floor(parseInt(m) / 10);
+                    setTimeSliderValue([idx]);
+                  }}
+                  className="w-48"
+                />
+              </div>
+            </div>
+          )}
+          {selectedLayer === "trajectory" && (
+            <div className="flex items-center space-x-4 w-full mt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSecondSliderValue([Math.max(0, secondSliderValue[0] - 1)]);
+                }}
+              >
+                <SkipBack className="w-4 h-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsPlaying(!isPlaying)}
+                className="mr-2"
+              >
+                {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSecondSliderValue([Math.min(86399, secondSliderValue[0] + 1)]);
+                }}
+              >
+                <SkipForward className="w-4 h-4" />
+              </Button>
+              <span className="text-sm text-gray-600 whitespace-nowrap">
+                {(() => {
+                  const sec = secondSliderValue[0];
+                  const h = Math.floor(sec / 3600);
+                  const m = Math.floor((sec % 3600) / 60);
+                  const s = sec % 60;
+                  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                })()}
+              </span>
+              <div className="flex-1">
+                <Slider
+                  value={secondSliderValue}
+                  onValueChange={val => {
+                    setSecondSliderValue(val);
+                    // 进度条变动时同步currentTime
+                    const sec = val[0];
+                    const h = Math.floor(sec / 3600);
+                    const m = Math.floor((sec % 3600) / 60);
+                    const s = sec % 60;
+                    setCurrentTime(`2013-09-12 ${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
+                  }}
+                  max={86399}
+                  min={0}
+                  step={1}
+                  className="w-full"
+                />
+              </div>
+              <span className="text-sm text-gray-600 whitespace-nowrap">23:59:59</span>
+              <div className="flex items-center space-x-2">
+                <Input
+                  type="datetime-local"
+                  value={currentTime.replace(' ', 'T')}
+                  onChange={e => {
+                    const newTime = e.target.value.replace('T', ' ');
+                    setCurrentTime(newTime);
+                    const [h, m, s] = newTime.split(' ')[1].split(':');
+                    const sec = parseInt(h) * 3600 + parseInt(m) * 60 + parseInt(s);
+                    setSecondSliderValue([sec]);
+                  }}
+                  className="w-48"
+                />
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 高德地图显示区域 */}
+      <div ref={fullscreenMapRef} className={isFullscreen ? "flex-1 flex flex-col relative w-full h-full" : ""}>
+        {isFullscreen && (
+          <div className="absolute top-0 left-0 right-0 z-20 bg-white border-b shadow-lg p-4">
+            {/* 控制面板内容（与外部一致） */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">图层类型</label>
+                <Select value={selectedLayer} onValueChange={setSelectedLayer}>
+                  <SelectTrigger className="h-12">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent portalContainer={isFullscreen && fullscreenMapRef.current ? fullscreenMapRef.current! : undefined}>
+                    <SelectItem value="none">无</SelectItem>
+                    <SelectItem value="vehicle_heatmap">热力图</SelectItem>
+                    <SelectItem value="trajectory">轨迹图</SelectItem>
+                    <SelectItem value="damage">道路病害</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {selectedLayer === "damage" && (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">时间范围</label>
+                    <Select value={selectedTimeRange} onValueChange={setSelectedTimeRange}>
+                      <SelectTrigger className="h-12">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent portalContainer={isFullscreen && fullscreenMapRef.current ? fullscreenMapRef.current! : undefined}>
+                        <SelectItem value="today">今天</SelectItem>
+                        <SelectItem value="week">本周</SelectItem>
+                        <SelectItem value="month">本月</SelectItem>
+                        <SelectItem value="custom">自定义</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <span className="text-sm text-gray-600 whitespace-nowrap">23:50</span>
-                </div>
-                
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm font-medium">
-                    {(() => {
-                      const idx = timeSliderValue[0];
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">起始时间</label>
+                    <Input type="datetime-local" className="h-12" value={damageStartTime.replace(' ', 'T')} onChange={e => setDamageStartTime(e.target.value.replace('T', ' '))} disabled={selectedTimeRange!=="custom"} />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">结束时间</label>
+                    <Input type="datetime-local" className="h-12" value={damageEndTime.replace(' ', 'T')} onChange={e => setDamageEndTime(e.target.value.replace('T', ' '))} disabled={selectedTimeRange!=="custom"} />
+                  </div>
+                </>
+              )}
+            </div>
+            {/* 进度条和播放控件 */}
+            {selectedLayer === "vehicle_heatmap" && (
+              <div className="flex items-center space-x-4 w-full mt-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setTimeSliderValue([Math.max(0, timeSliderValue[0] - 1)]);
+                  }}
+                >
+                  <SkipBack className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsPlaying(!isPlaying)}
+                  className="mr-2"
+                >
+                  {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setTimeSliderValue([Math.min(143, timeSliderValue[0] + 1)]);
+                  }}
+                >
+                  <SkipForward className="w-4 h-4" />
+                </Button>
+                <span className="text-sm text-gray-600 whitespace-nowrap">
+                  {(() => {
+                    const idx = timeSliderValue[0];
+                    const hour = Math.floor(idx / 6);
+                    const minute = (idx % 6) * 10;
+                    return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+                  })()}
+                </span>
+                <div className="flex-1">
+                  <Slider
+                    value={timeSliderValue}
+                    onValueChange={val => {
+                      setTimeSliderValue(val);
+                      // 进度条变动时同步currentTime
+                      const idx = val[0];
                       const hour = Math.floor(idx / 6);
                       const minute = (idx % 6) * 10;
-                      return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-                    })()}
-                  </span>
+                      setCurrentTime(`2013-09-12 ${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}:00`);
+                    }}
+                    max={143}
+                    min={0}
+                    step={1}
+                    className="w-full"
+                  />
+                </div>
+                <span className="text-sm text-gray-600 whitespace-nowrap">23:50</span>
+                <div className="flex items-center space-x-2">
                   <Input
                     type="datetime-local"
                     value={currentTime.replace(' ', 'T')}
-                    onChange={(e) => {
+                    onChange={e => {
                       const newTime = e.target.value.replace('T', ' ');
                       setCurrentTime(newTime);
                       const [h, m] = newTime.split(' ')[1].split(':');
@@ -607,12 +861,54 @@ export default function MapAnalysisModule() {
               </div>
             )}
             {selectedLayer === "trajectory" && (
-              <div className="flex items-center space-x-4 w-full">
-                <span className="text-sm text-gray-600 whitespace-nowrap">00:00:00</span>
+              <div className="flex items-center space-x-4 w-full mt-4">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSecondSliderValue([Math.max(0, secondSliderValue[0] - 1)]);
+                  }}
+                >
+                  <SkipBack className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsPlaying(!isPlaying)}
+                  className="mr-2"
+                >
+                  {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSecondSliderValue([Math.min(86399, secondSliderValue[0] + 1)]);
+                  }}
+                >
+                  <SkipForward className="w-4 h-4" />
+                </Button>
+                <span className="text-sm text-gray-600 whitespace-nowrap">
+                  {(() => {
+                    const sec = secondSliderValue[0];
+                    const h = Math.floor(sec / 3600);
+                    const m = Math.floor((sec % 3600) / 60);
+                    const s = sec % 60;
+                    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                  })()}
+                </span>
                 <div className="flex-1">
                   <Slider
                     value={secondSliderValue}
-                    onValueChange={setSecondSliderValue}
+                    onValueChange={val => {
+                      setSecondSliderValue(val);
+                      // 进度条变动时同步currentTime
+                      const sec = val[0];
+                      const h = Math.floor(sec / 3600);
+                      const m = Math.floor((sec % 3600) / 60);
+                      const s = sec % 60;
+                      setCurrentTime(`2013-09-12 ${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`);
+                    }}
                     max={86399}
                     min={0}
                     step={1}
@@ -621,165 +917,61 @@ export default function MapAnalysisModule() {
                 </div>
                 <span className="text-sm text-gray-600 whitespace-nowrap">23:59:59</span>
                 <div className="flex items-center space-x-2">
-                  <span className="text-sm font-medium">
-                    {(() => {
-                      const sec = secondSliderValue[0];
-                      const h = Math.floor(sec / 3600);
-                      const m = Math.floor((sec % 3600) / 60);
-                      const s = sec % 60;
-                      return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-                    })()}
-                  </span>
                   <Input
-                    type="time"
-                    step="1"
-                    value={(() => {
-                      const sec = secondSliderValue[0];
-                      const h = Math.floor(sec / 3600);
-                      const m = Math.floor((sec % 3600) / 60);
-                      const s = sec % 60;
-                      return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-                    })()}
+                    type="datetime-local"
+                    value={currentTime.replace(' ', 'T')}
                     onChange={e => {
-                      const [h, m, s] = e.target.value.split(":").map(Number);
-                      setSecondSliderValue([h * 3600 + m * 60 + s]);
+                      const newTime = e.target.value.replace('T', ' ');
+                      setCurrentTime(newTime);
+                      const [h, m, s] = newTime.split(' ')[1].split(':');
+                      const sec = parseInt(h) * 3600 + parseInt(m) * 60 + parseInt(s);
+                      setSecondSliderValue([sec]);
                     }}
-                    className="w-28"
+                    className="w-48"
                   />
                 </div>
               </div>
             )}
           </div>
-        </CardContent>
-      </Card>
-
-      {/* 高德地图显示区域 */}
-      <Card className="border-0 shadow-lg">
-        <CardHeader>
-          <CardTitle className="text-xl font-bold">济南市交通时空分析地图</CardTitle>
-          <CardDescription>
-            当前显示:{" "}
-            {selectedLayer === "none"
-              ? "基础地图"
-              : selectedLayer === "heatmap"
-                ? "出租车热力图"
-                : selectedLayer === "vehicle_heatmap"
-                  ? `车辆位置热力图 (${currentTime})`
-                  : selectedLayer === "trajectory"
-                    ? "乘客轨迹分析"
-                    : selectedLayer === "hotspots"
-                      ? "热门上客点分布"
-                      : selectedLayer === "damage"
-                        ? "道路病害分布"
-                        : "客流分析"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="relative">
-            {isLoading && (
-              <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-10 rounded-xl">
-                <div className="text-center">
-                  <Loader2 className="w-8 h-8 mx-auto mb-2 animate-spin text-blue-600" />
-                  <p className="text-sm text-gray-600">加载高德地图中...</p>
-                  <p className="text-xs text-gray-400 mt-1">API Key: c6115796bfbad53bd639041995b5b123</p>
-                </div>
-              </div>
-            )}
-            <div ref={mapRef} className="w-full h-96 rounded-xl border" />
-            <div className="absolute bottom-2 left-2 text-xs text-gray-400">© 高德地图</div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* 分析结果 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <Card className="border-0 shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-xl font-bold">时空分析结果</CardTitle>
-            <CardDescription>基于选定时间范围的数据分析</CardDescription>
+        )}
+        <Card className={isFullscreen ? "flex-1 flex flex-col border-0 shadow-lg m-0" : "border-0 shadow-lg"}>
+          <CardHeader className={isFullscreen ? "hidden" : undefined}>
+            <CardTitle className="text-xl font-bold">时空分析地图</CardTitle>
+            <CardDescription>
+              当前显示: {selectedLayer === "none"
+                ? "基础地图"
+                  : selectedLayer === "vehicle_heatmap"
+                    ? `车辆位置热力图 (${currentTime})`
+                    : selectedLayer === "trajectory"
+                      ? `车辆轨迹分析 (${currentTime})`
+                        : selectedLayer === "damage"
+                          ? "道路病害分布"
+                          : "客流分析"}
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-blue-50 rounded-lg p-4">
-                <p className="text-sm text-gray-600">总订单数</p>
-                <p className="text-2xl font-bold text-blue-600">{analysisData?.totalOrders || "12,456"}</p>
-                <p className="text-xs text-green-600">↑ 15.3%</p>
-              </div>
-              <div className="bg-green-50 rounded-lg p-4">
-                <p className="text-sm text-gray-600">平均距离</p>
-                <p className="text-2xl font-bold text-green-600">{analysisData?.avgDistance || "8.5"}km</p>
-                <p className="text-xs text-red-600">↓ 2.1%</p>
-              </div>
-              <div className="bg-orange-50 rounded-lg p-4">
-                <p className="text-sm text-gray-600">热门时段</p>
-                <p className="text-2xl font-bold text-orange-600">{analysisData?.peakHour || "18:00"}</p>
-                <p className="text-xs text-gray-600">晚高峰</p>
-              </div>
-              <div className="bg-purple-50 rounded-lg p-4">
-                <p className="text-sm text-gray-600">活跃区域</p>
-                <p className="text-2xl font-bold text-purple-600">{analysisData?.activeArea || "历下区"}</p>
-                <p className="text-xs text-gray-600">商业中心</p>
-              </div>
-            </div>
-            <div className="space-y-3">
-              <h4 className="font-semibold">热门上客点排行</h4>
-              <div className="space-y-2">
-                {(
-                  analysisData?.topPickupPoints || [
-                    { rank: 1, name: "济南火车站", count: 2345 },
-                    { rank: 2, name: "泉城广场", count: 1876 },
-                    { rank: 3, name: "济南机场", count: 1234 },
-                  ]
-                ).map((spot: any) => (
-                  <div key={spot.rank} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                    <div className="flex items-center space-x-2">
-                      <Badge variant={spot.rank <= 3 ? "destructive" : "outline"}>#{spot.rank}</Badge>
-                      <span className="text-sm">{spot.name}</span>
-                    </div>
-                    <span className="text-sm font-medium">{spot.count}次</span>
+          <CardContent className={isFullscreen ? "flex-1 flex flex-col p-0" : undefined}>
+            <div className={isFullscreen ? "absolute top-0 left-0 right-0 bottom-0 z-10" : "relative"}>
+              {isLoading && (
+                <div className="absolute inset-0 bg-white/80 flex items-center justify-center z-20 rounded-xl">
+                  <div className="text-center">
+                    <Loader2 className="w-8 h-8 mx-auto mb-2 animate-spin text-blue-600" />
+                    <p className="text-sm text-gray-600">加载高德地图中...</p>
+                    <p className="text-xs text-gray-400 mt-1">API Key: c6115796bfbad53bd639041995b5b123</p>
                   </div>
-                ))}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-xl font-bold">时间分布分析</CardTitle>
-            <CardDescription>24小时客流量变化趋势</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-64 bg-gradient-to-t from-blue-50 to-white rounded-lg flex items-end justify-center p-4">
-              {/* 模拟柱状图 */}
-              <div className="flex items-end space-x-2 h-full">
-                {Array.from({ length: 24 }, (_, i) => {
-                  const height = analysisData?.hourlyData?.[i] || Math.random() * 80 + 20
-                  const isHighPeak = i === 8 || i === 18 // 早晚高峰
-                  return (
-                    <div key={i} className="flex flex-col items-center">
-                      <div
-                        className={`w-3 ${isHighPeak ? "bg-red-500" : "bg-blue-500"} rounded-t`}
-                        style={{ height: `${height}%` }}
-                      ></div>
-                      <span className="text-xs text-gray-500 mt-1">{i}</span>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-            <div className="mt-4 text-center">
-              <p className="text-sm text-gray-600">
-                高峰时段: <span className="text-red-600 font-medium">8:00-9:00, 18:00-19:00</span>
-              </p>
+                </div>
+              )}
+              <div ref={mapRef} className={isFullscreen ? "w-full h-full min-h-[400px]" : "w-full h-96 rounded-xl border"} />
+              <div className="absolute bottom-2 left-2 text-xs text-gray-400">© 高德地图</div>
             </div>
           </CardContent>
         </Card>
       </div>
 
+      {/* 分析结果区块已删除 */}
+
       {/* 新增：道路病害详情弹窗 */}
       <Dialog open={!!selectedDamage} onOpenChange={() => setSelectedDamage(null)}>
-        <DialogContent style={{zIndex: 9999}} className="max-w-md p-0 overflow-hidden bg-white rounded-2xl shadow-2xl border-0">
+        <DialogContent portalContainer={isFullscreen && fullscreenMapRef.current ? fullscreenMapRef.current! : undefined} style={{zIndex: 9999}} className="max-w-md p-0 overflow-hidden bg-white rounded-2xl shadow-2xl border-0">
           {/* 弹窗头部已移除，内容直接开始 */}
           {selectedDamage && (
             <div className="px-6 pb-6 pt-2 space-y-4">
@@ -812,12 +1004,22 @@ export default function MapAnalysisModule() {
               </div>
               {selectedDamage.result_image && (
                 <div className="w-full flex justify-center items-center bg-gray-50 rounded-xl mt-2 overflow-hidden group transition-all duration-300" style={{height:'auto', padding:'0'}}>
-                  <img
-                    src={selectedDamage.result_image}
-                    alt="病害图片"
-                    className="object-contain max-w-full max-h-60 transition-transform duration-300 ease-in-out group-hover:scale-110 group-hover:shadow-2xl group-hover:border-blue-400 group-hover:border-2 rounded-xl cursor-zoom-in"
-                    style={{display:'block', margin:'0 auto', width:'100%', height:'100%'}}
-                  />
+                  {/(\.mp4|\.avi|\.webm)$/i.test(selectedDamage.result_image)
+                    ? (
+                      <video
+                        src={selectedDamage.result_image}
+                        controls
+                        className="object-contain max-w-full max-h-60 rounded-xl"
+                        style={{display:'block', margin:'0 auto', width:'100%', height:'100%'}}
+                      />
+                    ) : (
+                      <img
+                        src={selectedDamage.result_image}
+                        alt="病害图片"
+                        className="object-contain max-w-full max-h-60 transition-transform duration-300 ease-in-out group-hover:scale-110 group-hover:shadow-2xl group-hover:border-blue-400 group-hover:border-2 rounded-xl cursor-zoom-in"
+                        style={{display:'block', margin:'0 auto', width:'100%', height:'100%'}}
+                      />
+                    )}
                 </div>
               )}
             </div>

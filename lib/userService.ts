@@ -179,4 +179,16 @@ export class UserService {
       throw error;
     }
   }
+
+  /**
+   * 根据用户名获取用户信息
+   */
+  static async getUserByUsername(username: string): Promise<User | null> {
+    try {
+      return await UserDao.findByUsername(username);
+    } catch (error) {
+      console.error('根据用户名获取用户信息失败:', error);
+      throw error;
+    }
+  }
 }

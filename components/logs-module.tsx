@@ -23,6 +23,7 @@ interface LogEntry {
   face_image?: string
   result_image?: string
   source: string
+  location?: string // 新增字段
 }
 
 interface LogStats {
@@ -52,6 +53,8 @@ export default function LogsModule() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalLogs, setTotalLogs] = useState(0)
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   // 获取日志数据
   const fetchLogs = async () => {
@@ -61,7 +64,9 @@ export default function LogsModule() {
         type: filterType,
         search: searchTerm,
         page: currentPage.toString(),
-        limit: '20'
+        limit: '20',
+        ...(startDate ? { start: startDate + ' 00:00:00' } : {}),
+        ...(endDate ? { end: endDate + ' 23:59:59' } : {})
       })
       
       const response = await fetch(`/api/logs?${params}`)
@@ -97,7 +102,7 @@ export default function LogsModule() {
 
   useEffect(() => {
     fetchLogs()
-  }, [filterType, searchTerm, currentPage])
+  }, [filterType, searchTerm, currentPage, startDate, endDate])
 
   const getLevelColor = (level: string) => {
     switch (level) {
@@ -186,67 +191,106 @@ export default function LogsModule() {
       case "系统登录":
       case "人脸识别":
         return {
-          title: "登录详情",
+          title: (
+            <span className="flex items-center text-2xl font-bold text-blue-700 space-x-2">
+              {getTypeIcon(log.type)}
+              <span>登录失败照片</span>
+            </span>
+          ),
           content: (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div><span className="font-medium">登录方式:</span> {log.type}</div>
-                <div><span className="font-medium">用户:</span> {log.user}</div>
-                <div><span className="font-medium">IP地址:</span> {log.ip}</div>
-                <div><span className="font-medium">时间:</span> {new Date(log.time).toLocaleString('zh-CN')}</div>
-              </div>
-              {log.face_image && (
-                <div className="text-center">
-                  <p className="text-sm text-gray-600 mb-2">登录尝试照片:</p>
-                  <Image
-                    src={log.face_image}
-                    alt="登录照片"
-                    width={300}
-                    height={200}
-                    className="rounded-lg border mx-auto"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.src = '/placeholder-face.png';
-                    }}
-                  />
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-blue-50 rounded-lg p-4 flex flex-col space-y-2 border border-blue-100">
+                  <div><span className="font-semibold text-gray-700">登录方式：</span><span className="text-blue-800 font-medium">{log.type}</span></div>
+                  <div><span className="font-semibold text-gray-700">用户：</span><span className="text-blue-800 font-medium">{log.user}</span></div>
+                  <div><span className="font-semibold text-gray-700">IP地址：</span><span className="text-blue-800 font-medium">{log.ip}</span></div>
+                  <div><span className="font-semibold text-gray-700">时间：</span><span className="text-blue-800 font-medium">{new Date(log.time).toLocaleString('zh-CN')}</span></div>
                 </div>
-              )}
+                {log.face_image && (
+                  <div className="text-center">
+                    <p className="text-base text-gray-700 mb-2 font-semibold">登录尝试照片：</p>
+                    <Image
+                      src={log.face_image}
+                      alt="登录照片"
+                      width={400}
+                      height={300}
+                      className="rounded-lg border mx-auto shadow-md"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = '/placeholder-face.png';
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="bg-blue-100 p-4 rounded-lg mt-4 border-l-4 border-blue-400">
+                <p className="text-base text-blue-900 font-semibold">
+                  <strong>处理建议：</strong> 请检查用户名和密码，确保网络连接稳定。
+                </p>
+              </div>
             </div>
           )
         }
       
       case "路面病害":
         return {
-          title: "路面病害检测详情",
+          title: (
+            <span className="flex items-center text-2xl font-bold text-blue-700 space-x-2">
+              {getTypeIcon(log.type)}
+              <span>路面病害检测详情</span>
+            </span>
+          ),
           content: (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div><span className="font-medium">检测时间:</span> {new Date(log.time).toLocaleString('zh-CN')}</div>
-                <div><span className="font-medium">检测位置:</span> {log.ip}</div>
-                <div><span className="font-medium">检测结果:</span> {log.message.replace('路面病害检测 - ', '')}</div>
-                <div><span className="font-medium">处理状态:</span> 已记录</div>
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-blue-50 rounded-lg p-4 flex flex-col space-y-2 border border-blue-100">
+                  <div><span className="font-semibold text-gray-700">检测时间：</span><span className="text-blue-800 font-medium">{new Date(log.time).toLocaleString('zh-CN')}</span></div>
+                  <div><span className="font-semibold text-gray-700">检测位置：</span><span className="text-blue-800 font-medium">{log.location || log.ip}</span></div>
+                </div>
+                <div className="bg-blue-50 rounded-lg p-4 flex flex-col space-y-2 border border-blue-100">
+                  <div><span className="font-semibold text-gray-700">检测结果：</span><span className="text-blue-800 font-medium">{log.message.replace('路面病害检测 - ', '')}</span></div>
+                  <div><span className="font-semibold text-gray-700">处理状态：</span><span className="text-blue-800 font-medium">已记录</span></div>
+                </div>
               </div>
               {log.result_image && (
-                <div className="text-center">
-                  <p className="text-sm text-gray-600 mb-2">检测结果图片:</p>
-                  <Image
-                    src={log.result_image}
-                    alt="路面病害检测结果"
-                    width={400}
-                    height={300}
-                    className="rounded-lg border mx-auto"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.style.display = 'none';
-                      // 或者使用一个存在的默认图片
-                      // target.src = '/images/no-image-available.png';
-                    }}
-                  />
+                <div className="text-center mt-4">
+                  <p className="text-base text-gray-700 mb-2 font-semibold">检测结果图片/视频：</p>
+                  {(() => {
+                    const isVideo = /\.(mp4|webm|avi)$/i.test(log.result_image || '');
+                    if (isVideo) {
+                      return (
+                        <video
+                          src={log.result_image}
+                          controls
+                          width={400}
+                          height={300}
+                          className="rounded-lg border mx-auto shadow-md"
+                          style={{ background: '#000' }}
+                        >
+                          您的浏览器不支持视频播放。
+                        </video>
+                      );
+                    } else {
+                      return (
+                        <Image
+                          src={log.result_image}
+                          alt="路面病害检测结果"
+                          width={400}
+                          height={300}
+                          className="rounded-lg border mx-auto shadow-md"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                          }}
+                        />
+                      );
+                    }
+                  })()}
                 </div>
               )}
-              <div className="bg-blue-50 p-3 rounded-lg">
-                <p className="text-sm text-blue-800">
-                  <strong>处理建议:</strong> 请相关部门及时处理该路面病害，确保道路安全。
+              <div className="bg-blue-100 p-4 rounded-lg mt-4 border-l-4 border-blue-400">
+                <p className="text-base text-blue-900 font-semibold">
+                  <strong>处理建议：</strong> 请相关部门及时处理该路面病害，确保道路安全。
                 </p>
               </div>
             </div>
@@ -255,23 +299,32 @@ export default function LogsModule() {
       
       case "违章检测":
         return {
-          title: "违章检测详情",
+          title: (
+            <span className="flex items-center text-2xl font-bold text-red-700 space-x-2">
+              {getTypeIcon(log.type)}
+              <span>违章检测详情</span>
+            </span>
+          ),
           content: (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div><span className="font-medium">检测时间:</span> {new Date(log.time).toLocaleString('zh-CN')}</div>
-                <div><span className="font-medium">违章类型:</span> {log.message}</div>
-                <div><span className="font-medium">检测位置:</span> {log.ip}</div>
-                <div><span className="font-medium">处理状态:</span> 待处理</div>
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-red-50 rounded-lg p-4 flex flex-col space-y-2 border border-red-100">
+                  <div><span className="font-semibold text-gray-700">检测时间：</span><span className="text-red-800 font-medium">{new Date(log.time).toLocaleString('zh-CN')}</span></div>
+                  <div><span className="font-semibold text-gray-700">违章类型：</span><span className="text-red-800 font-medium">{log.message}</span></div>
+                </div>
+                <div className="bg-red-50 rounded-lg p-4 flex flex-col space-y-2 border border-red-100">
+                  <div><span className="font-semibold text-gray-700">检测位置：</span><span className="text-red-800 font-medium">{log.location || log.ip}</span></div>
+                  <div><span className="font-semibold text-gray-700">处理状态：</span><span className="text-red-800 font-medium">待处理</span></div>
+                </div>
               </div>
-              <div className="bg-red-50 p-3 rounded-lg">
-                <p className="text-sm text-red-800">
-                  <strong>违章详情:</strong> {log.message}
+              <div className="bg-red-100 p-4 rounded-lg mt-4 border-l-4 border-red-400">
+                <p className="text-base text-red-900 font-semibold">
+                  <strong>违章详情：</strong> {log.message}
                 </p>
               </div>
               {log.hasVideo && (
-                <div className="bg-green-50 p-3 rounded-lg">
-                  <p className="text-sm text-green-800">
+                <div className="bg-green-100 p-4 rounded-lg mt-4 border-l-4 border-green-400">
+                  <p className="text-base text-green-900 font-semibold">
                     <Camera className="w-4 h-4 inline mr-1" />
                     该事件包含视频记录，可进行回放查看
                   </p>
@@ -283,30 +336,39 @@ export default function LogsModule() {
       
       case "嫌疑人告警":
         return {
-          title: "嫌疑人告警详情",
+          title: (
+            <span className="flex items-center text-2xl font-bold text-red-700 space-x-2">
+              {getTypeIcon(log.type)}
+              <span>嫌疑人告警详情</span>
+            </span>
+          ),
           content: (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div><span className="font-medium">告警时间:</span> {new Date(log.time).toLocaleString('zh-CN')}</div>
-                <div><span className="font-medium">告警级别:</span> <Badge variant="destructive">{log.level}</Badge></div>
-                <div><span className="font-medium">检测位置:</span> {log.ip}</div>
-                <div><span className="font-medium">处理状态:</span> 紧急处理中</div>
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-red-50 rounded-lg p-4 flex flex-col space-y-2 border border-red-100">
+                  <div><span className="font-semibold text-gray-700">告警时间：</span><span className="text-red-800 font-medium">{new Date(log.time).toLocaleString('zh-CN')}</span></div>
+                  <div><span className="font-semibold text-gray-700">告警级别：</span><Badge variant="destructive">{log.level}</Badge></div>
+                </div>
+                <div className="bg-red-50 rounded-lg p-4 flex flex-col space-y-2 border border-red-100">
+                  <div><span className="font-semibold text-gray-700">检测位置：</span><span className="text-red-800 font-medium">{log.location || log.ip}</span></div>
+                  <div><span className="font-semibold text-gray-700">处理状态：</span><span className="text-red-800 font-medium">紧急处理中</span></div>
+                </div>
               </div>
-              <div className="bg-red-50 p-3 rounded-lg border-l-4 border-red-500">
-                <p className="text-sm text-red-800">
+              <div className="bg-red-100 p-4 rounded-lg mt-4 border-l-4 border-red-400">
+                <p className="text-base text-red-900 font-semibold">
                   <Shield className="w-4 h-4 inline mr-1" />
-                  <strong>告警信息:</strong> {log.message}
+                  <strong>告警信息：</strong> {log.message}
                 </p>
               </div>
               {log.face_image && (
                 <div className="text-center">
-                  <p className="text-sm text-gray-600 mb-2">嫌疑人照片:</p>
+                  <p className="text-base text-gray-700 mb-2 font-semibold">嫌疑人照片：</p>
                   <Image
                     src={log.face_image}
                     alt="嫌疑人照片"
-                    width={300}
-                    height={200}
-                    className="rounded-lg border mx-auto"
+                    width={400}
+                    height={300}
+                    className="rounded-lg border mx-auto shadow-md"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
                       target.src = '/placeholder-suspect.png';
@@ -314,9 +376,9 @@ export default function LogsModule() {
                   />
                 </div>
               )}
-              <div className="bg-orange-50 p-3 rounded-lg">
-                <p className="text-sm text-orange-800">
-                  <strong>处理建议:</strong> 立即通知相关执法部门，加强现场监控。
+              <div className="bg-red-100 p-4 rounded-lg mt-4 border-l-4 border-red-400">
+                <p className="text-base text-red-900 font-semibold">
+                  <strong>处理建议：</strong> 立即通知相关执法部门，加强现场监控。
                 </p>
               </div>
             </div>
@@ -325,19 +387,26 @@ export default function LogsModule() {
       
       default:
         return {
-          title: "系统日志详情",
+          title: (
+            <span className="flex items-center text-2xl font-bold text-gray-900 space-x-2">
+              {getTypeIcon(log.type)}
+              <span>系统日志详情</span>
+            </span>
+          ),
           content: (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div><span className="font-medium">时间:</span> {new Date(log.time).toLocaleString('zh-CN')}</div>
-                <div><span className="font-medium">类型:</span> {log.type}</div>
-                <div><span className="font-medium">级别:</span> <Badge variant={getLevelColor(log.level)}>{log.level}</Badge></div>
-                <div><span className="font-medium">用户:</span> {log.user}</div>
-              </div>
-              <div className="bg-gray-50 p-3 rounded-lg">
-                <p className="text-sm text-gray-800">
-                  <strong>详细信息:</strong> {log.message}
-                </p>
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-gray-50 rounded-lg p-4 flex flex-col space-y-2 border border-gray-100">
+                  <div><span className="font-semibold text-gray-700">时间：</span><span className="text-gray-800 font-medium">{new Date(log.time).toLocaleString('zh-CN')}</span></div>
+                  <div><span className="font-semibold text-gray-700">类型：</span><span className="text-gray-800 font-medium">{log.type}</span></div>
+                  <div><span className="font-semibold text-gray-700">级别：</span><Badge variant={getLevelColor(log.level)}>{log.level}</Badge></div>
+                  <div><span className="font-semibold text-gray-700">用户：</span><span className="text-gray-800 font-medium">{log.user}</span></div>
+                </div>
+                <div className="bg-gray-100 rounded-lg p-4 flex flex-col space-y-2 border border-gray-100">
+                  <p className="text-base text-gray-800 font-semibold">
+                    <strong>详细信息：</strong> {log.message}
+                  </p>
+                </div>
               </div>
             </div>
           )
@@ -353,10 +422,6 @@ export default function LogsModule() {
           <p className="text-gray-600 mt-1">系统操作日志记录与事件视频回放</p>
         </div>
         <div className="flex space-x-3">
-          <Button variant="outline" className="border-blue-200 text-blue-600 hover:bg-blue-50 bg-transparent">
-            <Filter className="w-4 h-4 mr-2" />
-            高级筛选
-          </Button>
           <Button 
             onClick={exportLogs}
             className="bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg"
@@ -430,6 +495,23 @@ export default function LogsModule() {
                 />
               </div>
             </div>
+            <div className="flex flex-col md:flex-row gap-2 items-center">
+              <Input
+                type="date"
+                value={startDate}
+                onChange={e => setStartDate(e.target.value)}
+                className="h-12 border-gray-200 focus:border-blue-500 min-w-[140px]"
+                placeholder="开始日期"
+              />
+              <span className="mx-1 text-gray-400">-</span>
+              <Input
+                type="date"
+                value={endDate}
+                onChange={e => setEndDate(e.target.value)}
+                className="h-12 border-gray-200 focus:border-blue-500 min-w-[140px]"
+                placeholder="结束日期"
+              />
+            </div>
             <Select value={filterType} onValueChange={setFilterType}>
               <SelectTrigger className="w-full md:w-48 h-12">
                 <SelectValue />
@@ -441,10 +523,6 @@ export default function LogsModule() {
                 <SelectItem value="系统">系统</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" className="h-12 px-6 border-gray-200 hover:bg-gray-50 bg-transparent">
-              <Clock className="w-4 h-4 mr-2" />
-              时间范围
-            </Button>
           </div>
         </CardContent>
       </Card>
@@ -492,7 +570,7 @@ export default function LogsModule() {
                     </TableCell>
                     <TableCell className="max-w-xs truncate">{log.message}</TableCell>
                     <TableCell>{log.user}</TableCell>
-                    <TableCell className="font-mono text-sm">{log.ip}</TableCell>
+                    <TableCell className="font-mono text-sm">{log.location || log.ip}</TableCell>
                     <TableCell>
                       <div className="flex space-x-2">
                         {/* 只为特定类型的日志显示详情按钮，系统日志不显示 */}
@@ -511,8 +589,7 @@ export default function LogsModule() {
                             <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
                               <DialogHeader>
                                 <DialogTitle className="flex items-center space-x-2">
-                                  {getTypeIcon(log.type)}
-                                  <span>{getDetailContent(log).title}</span>
+                                  {getDetailContent(log).title}
                                 </DialogTitle>
                                 <DialogDescription>
                                   事件ID: {log.source}-{log.id} | 级别: {log.level}
