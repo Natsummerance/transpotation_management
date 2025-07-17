@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
         END as log_type
       FROM login_log ll
       LEFT JOIN user u ON ll.uid = u.uid
-      LEFT JOIN face_store fs ON ll.log_id = fs.log_id
+      LEFT JOIN face_store fs ON ll.log_id = fs.id
       WHERE 1=1
       ${timeConditionLogin}
     `;

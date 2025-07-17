@@ -8,17 +8,18 @@ export async function GET(request: NextRequest) {
     // 获取最新的警报数据 - 简化查询
     const alertsQuery = `
       SELECT 
-        face_id,
-        'system' as type,
-        '系统警报' as title,
-        '系统运行正常' as description,
-        'low' as severity,
-        '系统' as location,
-        create_time,
-        'active' as status
+        id,
+        'recognition_status' as type,
+        '人脸警报' as title,
+        '检测到未知用户' as description,
+        'face_image_path' as face_image,
+        'confidence_score' as severity,
+        'ip_address' as location,
+        created_at,
+        'user_agent' as status
       FROM face_store
-      WHERE create_time >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
-      ORDER BY create_time DESC 
+      WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+      ORDER BY created_at DESC 
       LIMIT 3
     `;
     
