@@ -43,6 +43,46 @@ export async function testConnection(): Promise<void> {
   }
 }
 
+// 创建face_store表（如果不存在）
+export async function createFaceStoreTable(): Promise<void> {
+  try {
+    const connection = await pool.getConnection();
+    const createTableSQL = `
+      CREATE TABLE IF NOT EXISTS face_store (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        face_image_path VARCHAR(500) NOT NULL COMMENT '人脸图片保存路径',
+        ip_address VARCHAR(45) COMMENT 登录者IP地址,
+        location_info VARCHAR(200COMMENT登录位置信息',
+        user_agent TEXT COMMENT用户代理信息        confidence_score DECIMAL(5,2) COMMENT '识别置信度',
+        recognition_status ENUM(unknown', failed', success') DEFAULTunknown COMMENT '识别状态,        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间,        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+        INDEX idx_created_at (created_at),
+        INDEX idx_recognition_status (recognition_status)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='未识别人脸存储表; `;
+    
+    await connection.execute(createTableSQL);
+    console.log('face_store表创建成功或已存在');
+    connection.release();
+  } catch (error) {
+    console.error('创建face_store表失败:', error);
+    throw error;
+  }
+}
+
+// 初始化数据库表
+export async function initializeDatabase(): Promise<void> {
+  try {
+    await testConnection();
+    await createFaceStoreTable();
+    console.log('数据库初始化完成');
+  } catch (error) {
+    console.error('数据库初始化失败:', error);
+    throw error;
+  }
+}
+
+// 在模块加载时自动初始化数据库
+initializeDatabase().catch(console.error);
+
 // 连接池健康检查
 export async function checkPoolHealth(): Promise<boolean> {
   try {
