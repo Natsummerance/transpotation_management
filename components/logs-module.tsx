@@ -65,13 +65,11 @@ export default function LogsModule() {
         search: searchTerm,
         page: currentPage.toString(),
         limit: '20',
-        ...(startDate ? { start: startDate + ' 00:00:00' } : {}),
-        ...(endDate ? { end: endDate + ' 23:59:59' } : {})
       })
-      
+      if (startDate) params.append('start', startDate + ' 00:00:00')
+      if (endDate) params.append('end', endDate + ' 23:59:59')
       const response = await fetch(`/api/logs?${params}`)
       const result: LogsResponse = await response.json()
-      
       if (result.success) {
         // 根据类型调整级别
         const adjustedLogs = result.data.logs.map(log => {
@@ -86,7 +84,6 @@ export default function LogsModule() {
           }
           return { ...log, level: adjustedLevel }
         })
-        
         setLogs(adjustedLogs)
         setStats(result.data.stats)
         setTotalLogs(result.data.total)
@@ -99,6 +96,11 @@ export default function LogsModule() {
       setLoading(false)
     }
   }
+
+  // 日期变化时自动跳到第一页
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [startDate, endDate])
 
   useEffect(() => {
     fetchLogs()
@@ -385,6 +387,49 @@ export default function LogsModule() {
           )
         }
       
+      case "永红扫脸":
+        return {
+          title: (
+            <span className="flex items-center text-2xl font-bold text-blue-700 space-x-2">
+              {getTypeIcon(log.type)}
+              <span>永红扫脸采集详情</span>
+            </span>
+          ),
+          content: (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-blue-50 rounded-lg p-4 flex flex-col space-y-2 border border-blue-100">
+                  <div><span className="font-semibold text-gray-700">采集时间：</span><span className="text-blue-800 font-medium">{new Date(log.time).toLocaleString('zh-CN')}</span></div>
+                  <div><span className="font-semibold text-gray-700">IP地址：</span><span className="text-blue-800 font-medium">{log.ip}</span></div>
+                  <div><span className="font-semibold text-gray-700">置信度：</span><span className="text-blue-800 font-medium">{log.message.match(/置信度：([^，]*)/)?.[1] || '无'}</span></div>
+                  <div><span className="font-semibold text-gray-700">识别状态：</span><span className="text-blue-800 font-medium">{log.message.match(/识别状态：(.+)/)?.[1] || '未知'}</span></div>
+                </div>
+                {log.face_image && (
+                  <div className="text-center">
+                    <p className="text-base text-gray-700 mb-2 font-semibold">采集照片：</p>
+                    <Image
+                      src={log.face_image}
+                      alt="永红扫脸照片"
+                      width={400}
+                      height={300}
+                      className="rounded-lg border mx-auto shadow-md"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = '/placeholder-face.png';
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="bg-blue-100 p-4 rounded-lg mt-4 border-l-4 border-blue-400">
+                <p className="text-base text-blue-900 font-semibold">
+                  <strong>说明：</strong> 该记录为永红扫脸设备采集，未进行人脸识别。
+                </p>
+              </div>
+            </div>
+          )
+        }
+      
       default:
         return {
           title: (
@@ -510,6 +555,7 @@ export default function LogsModule() {
                 onChange={e => setEndDate(e.target.value)}
                 className="h-12 border-gray-200 focus:border-blue-500 min-w-[140px]"
                 placeholder="结束日期"
+                min={startDate || undefined}
               />
             </div>
             <Select value={filterType} onValueChange={setFilterType}>
@@ -518,7 +564,6 @@ export default function LogsModule() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部类型</SelectItem>
-                <SelectItem value="人脸识别">人脸识别</SelectItem>
                 <SelectItem value="路面病害">路面病害</SelectItem>
                 <SelectItem value="系统">系统</SelectItem>
               </SelectContent>
@@ -582,8 +627,12 @@ export default function LogsModule() {
                                 variant="outline" 
                                 className="bg-transparent hover:bg-blue-50 border-blue-200 text-blue-600"
                               >
-                                <Eye className="w-3 h-3 mr-1" />
-                                详情
+                                {log.type === "永红扫脸" ? (
+                                  <Camera className="w-3 h-3 mr-1" />
+                                ) : (
+                                  <Eye className="w-3 h-3 mr-1" />
+                                )}
+                                {log.type === "永红扫脸" ? "回放" : "详情"}
                               </Button>
                             </DialogTrigger>
                             <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
@@ -602,8 +651,8 @@ export default function LogsModule() {
                           </Dialog>
                         )}
                         
-                        {/* 视频回放按钮 - 仅在有视频时显示 */}
-                        {Boolean(log.hasVideo) && (
+                        {/* 视频回放按钮 - 仅在有视频且不是永红扫脸时显示 */}
+                        {Boolean(log.hasVideo) && log.type !== "永红扫脸" && (
                           <Button 
                             size="sm" 
                             variant="outline" 

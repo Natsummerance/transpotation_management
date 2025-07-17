@@ -113,11 +113,15 @@ export default function DrawingBoard() {
           onMouseLeave={handleMouseUp}
         />
       </div>
-      <div className="flex gap-2">
-        <Button variant="outline" onClick={handleClear} disabled={!hasDrawn}>
+      <div className="flex space-x-2 w-full">
+        <Button variant="outline" onClick={handleClear} disabled={!hasDrawn}
+        className="flex-1 bg-white bg-opacity-50 hover:bg-opacity-70 text-gray-800 hover:text-blue-600 h-10 sm:h-12 text-sm sm:text-base transition-colors"
+        >
           清空画板
         </Button>
-        <Button onClick={handleExport} disabled={!hasDrawn}>
+        <Button onClick={handleExport} disabled={!hasDrawn}
+        className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white h-10 sm:h-12 text-sm sm:text-base hover:from-blue-700 hover:to-purple-700"
+        >
           导出图片
         </Button>
       </div>
