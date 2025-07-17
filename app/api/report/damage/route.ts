@@ -78,8 +78,10 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '10')));
     const type = searchParams.get('type') || '';
     const search = searchParams.get('search') || '';
+    const startTime = searchParams.get('start_time');
+    const endTime = searchParams.get('end_time');
     
-    console.log('API请求参数:', { page, limit, type, search });
+    console.log('API请求参数:', { page, limit, type, search, startTime, endTime });
     
     const offset = (page - 1) * limit;
     
@@ -118,6 +120,30 @@ export async function GET(request: NextRequest) {
         whereClause = 'WHERE results LIKE ?';
       }
       whereParams.push(`%${String(search)}%`);
+    }
+
+    // 新增：时间范围筛选
+    if (startTime && endTime) {
+      if (whereClause) {
+        whereClause += ' AND timestamp BETWEEN ? AND ?';
+      } else {
+        whereClause = 'WHERE timestamp BETWEEN ? AND ?';
+      }
+      whereParams.push(startTime, endTime);
+    } else if (startTime) {
+      if (whereClause) {
+        whereClause += ' AND timestamp >= ?';
+      } else {
+        whereClause = 'WHERE timestamp >= ?';
+      }
+      whereParams.push(startTime);
+    } else if (endTime) {
+      if (whereClause) {
+        whereClause += ' AND timestamp <= ?';
+      } else {
+        whereClause = 'WHERE timestamp <= ?';
+      }
+      whereParams.push(endTime);
     }
     
     // 获取总数

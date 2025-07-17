@@ -10,12 +10,18 @@ export async function POST(request: NextRequest) {
     const { user_id, username } = await request.json();
 
     // 参数验证
-    if (!user_id || user_id === undefined) {
-      return NextResponse.json(Result.error('400', '用户ID不能为空'));
+    if ((!user_id || user_id === undefined) && (!username || username === undefined)) {
+      return NextResponse.json(Result.error('400', '用户ID或用户名不能为空'));
     }
 
-    // 根据用户ID获取用户信息
-    const user = await UserService.getUserById(user_id);
+    // 优先用user_id查找，否则用username查找
+    let user = null;
+    if (user_id) {
+      user = await UserService.getUserById(user_id);
+    } else if (username) {
+      user = await UserService.getUserByUsername(username);
+    }
+
     if (user) {
       // 生成token
       const token = jwt.sign({ uid: user.uid, uname: user.uname }, JWT_SECRET, { expiresIn: '8h' });

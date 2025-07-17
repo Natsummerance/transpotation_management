@@ -14,6 +14,9 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '20');
     const isExport = searchParams.get('export') === 'true';
     const offset = (page - 1) * limit;
+    // 新增时间筛选参数
+    const start = searchParams.get('start');
+    const end = searchParams.get('end');
 
     connection = await pool.getConnection();
 
@@ -29,6 +32,22 @@ export async function GET(request: NextRequest) {
       searchParams1 = [searchPattern, searchPattern, searchPattern];
       searchParams2 = [searchPattern, searchPattern, searchPattern];
       searchParams3 = [searchPattern, searchPattern, searchPattern];
+    }
+
+    // 时间筛选条件
+    let timeConditionLogin = '';
+    let timeConditionDamage = '';
+    let timeConditionSystem = '';
+    let timeParamsLogin: any[] = [];
+    let timeParamsDamage: any[] = [];
+    let timeParamsSystem: any[] = [];
+    if (start && end) {
+      timeConditionLogin = ' AND ll.login_time BETWEEN ? AND ?';
+      timeConditionDamage = ' AND dr.created_at BETWEEN ? AND ?';
+      timeConditionSystem = ' AND sl.created_at BETWEEN ? AND ?';
+      timeParamsLogin = [start, end];
+      timeParamsDamage = [start, end];
+      timeParamsSystem = [start, end];
     }
 
     // 登录日志查询
@@ -62,6 +81,7 @@ export async function GET(request: NextRequest) {
       LEFT JOIN user u ON ll.uid = u.uid
       LEFT JOIN face_store fs ON ll.log_id = fs.log_id
       WHERE 1=1
+      ${timeConditionLogin}
     `;
 
     // 路面病害日志查询
@@ -110,6 +130,7 @@ export async function GET(request: NextRequest) {
         '路面病害' as log_type
       FROM damage_reports dr
       WHERE 1=1
+      ${timeConditionDamage}
     `;
 
     // 系统日志查询
@@ -130,12 +151,13 @@ export async function GET(request: NextRequest) {
       FROM system_logs sl
       LEFT JOIN user u ON sl.user_id = u.uid
       WHERE 1=1
+      ${timeConditionSystem}
     `;
 
     // 添加类型筛选
-    let loginParams = [...searchParams1];
-    let damageParams = [...searchParams2];
-    let systemParams = [...searchParams3];
+    let loginParams = [...timeParamsLogin, ...searchParams1];
+    let damageParams = [...timeParamsDamage, ...searchParams2];
+    let systemParams = [...timeParamsSystem, ...searchParams3];
     
     if (type !== 'all') {
       if (type === '人脸识别') {
@@ -256,10 +278,35 @@ export async function GET(request: NextRequest) {
 
     connection.release();
 
+    // 高德API逆地理编码
+    async function getLocationDesc(latlng: string): Promise<string> {
+      if (!latlng || !latlng.includes(',')) return '';
+      const key = 'c6115796bfbad53bd639041995b5b123';
+      const url = `https://restapi.amap.com/v3/geocode/regeo?location=${latlng}&key=${key}`;
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        return data?.regeocode?.formatted_address || '';
+      } catch {
+        return '';
+      }
+    }
+    // 并发处理所有日志的地理位置
+    const logsWithLocation = await Promise.all(
+      logs.map(async (log: any) => {
+        let location = '';
+        // 仅对经纬度格式进行逆地理编码
+        if (log.ip && /^-?\d+\.\d+,-?\d+\.\d+$/.test(log.ip)) {
+          location = await getLocationDesc(log.ip);
+        }
+        return { ...log, location };
+      })
+    );
+
     return NextResponse.json({
       success: true,
       data: {
-        logs: logs,
+        logs: logsWithLocation,
         total: total,
         page: page,
         limit: limit,

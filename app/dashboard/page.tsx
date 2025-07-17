@@ -36,15 +36,9 @@ import {
   Loader2,
   ChevronDown,
 } from "lucide-react"
-import RoadHazardModule from "@/components/road-hazard-module"
-import TrafficFlowModule from "@/components/traffic-flow-module"
-import ViolationModule from "@/components/violation-module"
-import IntegratedMapDashboard from "@/components/integrated-map-dashboard"
 import { Input } from "@/components/ui/input"
 import FaceRecognitionModule from "@/components/face-recognition-module"
 import RoadDamageModule from "@/components/road-damage-module"
-import TrafficMonitorModule from "@/components/traffic-monitor-module"
-import SuspectAlertModule from "@/components/suspect-alert-module"
 import LogsModule from "@/components/logs-module"
 import MapAnalysisModule from "@/components/map-analysis-module"
 import TaxiAnalysisModule from "@/components/taxi-analysis-module"
@@ -498,11 +492,36 @@ export default function Dashboard() {
 
           <div className="flex items-center space-x-2 sm:space-x-4">
 
-            {/* 通知按钮 */}
-            <Button variant="ghost" size="sm" className="relative">
-              <Bell className="w-4 sm:w-5 h-4 sm:h-5" />
-              <span className="absolute -top-1 -right-1 w-2 sm:w-3 h-2 sm:h-3 bg-red-500 rounded-full text-xs"></span>
-            </Button>
+            {/* 通知按钮（改为下拉天气预报） */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="relative">
+                  <Bell className="w-4 sm:w-5 h-4 sm:h-5" />
+                  <span className="absolute -top-1 -right-1 w-2 sm:w-3 h-2 sm:h-3 bg-red-500 rounded-full text-xs"></span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80 p-0">
+                <div className="p-4">
+                  <div className="flex items-center mb-2">
+                    <Bell className="w-5 h-5 text-blue-500 mr-2" />
+                    <span className="font-bold text-lg text-gray-800">天气预报</span>
+                  </div>
+                  {/* 简要天气信息，可根据实际接口替换 */}
+                  <div className="flex items-center space-x-3 mb-2">
+                    <span className="text-2xl">🌤️</span>
+                    <span className="text-xl font-bold text-red-500">26℃</span>
+                    <span className="text-gray-500">多云</span>
+                  </div>
+                  <div className="text-sm text-gray-500 mb-2">今日温度：22~28℃，风速：3m/s，湿度：60%</div>
+                  <Button
+                    className="w-full mt-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-bold"
+                    onClick={() => setActiveModule("data-visualization")}
+                  >
+                    进入天气预报页面
+                  </Button>
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             {/* 用户下拉菜单 */}
             <DropdownMenu>
@@ -606,30 +625,7 @@ export default function Dashboard() {
                   <h2 className="text-2xl sm:text-3xl font-bold text-gray-900">{t('system_overview')}</h2>
                   <p className="text-gray-600 mt-1">{t('real_time_monitoring_city_traffic_conditions')}</p>
                 </div>
-                <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
-                  <Button
-                    variant="outline"
-                    className="border-blue-200 text-blue-600 hover:bg-blue-50 bg-transparent text-sm"
-                  >
-                    <Eye className="w-4 h-4 mr-2" />
-                    {t('real_time_monitoring')}
-                  </Button>
-                  <div className="relative">
-                    <Button
-                      className="bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg text-sm w-full sm:w-auto"
-                      onClick={handleExportReport}
-                      disabled={isLoading}
-                    >
-                      {isLoading ? (
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      ) : (
-                        <Activity className="w-4 h-4 mr-2" />
-                      )}
-                      {t('generate_report')}
-                    </Button>
-                    <div className="absolute -bottom-5 right-0 text-xs text-gray-400">{t('call_api_report_export')}</div>
-                  </div>
-                </div>
+                {/* 移除实时监控和生成报告按钮 */}
               </div>
 
               {/* 统计卡片 - 移动端优化 */}
@@ -829,27 +825,27 @@ export default function Dashboard() {
                       </Button>
                       <Button
                         variant="outline"
-                        className="h-16 sm:h-20 flex-col space-y-1 sm:space-y-2 border-green-200 hover:bg-green-50 hover:border-green-300 bg-transparent text-xs sm:text-sm"
-                        onClick={() => setActiveModule("taxi-analysis")}
-                      >
-                        <Car className="w-5 sm:w-6 h-5 sm:h-6 text-green-600" />
-                        <span className="font-medium">{t('taxis')}</span>
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="h-16 sm:h-20 flex-col space-y-1 sm:space-y-2 border-purple-200 hover:bg-purple-50 hover:border-purple-300 bg-transparent text-xs sm:text-sm"
-                        onClick={() => setActiveModule("data-visualization")}
-                      >
-                        <BarChart3 className="w-5 sm:w-6 h-5 sm:h-6 text-purple-600" />
-                        <span className="font-medium">{t('statistical_charts')}</span>
-                      </Button>
-                      <Button
-                        variant="outline"
                         className="h-16 sm:h-20 flex-col space-y-1 sm:space-y-2 border-orange-200 hover:bg-orange-50 hover:border-orange-300 bg-transparent text-xs sm:text-sm"
                         onClick={() => setActiveModule("map-analysis")}
                       >
                         <MapPin className="w-5 sm:w-6 h-5 sm:h-6 text-orange-600" />
                         <span className="font-medium">{t('integrated_map')}</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="h-16 sm:h-20 flex-col space-y-1 sm:space-y-2 border-green-200 hover:bg-green-50 hover:border-green-300 bg-transparent text-xs sm:text-sm"
+                        onClick={() => setActiveModule("taxi-analysis")}
+                      >
+                        <Car className="w-5 sm:w-6 h-5 sm:h-6 text-green-600" />
+                        <span className="font-medium">订单分析</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="h-16 sm:h-20 flex-col space-y-1 sm:space-y-2 border-purple-200 hover:bg-purple-50 hover:border-purple-300 bg-transparent text-xs sm:text-sm"
+                        onClick={() => setActiveModule("logs")}
+                      >
+                        <Activity className="w-5 sm:w-6 h-5 sm:h-6 text-purple-600" />
+                        <span className="font-medium">系统日志</span>
                       </Button>
                     </div>
                     <div className="relative">
@@ -873,14 +869,8 @@ export default function Dashboard() {
             </div>
           )}
 
-          {activeModule === "road-hazard" && <RoadHazardModule />}
-          {activeModule === "traffic-flow" && <TrafficFlowModule />}
-          {activeModule === "violation" && <ViolationModule />}
-          {activeModule === "integrated-map" && <IntegratedMapDashboard />}
           {activeModule === "face-recognition" && <FaceRecognitionModule />}
           {activeModule === "road-damage" && <RoadDamageModule />}
-          {activeModule === "traffic-monitor" && <TrafficMonitorModule />}
-          {activeModule === "suspect-alert" && <SuspectAlertModule />}
           {activeModule === "logs" && <LogsModule />}
           {activeModule === "map-analysis" && <MapAnalysisModule />}
           {activeModule === "taxi-analysis" && <TaxiAnalysisModule />}
