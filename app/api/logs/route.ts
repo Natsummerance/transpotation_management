@@ -4,6 +4,101 @@ import { pool } from '@/lib/database';
 // 强制动态渲染，避免静态生成错误
 export const dynamic = 'force-dynamic'
 
+/**
+ * @swagger
+ * /api/logs:
+ *   get:
+ *     summary: 获取系统日志
+ *     description: 支持多条件筛选、分页、导出，返回系统、登录、病害、永红扫脸等日志。
+ *     parameters:
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           default: all
+ *         description: 日志类型（如 all、系统、登录、路面病害、永红扫脸等）
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: 关键字搜索
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: 页码
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: 每页数量
+ *       - in: query
+ *         name: export
+ *         schema:
+ *           type: boolean
+ *         description: 是否导出为CSV
+ *       - in: query
+ *         name: start
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: 起始时间（ISO格式）
+ *       - in: query
+ *         name: end
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: 结束时间（ISO格式）
+ *     responses:
+ *       200:
+ *         description: 成功返回日志数据
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     logs:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     total:
+ *                       type: integer
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     stats:
+ *                       type: object
+ *                       properties:
+ *                         serious:
+ *                           type: integer
+ *                         warning:
+ *                           type: integer
+ *                         info:
+ *                           type: integer
+ *                         playable:
+ *                           type: integer
+ *       500:
+ *         description: 获取日志数据失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 error:
+ *                   type: string
+ *                 details:
+ *                   type: string
+ */
 export async function GET(request: NextRequest) {
   let connection: any;
   try {

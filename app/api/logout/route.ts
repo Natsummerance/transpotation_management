@@ -1,5 +1,89 @@
 import { type NextRequest, NextResponse } from "next/server"
 
+/**
+ * @swagger
+ * /api/logout:
+ *   post:
+ *     summary: 注销登录
+ *     description: 注销当前用户会话，需提供认证令牌。
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 注销成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 timestamp:
+ *                   type: string
+ *       401:
+ *         description: 未提供认证令牌
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: 注销过程中发生错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *   get:
+ *     summary: 获取当前活跃会话信息
+ *     description: 获取当前用户的活跃会话信息，需提供认证令牌。
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 查询成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *       401:
+ *         description: 未提供认证令牌
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: 获取会话信息失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ */
 export async function POST(request: NextRequest) {
   try {
     const authHeader = request.headers.get("authorization")

@@ -10,6 +10,70 @@ function saveBase64Image(base64: string, filePath: string) {
   fs.writeFileSync(filePath, buffer);
 }
 
+/**
+ * @swagger
+ * /api/user/register/face/collect:
+ *   post:
+ *     summary: 收集人脸注册图像
+ *     description: 提交会话ID和Base64图片，保存注册图像并返回收集进度。
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               session_id:
+ *                 type: string
+ *                 description: 注册会话ID
+ *               image:
+ *                 type: string
+ *                 description: Base64编码的人脸图片
+ *     responses:
+ *       200:
+ *         description: 收集成功，返回进度信息
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 collected:
+ *                   type: integer
+ *                 target:
+ *                   type: integer
+ *                 progress:
+ *                   type: number
+ *                 completed:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: 参数缺失或会话状态错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: 收集图像失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 error:
+ *                   type: string
+ */
 export async function POST(request: NextRequest) {
   try {
     const { session_id, image } = await request.json();

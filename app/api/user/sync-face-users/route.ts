@@ -5,6 +5,72 @@ import { UserDao } from '@/lib/userDao';
 import fs from 'fs';
 import path from 'path';
 
+/**
+ * @swagger
+ * /api/user/sync-face-users:
+ *   post:
+ *     summary: 同步人脸识别用户
+ *     description: 读取人脸识别系统配置文件，将用户信息同步到数据库。
+ *     responses:
+ *       200:
+ *         description: 同步成功，返回同步用户信息
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     faceUsers:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: integer
+ *                           username:
+ *                             type: string
+ *                     syncedUsers:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: integer
+ *                           username:
+ *                             type: string
+ *                           action:
+ *                             type: string
+ *                     total:
+ *                       type: integer
+ *                 msg:
+ *                   type: string
+ *       404:
+ *         description: 配置文件不存在
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: string
+ *                 msg:
+ *                   type: string
+ *       500:
+ *         description: 服务器内部错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: string
+ *                 msg:
+ *                   type: string
+ */
 export async function POST(request: NextRequest) {
   try {
     // 读取人脸识别系统的配置文件

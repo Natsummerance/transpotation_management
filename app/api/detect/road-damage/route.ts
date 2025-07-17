@@ -22,6 +22,68 @@ const damageMapping: { [key: string]: string } = {
   'D40': 'D40坑洼',
 };
 
+/**
+ * @swagger
+ * /api/detect/road-damage:
+ *   post:
+ *     summary: 路面病害检测
+ *     description: 上传图片，调用YOLO模型检测路面病害类型并返回检测结果。
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: 待检测的图片文件
+ *     responses:
+ *       200:
+ *         description: 检测成功，返回病害类型统计和结果图片
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 results:
+ *                   type: object
+ *                   additionalProperties:
+ *                     type: object
+ *                     properties:
+ *                       count:
+ *                         type: integer
+ *                       confidence:
+ *                         type: number
+ *                 resultImage:
+ *                   type: string
+ *                   description: 结果图片/视频的URL
+ *                 result_image:
+ *                   type: string
+ *                   description: 结果图片/视频的URL（兼容字段）
+ *                 pythonResult:
+ *                   type: object
+ *                   description: 原始Python脚本输出（调试用）
+ *       400:
+ *         description: 未上传文件
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *       500:
+ *         description: 检测失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ */
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();

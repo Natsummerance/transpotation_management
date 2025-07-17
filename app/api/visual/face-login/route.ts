@@ -2,6 +2,61 @@ import { NextResponse } from 'next/server'
 import { pool } from '@/lib/database'
 import type { NextRequest } from 'next/server'
 
+/**
+ * @swagger
+ * /api/visual/face-login:
+ *   get:
+ *     summary: 获取人脸登录可视化数据
+ *     description: 获取登录方式分布、登录趋势、人脸识别失败率趋势和活跃用户排行。
+ *     responses:
+ *       200:
+ *         description: 成功返回可视化数据
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 loginTypeStats:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       login_type:
+ *                         type: string
+ *                       count:
+ *                         type: integer
+ *                 loginStatusTrend:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       date:
+ *                         type: string
+ *                       success:
+ *                         type: integer
+ *                       fail:
+ *                         type: integer
+ *                 faceFailTrend:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       date:
+ *                         type: string
+ *                       count:
+ *                         type: integer
+ *                 userActiveRank:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       uid:
+ *                         type: integer
+ *                       name:
+ *                         type: string
+ *                       count:
+ *                         type: integer
+ */
 export async function GET(request: NextRequest) {
   // 1. 登录方式分布
   const [loginTypeRows] = await pool.execute(

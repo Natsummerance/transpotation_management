@@ -2,6 +2,74 @@ import { NextResponse } from 'next/server'
 import { pool } from '@/lib/database'
 import type { NextRequest } from 'next/server'
 
+/**
+ * @swagger
+ * /api/visual/system-logs:
+ *   get:
+ *     summary: 获取系统日志可视化数据
+ *     description: 获取日志类型分布、级别分布、趋势、异常明细和操作用户排行。
+ *     responses:
+ *       200:
+ *         description: 成功返回可视化数据
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 typeStats:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       log_type:
+ *                         type: string
+ *                       count:
+ *                         type: integer
+ *                 levelStats:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       level:
+ *                         type: string
+ *                       count:
+ *                         type: integer
+ *                 trend:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       date:
+ *                         type: string
+ *                       count:
+ *                         type: integer
+ *                 errorLogs:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id:
+ *                         type: integer
+ *                       message:
+ *                         type: string
+ *                       time:
+ *                         type: string
+ *                       user_id:
+ *                         type: integer
+ *                       ip_address:
+ *                         type: string
+ *                 userRank:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       user_id:
+ *                         type: integer
+ *                       name:
+ *                         type: string
+ *                       count:
+ *                         type: integer
+ */
 export async function GET(request: NextRequest) {
   // 1. 日志类型分布
   const [typeRows] = await pool.execute(

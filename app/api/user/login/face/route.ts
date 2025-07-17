@@ -5,6 +5,73 @@ import jwt from 'jsonwebtoken';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'default_secret_key';
 
+/**
+ * @swagger
+ * /api/user/login/face:
+ *   post:
+ *     summary: 人脸识别登录（用户信息）
+ *     description: 通过 user_id 或 username 登录，返回用户信息和 token。
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               user_id:
+ *                 type: integer
+ *                 description: 用户ID
+ *               username:
+ *                 type: string
+ *                 description: 用户名
+ *     responses:
+ *       200:
+ *         description: 登录成功，返回用户信息和token
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                 msg:
+ *                   type: string
+ *       400:
+ *         description: 用户ID或用户名不能为空
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: string
+ *                 msg:
+ *                   type: string
+ *       404:
+ *         description: 用户不存在
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: string
+ *                 msg:
+ *                   type: string
+ *       500:
+ *         description: 服务器内部错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: string
+ *                 msg:
+ *                   type: string
+ */
 export async function POST(request: NextRequest) {
   try {
     const { user_id, username } = await request.json();

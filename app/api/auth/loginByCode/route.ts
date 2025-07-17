@@ -3,6 +3,85 @@ import { EmailCodeUtil } from '@/lib/emailCodeUtil';
 import { UserService } from '@/lib/userService';
 import { Result } from '@/lib/result';
 
+/**
+ * @swagger
+ * /api/auth/loginByCode:
+ *   post:
+ *     summary: 邮箱验证码登录
+ *     description: 通过邮箱和验证码进行登录，支持自动注册。
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 description: 用户邮箱地址
+ *               code:
+ *                 type: string
+ *                 description: 邮箱验证码
+ *     responses:
+ *       200:
+ *         description: 登录成功或失败的详细信息
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   nullable: true
+ *                 msg:
+ *                   type: string
+ *       400:
+ *         description: 参数缺失
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: string
+ *                 msg:
+ *                   type: string
+ *       401:
+ *         description: 验证码错误或已过期
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: string
+ *                 msg:
+ *                   type: string
+ *       404:
+ *         description: 邮箱未注册
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: string
+ *                 msg:
+ *                   type: string
+ *       500:
+ *         description: 登录失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: string
+ *                 msg:
+ *                   type: string
+ */
 export async function POST(request: NextRequest) {
   try {
     const { email, code } = await request.json();

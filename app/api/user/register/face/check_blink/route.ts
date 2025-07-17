@@ -1,6 +1,62 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { spawn } from 'child_process';
 
+/**
+ * @swagger
+ * /api/user/register/face/check_blink:
+ *   post:
+ *     summary: 检查用户是否眨眼
+ *     description: 提交Base64图片，调用Python脚本检测用户是否眨眼。
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               image:
+ *                 type: string
+ *                 description: Base64编码的人脸图片
+ *     responses:
+ *       200:
+ *         description: 检测成功，返回眨眼检测结果
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 error:
+ *                   type: string
+ *                   nullable: true
+ *       400:
+ *         description: 缺少图片
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: 检测失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 error:
+ *                   type: string
+ */
 export async function POST(request: NextRequest) {
   try {
     const { image } = await request.json();

@@ -95,6 +95,122 @@ async function getAddressWithCache(lng: number, lat: number): Promise<string> {
   });
 }
 
+/**
+ * @swagger
+ * /api/analysis/taxi:
+ *   get:
+ *     summary: 获取出租车分析数据
+ *     description: 获取指定时间范围、车牌等条件下的出租车多维度分析结果，包括热力图、轨迹、热门区域、速度分布、车辆详情、收入等。
+ *     parameters:
+ *       - in: query
+ *         name: metric
+ *         schema:
+ *           type: string
+ *           default: orders
+ *         description: 指标类型（如 orders、revenue 等，默认 orders）
+ *       - in: query
+ *         name: timeRange
+ *         schema:
+ *           type: string
+ *           enum: [today, week, month, year]
+ *           default: today
+ *         description: 时间范围（today/week/month/year），默认 today
+ *       - in: query
+ *         name: plate
+ *         schema:
+ *           type: string
+ *         description: 车牌号（可选）
+ *     responses:
+ *       200:
+ *         description: 成功返回出租车分析数据
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     totalOrders:
+ *                       type: integer
+ *                     activeVehicles:
+ *                       type: integer
+ *                     avgDistance:
+ *                       type: number
+ *                     totalRevenue:
+ *                       type: integer
+ *                     avgSpeed:
+ *                       type: integer
+ *                     occupancyRate:
+ *                       type: integer
+ *                     heatmapData:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     trajectoryData:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     hotspots:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     hourlyData:
+ *                       type: array
+ *                       items:
+ *                         type: integer
+ *                     speedDistribution:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     vehicleDetails:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     revenueData:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     headingDistribution:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     trajectoryPoints:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     availablePlates:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                     passengerEvents:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     tripStats:
+ *                       type: object
+ *                     timeRange:
+ *                       type: string
+ *                     metric:
+ *                       type: string
+ *                     lastUpdated:
+ *                       type: string
+ *       500:
+ *         description: 获取数据失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 error:
+ *                   type: string
+ *                 details:
+ *                   type: string
+ */
 export async function GET(request: NextRequest) {
   let connection: any;
   try {

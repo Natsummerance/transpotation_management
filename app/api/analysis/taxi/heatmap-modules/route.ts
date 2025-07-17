@@ -4,6 +4,120 @@ import { pool } from '@/lib/database';
 // 强制动态渲染，避免静态生成错误
 export const dynamic = 'force-dynamic'
 
+/**
+ * @swagger
+ * /api/analysis/taxi/heatmap-modules:
+ *   get:
+ *     summary: 获取出租车热力图模块数据
+ *     description: 获取指定时间范围、车牌、时间模块的出租车热力图及时间模块列表。
+ *     parameters:
+ *       - in: query
+ *         name: timeRange
+ *         schema:
+ *           type: string
+ *           enum: [today, week, month, year]
+ *         description: 时间范围（today/week/month/year），默认 today
+ *       - in: query
+ *         name: plate
+ *         schema:
+ *           type: string
+ *         description: 车牌号（可选）
+ *       - in: query
+ *         name: moduleKey
+ *         schema:
+ *           type: string
+ *         description: 时间模块键（如 2013-09-12_08，格式为 日期_小时，可选）
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: 分页页码，默认1
+ *       - in: query
+ *         name: pageSize
+ *         schema:
+ *           type: integer
+ *           default: 10000
+ *         description: 每页数据量，默认10000
+ *     responses:
+ *       200:
+ *         description: 成功返回热力图模块数据
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     modules:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           key:
+ *                             type: string
+ *                           date:
+ *                             type: string
+ *                           hour:
+ *                             type: integer
+ *                           pointCount:
+ *                             type: integer
+ *                           occupiedCount:
+ *                             type: integer
+ *                           avgSpeed:
+ *                             type: integer
+ *                           label:
+ *                             type: string
+ *                     heatmapData:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           lng:
+ *                             type: number
+ *                           lat:
+ *                             type: number
+ *                           count:
+ *                             type: number
+ *                           speed:
+ *                             type: number
+ *                           isOccupied:
+ *                             type: boolean
+ *                           eventTag:
+ *                             type: integer
+ *                           time:
+ *                             type: string
+ *                           date:
+ *                             type: string
+ *                           hour:
+ *                             type: integer
+ *                           moduleKey:
+ *                             type: string
+ *                     currentModule:
+ *                       type: string
+ *                     page:
+ *                       type: integer
+ *                     pageSize:
+ *                       type: integer
+ *                     hasMore:
+ *                       type: boolean
+ *       500:
+ *         description: 获取数据失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 error:
+ *                   type: string
+ *                 details:
+ *                   type: string
+ */
 export async function GET(request: NextRequest) {
   let connection: any;
   try {

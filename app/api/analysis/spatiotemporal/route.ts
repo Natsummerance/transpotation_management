@@ -3,6 +3,49 @@ import { NextRequest, NextResponse } from 'next/server'
 // 强制动态渲染，避免静态生成错误
 export const dynamic = 'force-dynamic'
 
+/**
+ * @swagger
+ * /api/analysis/spatiotemporal:
+ *   get:
+ *     summary: 获取时空分析数据
+ *     description: 调用Django后端API，获取指定时间范围和图层的时空分析结果。
+ *     parameters:
+ *       - in: query
+ *         name: timeRange
+ *         schema:
+ *           type: string
+ *         description: 时间范围，格式如 '2013-09-12 00:00:00,2013-09-12 23:59:59'
+ *       - in: query
+ *         name: layer
+ *         schema:
+ *           type: string
+ *         description: 图层类型
+ *       - in: query
+ *         name: current_time
+ *         schema:
+ *           type: string
+ *         description: 当前时间点
+ *     responses:
+ *       200:
+ *         description: 成功返回时空分析数据
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               example:
+ *                 result: "分析结果数据"
+ *       500:
+ *         description: 获取数据失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                 details:
+ *                   type: string
+ */
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)

@@ -18,6 +18,62 @@ function removeDir(dir: string) {
   }
 }
 
+/**
+ * @swagger
+ * /api/user/register/face/train:
+ *   post:
+ *     summary: 训练人脸注册模型
+ *     description: 提交会话ID，完成图像收集后调用Python脚本进行人脸注册训练。
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               session_id:
+ *                 type: string
+ *                 description: 注册会话ID
+ *     responses:
+ *       200:
+ *         description: 训练成功，返回训练结果
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 error:
+ *                   type: string
+ *                   nullable: true
+ *       400:
+ *         description: 参数缺失、会话无效或状态错误
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *       500:
+ *         description: 训练失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 error:
+ *                   type: string
+ */
 export async function POST(request: NextRequest) {
   try {
     const { session_id } = await request.json();

@@ -2,6 +2,57 @@ import { NextRequest, NextResponse } from 'next/server';
 import { EmailService } from '@/lib/emailService';
 import { Result } from '@/lib/result';
 
+/**
+ * @swagger
+ * /api/auth/testMail:
+ *   post:
+ *     summary: 测试邮件发送
+ *     description: 向指定邮箱发送一封测试邮件，用于验证邮件服务配置是否正确。
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 description: 用户邮箱地址
+ *     responses:
+ *       200:
+ *         description: 测试邮件发送成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: string
+ *                 msg:
+ *                   type: string
+ *       400:
+ *         description: 邮箱不能为空
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: string
+ *                 msg:
+ *                   type: string
+ *       500:
+ *         description: 测试邮件发送失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 code:
+ *                   type: string
+ *                 msg:
+ *                   type: string
+ */
 export async function POST(request: NextRequest) {
   try {
     const { email } = await request.json();

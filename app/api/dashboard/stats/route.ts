@@ -1,6 +1,49 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { pool } from '@/lib/database';
 
+/**
+ * @swagger
+ * /api/dashboard/stats:
+ *   get:
+ *     summary: 获取仪表盘统计数据
+ *     description: 获取路面病害检测、出租车数据分析、地图时空分析、日志与事件回放等统计数据及其趋势。
+ *     responses:
+ *       200:
+ *         description: 成功返回统计数据
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     roadDamage:
+ *                       type: object
+ *                     taxiAnalysis:
+ *                       type: object
+ *                     mapAnalysis:
+ *                       type: object
+ *                     logs:
+ *                       type: object
+ *                 timestamp:
+ *                   type: string
+ *       500:
+ *         description: 获取统计数据失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 error:
+ *                   type: string
+ *                 details:
+ *                   type: string
+ */
 export async function GET(request: NextRequest) {
   let connection: any;
   try {

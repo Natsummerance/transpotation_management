@@ -1,6 +1,66 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { pool } from '@/lib/database';
 
+/**
+ * @swagger
+ * /api/dashboard/alerts:
+ *   get:
+ *     summary: 获取最新警报数据
+ *     description: 获取人脸、道路危害、交通拥堵等多类型的最新警报信息。
+ *     responses:
+ *       200:
+ *         description: 成功返回警报数据
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     alerts:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: integer
+ *                           type:
+ *                             type: string
+ *                           title:
+ *                             type: string
+ *                           description:
+ *                             type: string
+ *                           severity:
+ *                             type: string
+ *                           location:
+ *                             type: string
+ *                           timeAgo:
+ *                             type: string
+ *                           status:
+ *                             type: string
+ *                     totalAlerts:
+ *                       type: integer
+ *                     newAlerts:
+ *                       type: integer
+ *                 timestamp:
+ *                   type: string
+ *       500:
+ *         description: 获取警报数据失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 error:
+ *                   type: string
+ *                 details:
+ *                   type: string
+ */
 export async function GET(request: NextRequest) {
   try {
     const connection = await pool.getConnection();

@@ -5,6 +5,85 @@ import type { NextRequest } from 'next/server'
 // 强制动态渲染，避免静态生成错误
 export const dynamic = 'force-dynamic'
 
+/**
+ * @swagger
+ * /api/visual/taxi-gps:
+ *   get:
+ *     summary: 获取出租车GPS可视化数据
+ *     description: 获取最新车辆轨迹、热力点、24小时载客分布、速度分布、事件类型分布、高峰时段和运营排行。
+ *     responses:
+ *       200:
+ *         description: 成功返回可视化数据
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 track:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       car_plate:
+ *                         type: string
+ *                       lat:
+ *                         type: number
+ *                       lng:
+ *                         type: number
+ *                       time:
+ *                         type: string
+ *                 heatmap:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       lat:
+ *                         type: number
+ *                       lng:
+ *                         type: number
+ *                 hourlyStatus:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       hour:
+ *                         type: integer
+ *                       occupied:
+ *                         type: integer
+ *                       empty:
+ *                         type: integer
+ *                 speedList:
+ *                   type: array
+ *                   items:
+ *                     type: number
+ *                 eventStats:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       event_tag:
+ *                         type: integer
+ *                       count:
+ *                         type: integer
+ *                 peakStats:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       hour:
+ *                         type: integer
+ *                       count:
+ *                         type: integer
+ *                 topCars:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       car_plate:
+ *                         type: string
+ *                       trip_count:
+ *                         type: integer
+ */
 export async function GET(request: NextRequest) {
   // 1. 最新一辆车当天轨迹
   const [trackRows] = await pool.execute(

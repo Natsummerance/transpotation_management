@@ -66,6 +66,150 @@ function formatTimestampForMySQL(timestamp: string): string {
     .replace(/\.\d{3}$/, ''); // 移除毫秒
 }
 
+/**
+ * @swagger
+ * /api/report/damage:
+ *   get:
+ *     summary: 查询路面病害检测历史
+ *     description: 支持类型、关键词、时间范围、分页等多条件查询路面病害检测历史。
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: 页码
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: 每页数量，最大100
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *         description: 病害类型（如 D0纵向裂缝、D1横向裂缝、D20龟裂、D40坑洼）
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: 关键字搜索
+ *       - in: query
+ *         name: start_time
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: 起始时间（ISO格式）
+ *       - in: query
+ *         name: end_time
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *         description: 结束时间（ISO格式）
+ *     responses:
+ *       200:
+ *         description: 查询成功，返回检测历史数据
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     total:
+ *                       type: integer
+ *                     totalPages:
+ *                       type: integer
+ *       500:
+ *         description: 查询失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *   post:
+ *     summary: 保存路面病害检测结果
+ *     description: 提交检测结果，保存到数据库。
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               module:
+ *                 type: string
+ *                 description: 检测模块
+ *               location:
+ *                 type: object
+ *                 properties:
+ *                   lat:
+ *                     type: number
+ *                   lng:
+ *                     type: number
+ *                 required:
+ *                   - lat
+ *                   - lng
+ *                 description: 检测位置
+ *               results:
+ *                 type: object
+ *                 description: 检测结果
+ *               resultImage:
+ *                 type: string
+ *                 description: 结果图片URL
+ *               timestamp:
+ *                 type: string
+ *                 format: date-time
+ *                 description: 检测时间
+ *     responses:
+ *       200:
+ *         description: 保存成功
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 id:
+ *                   type: integer
+ *                 timestamp:
+ *                   type: string
+ *       400:
+ *         description: 缺少必需字段或数据无效
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                 details:
+ *                   type: string
+ *       500:
+ *         description: 保存失败
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                 details:
+ *                   type: string
+ */
 // GET接口 - 查询检测历史
 export async function GET(request: NextRequest) {
   let connection;
