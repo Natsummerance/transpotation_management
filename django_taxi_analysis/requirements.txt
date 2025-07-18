@@ -1,10 +1,11 @@
 Django==4.2.7
 mysql-connector-python==8.2.0
-mysqlclient==2.2.3
 pandas>=2.0.0
 numpy>=2.0.0
 djangorestframework==3.14.0
 django-cors-headers==4.3.1
 python-decouple==3.8 
 scikit-learn==1.7.0 
+drf-yasg>=1.21.5
 requests 
+flasgger==0.9.7.1

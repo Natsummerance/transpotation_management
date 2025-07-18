@@ -11,6 +11,8 @@ from .distance_distribution import analyze_distance_distribution
 import math
 import os
 import json
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 
 # 全局位置缓存
 location_cache = {}
@@ -44,6 +46,32 @@ location_cache = load_location_cache()
 class HeatmapDataView(APIView):
     """热力图数据API视图"""
     
+    @swagger_auto_schema(
+        operation_summary="获取上客/下客热力图数据",
+        operation_description="根据事件类型、时间范围、网格大小等参数，返回聚合后的热力图点数据。",
+        manual_parameters=[
+            openapi.Parameter('event_type', openapi.IN_QUERY, description="事件类型(pickup=上客, dropoff=下客, all=全部)", type=openapi.TYPE_STRING),
+            openapi.Parameter('start_time', openapi.IN_QUERY, description="开始时间(YYYY-MM-DD HH:MM:SS)", type=openapi.TYPE_STRING),
+            openapi.Parameter('end_time', openapi.IN_QUERY, description="结束时间(YYYY-MM-DD HH:MM:SS)", type=openapi.TYPE_STRING),
+            openapi.Parameter('limit', openapi.IN_QUERY, description="限制返回点数(默认1000)", type=openapi.TYPE_INTEGER),
+            openapi.Parameter('grid_size', openapi.IN_QUERY, description="网格大小(默认0.001度，约100米)", type=openapi.TYPE_NUMBER),
+        ],
+        responses={
+            200: openapi.Response('成功', schema=openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'points': openapi.Schema(type=openapi.TYPE_ARRAY, items=openapi.Items(type=openapi.TYPE_OBJECT)),
+                    'total_count': openapi.Schema(type=openapi.TYPE_INTEGER),
+                    'time_range': openapi.Schema(type=openapi.TYPE_OBJECT),
+                    'event_type': openapi.Schema(type=openapi.TYPE_STRING),
+                    'grid_size': openapi.Schema(type=openapi.TYPE_NUMBER),
+                    'point_count': openapi.Schema(type=openapi.TYPE_INTEGER),
+                    'gradient': openapi.Schema(type=openapi.TYPE_OBJECT),
+                }
+            )),
+            500: openapi.Response('服务器错误', schema=openapi.Schema(type=openapi.TYPE_OBJECT))
+        }
+    )
     def get(self, request):
         """
         获取上客热点地区热力图数据
@@ -178,6 +206,18 @@ class HeatmapDataView(APIView):
 class StatisticsView(APIView):
     """统计数据API视图"""
     
+    @swagger_auto_schema(
+        operation_summary="获取统计数据",
+        operation_description="根据时间范围，返回上客/下客订单数等统计信息。",
+        manual_parameters=[
+            openapi.Parameter('start_time', openapi.IN_QUERY, description="开始时间", type=openapi.TYPE_STRING),
+            openapi.Parameter('end_time', openapi.IN_QUERY, description="结束时间", type=openapi.TYPE_STRING),
+        ],
+        responses={
+            200: openapi.Response('成功', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
+            500: openapi.Response('服务器错误', schema=openapi.Schema(type=openapi.TYPE_OBJECT))
+        }
+    )
     def get(self, request):
         """
         获取统计数据
@@ -250,6 +290,20 @@ class StatisticsView(APIView):
 class DashboardDataView(APIView):
     """仪表板数据API视图 - 综合数据"""
 
+    @swagger_auto_schema(
+        operation_summary="获取仪表板所需的所有数据",
+        operation_description="根据时间范围和事件类型，返回仪表板综合统计数据。",
+        manual_parameters=[
+            openapi.Parameter('start_time', openapi.IN_QUERY, description="开始时间", type=openapi.TYPE_STRING),
+            openapi.Parameter('end_time', openapi.IN_QUERY, description="结束时间", type=openapi.TYPE_STRING),
+            openapi.Parameter('event_type', openapi.IN_QUERY, description="事件类型(pickup/dropoff)", type=openapi.TYPE_STRING),
+        ],
+        responses={
+            200: openapi.Response('成功', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
+            400: openapi.Response('参数错误', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
+            500: openapi.Response('服务器错误', schema=openapi.Schema(type=openapi.TYPE_OBJECT))
+        }
+    )
     def get(self, request):
         """
         获取仪表板所需的所有数据
@@ -357,6 +411,20 @@ class DashboardDataView(APIView):
 
 class VehicleTrajectoryView(APIView):
     """车辆轨迹API视图（支持全部/单车）"""
+    @swagger_auto_schema(
+        operation_summary="获取车辆轨迹数据",
+        operation_description="根据车牌号和时间范围，返回指定车辆或全部车辆的轨迹数据。",
+        manual_parameters=[
+            openapi.Parameter('car_plate', openapi.IN_QUERY, description="车牌号，all=全部车辆（前10）", type=openapi.TYPE_STRING),
+            openapi.Parameter('start_time', openapi.IN_QUERY, description="开始时间", type=openapi.TYPE_STRING),
+            openapi.Parameter('end_time', openapi.IN_QUERY, description="结束时间", type=openapi.TYPE_STRING),
+        ],
+        responses={
+            200: openapi.Response('成功', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
+            400: openapi.Response('缺少car_plate参数', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
+            500: openapi.Response('服务器错误', schema=openapi.Schema(type=openapi.TYPE_OBJECT))
+        }
+    )
     def get(self, request):
         """
         获取车辆轨迹数据
@@ -451,6 +519,22 @@ class VehicleTrajectoryView(APIView):
 
 class HotspotsAnalysisView(APIView):
     """热门上客点聚类分析API视图"""
+    @swagger_auto_schema(
+        operation_summary="热门上客点聚类分析",
+        operation_description="根据时间范围和聚类参数，返回热门上客点的聚类分析结果。",
+        manual_parameters=[
+            openapi.Parameter('start_time', openapi.IN_QUERY, description="开始时间", type=openapi.TYPE_STRING),
+            openapi.Parameter('end_time', openapi.IN_QUERY, description="结束时间", type=openapi.TYPE_STRING),
+            openapi.Parameter('n_cluster', openapi.IN_QUERY, description="返回前N个聚类点（默认6）", type=openapi.TYPE_INTEGER),
+            openapi.Parameter('n_clusters', openapi.IN_QUERY, description="聚类数（默认500）", type=openapi.TYPE_INTEGER),
+            openapi.Parameter('event_type', openapi.IN_QUERY, description="事件类型(pickup/dropoff)", type=openapi.TYPE_STRING),
+        ],
+        responses={
+            200: openapi.Response('成功', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
+            400: openapi.Response('聚类点数不足', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
+            500: openapi.Response('服务器错误', schema=openapi.Schema(type=openapi.TYPE_OBJECT))
+        }
+    )
     def get(self, request):
         start_time = request.GET.get('start_time')
         end_time = request.GET.get('end_time')
@@ -567,6 +651,19 @@ class HotspotsAnalysisView(APIView):
 class FlowAnalysisView(APIView):
     """客流分析API视图"""
     
+    @swagger_auto_schema(
+        operation_summary="获取客流分析数据",
+        operation_description="根据时间范围和分析类型，返回客流分析数据。",
+        manual_parameters=[
+            openapi.Parameter('start_time', openapi.IN_QUERY, description="开始时间", type=openapi.TYPE_STRING),
+            openapi.Parameter('end_time', openapi.IN_QUERY, description="结束时间", type=openapi.TYPE_STRING),
+            openapi.Parameter('analysis_type', openapi.IN_QUERY, description="分析类型(hourly=按小时, daily=按天, weekly=按周)", type=openapi.TYPE_STRING),
+        ],
+        responses={
+            200: openapi.Response('成功', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
+            500: openapi.Response('服务器错误', schema=openapi.Schema(type=openapi.TYPE_OBJECT))
+        }
+    )
     def get(self, request):
         """
         获取客流分析数据
@@ -699,6 +796,20 @@ class FlowAnalysisView(APIView):
 class SpatiotemporalAnalysisView(APIView):
     """时空分析API视图 - 综合数据"""
     
+    @swagger_auto_schema(
+        operation_summary="获取时空分析综合数据",
+        operation_description="根据时间范围和图层类型，返回时空分析相关数据。",
+        manual_parameters=[
+            openapi.Parameter('start_time', openapi.IN_QUERY, description="开始时间", type=openapi.TYPE_STRING),
+            openapi.Parameter('end_time', openapi.IN_QUERY, description="结束时间", type=openapi.TYPE_STRING),
+            openapi.Parameter('layer_type', openapi.IN_QUERY, description="图层类型(heatmap, trajectory, hotspots, flow, trajectory_points, vehicle_heatmap)", type=openapi.TYPE_STRING),
+            openapi.Parameter('current_time', openapi.IN_QUERY, description="当前时间（秒级）", type=openapi.TYPE_STRING),
+        ],
+        responses={
+            200: openapi.Response('成功', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
+            500: openapi.Response('服务器错误', schema=openapi.Schema(type=openapi.TYPE_OBJECT))
+        }
+    )
     def get(self, request):
         """
         获取时空分析综合数据
@@ -902,6 +1013,18 @@ class SpatiotemporalAnalysisView(APIView):
 
 class DistanceDistributionView(APIView):
     """路程分布分析API视图"""
+    @swagger_auto_schema(
+        operation_summary="获取路程分布分析数据",
+        operation_description="根据时间范围，返回路程分布分析结果。",
+        manual_parameters=[
+            openapi.Parameter('start_time', openapi.IN_QUERY, description="开始时间", type=openapi.TYPE_STRING),
+            openapi.Parameter('end_time', openapi.IN_QUERY, description="结束时间", type=openapi.TYPE_STRING),
+        ],
+        responses={
+            200: openapi.Response('成功', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
+            500: openapi.Response('服务器错误', schema=openapi.Schema(type=openapi.TYPE_OBJECT))
+        }
+    )
     def get(self, request):
         start_time = request.GET.get('start_time')
         end_time = request.GET.get('end_time')
@@ -912,11 +1035,19 @@ class DistanceDistributionView(APIView):
         else:
             start_time = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
             end_time = datetime.strptime(end_time, '%Y-%m-%d %H:%M:%S')
-        result = analyze_distance_distribution(start_time, end_time)
+        result = analyze_distance_distribution(start_time.strftime('%Y-%m-%d %H:%M:%S'), end_time.strftime('%Y-%m-%d %H:%M:%S'))
         return Response(result, status=status.HTTP_200_OK)
 
 class VehicleIdListView(APIView):
     """车辆ID列表API视图"""
+    @swagger_auto_schema(
+        operation_summary="获取车辆ID列表",
+        operation_description="返回所有车辆的ID列表。",
+        responses={
+            200: openapi.Response('成功', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
+            500: openapi.Response('服务器错误', schema=openapi.Schema(type=openapi.TYPE_OBJECT))
+        }
+    )
     def get(self, request):
         try:
             with connection.cursor() as cursor:
@@ -929,6 +1060,20 @@ class VehicleIdListView(APIView):
 
 class WeeklyPassengerFlowView(APIView):
     """流量分布API视图"""
+    @swagger_auto_schema(
+        operation_summary="获取周客流量分布数据",
+        operation_description="根据模式和时间范围，返回周客流量分布数据。",
+        manual_parameters=[
+            openapi.Parameter('mode', openapi.IN_QUERY, description="模式(weekly=周客流量分布, custom=自定义)", type=openapi.TYPE_STRING),
+            openapi.Parameter('custom_start', openapi.IN_QUERY, description="自定义开始时间(YYYY-MM-DD HH:MM:SS)", type=openapi.TYPE_STRING),
+            openapi.Parameter('custom_end', openapi.IN_QUERY, description="自定义结束时间(YYYY-MM-DD HH:MM:SS)", type=openapi.TYPE_STRING),
+        ],
+        responses={
+            200: openapi.Response('成功', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
+            400: openapi.Response('参数错误', schema=openapi.Schema(type=openapi.TYPE_OBJECT)),
+            500: openapi.Response('服务器错误', schema=openapi.Schema(type=openapi.TYPE_OBJECT))
+        }
+    )
     def get(self, request):
         """
         获取周客流量分布数据
