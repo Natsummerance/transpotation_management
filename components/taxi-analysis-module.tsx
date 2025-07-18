@@ -768,20 +768,29 @@ export default function TaxiAnalysisModule() {
   }, [customStart, customEnd]);
   // ... existing code ...
 
-  // 客流量分布数据获取（先请求后端缓存API，再并行请求后端主API覆盖）
+  // 客流量分布数据获取（使用XMLHttpRequest加载缓存，再并行请求后端主API覆盖）
   useEffect(() => {
     let ignore = false;
     setFlowLoading(true);
 
-    // 1. 先请求后端缓存API，立即渲染
-    fetch('http://localhost:8000/api/cache/taxi/weekly-passenger-flow/weekly.json')
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (ignore || !data) return;
-        setFlowData(data.flow_data || []);
-        setFlowStats(data.statistics || null);
-        setFlowLoading(false); // 只要有缓存就先结束 loading
-      });
+    // 1. 使用XMLHttpRequest加载缓存文件，避免CORS问题
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', 'http://localhost:8000/api/cache/taxi/weekly-passenger-flow/weekly.json', true);
+    xhr.onreadystatechange = function() {
+      if (xhr.readyState === 4 && !ignore) {
+        if (xhr.status === 200) {
+          try {
+            const data = JSON.parse(xhr.responseText);
+            setFlowData(data.flow_data || []);
+            setFlowStats(data.statistics || null);
+            setFlowLoading(false);
+          } catch (e) {
+            // JSON解析失败，继续等待后端API
+          }
+        }
+      }
+    };
+    xhr.send();
 
     // 2. 并行请求后端主API，返回后覆盖
     (async () => {
@@ -803,7 +812,11 @@ export default function TaxiAnalysisModule() {
       }
     })();
 
-    return () => { ignore = true; };
+    return () => { 
+      ignore = true; 
+      // 取消XMLHttpRequest
+      xhr.abort();
+    };
   }, [flowMode, customStart, customEnd]);
 
   const [hoveredFlowIndex, setHoveredFlowIndex] = useState<number | null>(null);

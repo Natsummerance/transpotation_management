@@ -387,12 +387,12 @@ export default function LogsModule() {
           )
         }
       
-      case "永红扫脸":
+      case "人脸识别":
         return {
           title: (
             <span className="flex items-center text-2xl font-bold text-blue-700 space-x-2">
               {getTypeIcon(log.type)}
-              <span>永红扫脸采集详情</span>
+              <span>人脸识别采集详情</span>
             </span>
           ),
           content: (
@@ -409,7 +409,7 @@ export default function LogsModule() {
                     <p className="text-base text-gray-700 mb-2 font-semibold">采集照片：</p>
                     <Image
                       src={log.face_image}
-                      alt="永红扫脸照片"
+                      alt="人脸识别照片"
                       width={400}
                       height={300}
                       className="rounded-lg border mx-auto shadow-md"
@@ -423,7 +423,7 @@ export default function LogsModule() {
               </div>
               <div className="bg-blue-100 p-4 rounded-lg mt-4 border-l-4 border-blue-400">
                 <p className="text-base text-blue-900 font-semibold">
-                  <strong>说明：</strong> 该记录为永红扫脸设备采集，未进行人脸识别。
+                  <strong>说明：</strong> 该记录为人脸识别设备采集，未进行人脸识别。
                 </p>
               </div>
             </div>
@@ -627,12 +627,12 @@ export default function LogsModule() {
                                 variant="outline" 
                                 className="bg-transparent hover:bg-blue-50 border-blue-200 text-blue-600"
                               >
-                                {log.type === "永红扫脸" ? (
+                                {log.type === "人脸识别" ? (
                                   <Camera className="w-3 h-3 mr-1" />
                                 ) : (
                                   <Eye className="w-3 h-3 mr-1" />
                                 )}
-                                {log.type === "永红扫脸" ? "回放" : "详情"}
+                                {log.type === "人脸识别" ? "回放" : "详情"}
                               </Button>
                             </DialogTrigger>
                             <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
@@ -651,8 +651,8 @@ export default function LogsModule() {
                           </Dialog>
                         )}
                         
-                        {/* 视频回放按钮 - 仅在有视频且不是永红扫脸时显示 */}
-                        {Boolean(log.hasVideo) && log.type !== "永红扫脸" && (
+                        {/* 视频回放按钮 - 仅在有视频且不是人脸识别时显示 */}
+                        {Boolean(log.hasVideo) && log.type !== "人脸识别" && (
                           <Button 
                             size="sm" 
                             variant="outline" 
