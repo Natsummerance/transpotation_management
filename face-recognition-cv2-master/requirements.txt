@@ -14,4 +14,4 @@ mysql-connector-python==8.1.0
 # 可选依赖（用于更好的性能）
 opencv-contrib-python==4.8.1.78
 scipy==1.11.3
-flasgger==0.9.7
+flasgger==0.9.7.1
