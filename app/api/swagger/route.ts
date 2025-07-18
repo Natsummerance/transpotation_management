@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-const swaggerSpec = require('../../../swagger');
+import swaggerSpec from '../../../swagger';
 
 export async function GET() {
   return NextResponse.json(swaggerSpec);
